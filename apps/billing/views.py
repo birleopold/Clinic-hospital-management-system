@@ -1,11 +1,13 @@
 from decimal import Decimal
-from rest_framework import viewsets, status
+from rest_framework import mixins, viewsets, status
 from rest_framework.response import Response
 from django.db import transaction
+from django.contrib.auth import get_user_model
+from django.db.models import Sum
+from rest_framework.exceptions import ValidationError
 
 from .models import PriceListItem, Invoice, Payment, CashSession
 from .serializers import PriceListItemSerializer, InvoiceSerializer, PaymentSerializer
-from .services import recalc_invoice
 from common.permissions import RolePermission
 from common.facility_scope import filter_by_patient_facility
 
@@ -31,15 +33,14 @@ class InvoiceViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         return filter_by_patient_facility(super().get_queryset(), self.request.user)
 
-class PaymentViewSet(viewsets.ModelViewSet):
+class PaymentViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
+                     mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Payment.objects.all().order_by('-paid_at')
     serializer_class = PaymentSerializer
     permission_classes = [RolePermission]
     role_map = {
         'POST': ['admin','cashier'],
-        'PUT': ['admin','cashier'],
-        'PATCH': ['admin','cashier'],
-        'DELETE': ['admin'],
+        'GET': ['admin','manager','cashier'],
     }
 
     def get_queryset(self):
@@ -49,47 +50,35 @@ class PaymentViewSet(viewsets.ModelViewSet):
             prefix='invoice__patient__',
         )
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
-        data = request.data.copy()
-        invoice_id = data.get('invoice')
-        try:
-            amount = Decimal(data.get('amount', '0'))
-        except Exception:
-            return Response({'detail': 'Invalid amount'}, status=status.HTTP_400_BAD_REQUEST)
-        user = request.user
-        invoice = (
-            filter_by_patient_facility(Invoice.objects.all(), user)
-            .select_related('patient')
-            .filter(pk=invoice_id)
-            .first()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # Serialize payments by cashier, then invoice, to avoid lost totals and
+        # duplicate automatically opened sessions on PostgreSQL.
+        get_user_model().objects.select_for_update().get(pk=request.user.pk)
+        invoice = Invoice.objects.select_for_update().get(
+            pk=serializer.validated_data['invoice'].pk
         )
-        if not invoice:
-            return Response({'detail': 'Invoice not found'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Ensure an open cash session per cashier
-        session = CashSession.objects.filter(opened_by=user, close_time__isnull=True).first()
+        amount = serializer.validated_data['amount']
+        if invoice.status == Invoice.CANCELLED:
+            raise ValidationError({'invoice': 'Cannot pay a cancelled invoice.'})
+        paid = invoice.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        if amount > invoice.total_amount - paid:
+            raise ValidationError({'amount': 'Amount exceeds the outstanding balance.'})
+        session = CashSession.objects.select_for_update().filter(
+            opened_by=request.user, close_time__isnull=True
+        ).first()
         if session is None:
-            session = CashSession.objects.create(opened_by=user)
-
-        with transaction.atomic():
-            serializer = self.get_serializer(data=data)
-            serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer)
-            payment = Payment.objects.get(pk=serializer.data['id'])
-            # Attach session if not set (serializer may not include cash_session field)
-            if payment.cash_session_id is None:
-                payment.cash_session = session
-                payment.save(update_fields=['cash_session'])
-
-            # Update invoice and session expected cash
-            invoice.paid_amount = (invoice.paid_amount or Decimal('0')) + amount
-            if invoice.paid_amount >= invoice.total_amount:
-                invoice.status = Invoice.PAID
-            invoice.save(update_fields=['paid_amount', 'status'])
-            recalc_invoice(invoice)
-
-            session.expected_cash = (session.expected_cash or Decimal('0')) + amount
-            session.save(update_fields=['expected_cash'])
-
-            headers = self.get_success_headers(serializer.data)
-            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+            session = CashSession.objects.create(opened_by=request.user)
+        serializer.save(invoice=invoice, cash_session=session)
+        invoice.paid_amount = paid + amount
+        if invoice.paid_amount >= invoice.total_amount:
+            invoice.status = Invoice.PAID
+        invoice.save(update_fields=['paid_amount', 'status'])
+        session.expected_cash = session.opening_float + (
+            session.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        )
+        session.save(update_fields=['expected_cash'])
+        return Response(serializer.data, status=status.HTTP_201_CREATED,
+                        headers=self.get_success_headers(serializer.data))

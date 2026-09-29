@@ -2,6 +2,7 @@
 Fast, isolated settings for pytest. Uses in-memory SQLite.
 """
 from .base import *  # noqa: F401,F403
+import environ
 
 DEBUG = True
 PASSWORD_HASHERS = [
@@ -14,3 +15,7 @@ DATABASES = {
     }
 }
 ALLOWED_HOSTS = ['*', 'testserver']
+
+# CI can exercise the same suite on a disposable PostgreSQL database.
+if os.getenv('TEST_DATABASE_URL'):
+    DATABASES = {'default': environ.Env().db('TEST_DATABASE_URL')}

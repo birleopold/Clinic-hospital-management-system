@@ -5,6 +5,7 @@ from django.core import signing
 from django.http import HttpResponseForbidden
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
+from django.views.decorators.cache import never_cache
 
 from apps.demographics.models import Patient
 from apps.encounters.models import Encounter
@@ -19,6 +20,7 @@ MAX_AGE = getattr(settings, 'PATIENT_PORTAL_TOKEN_MAX_AGE', 72 * 3600)
 SALT = 'patient-portal'
 
 
+@never_cache
 def portal_view(request, token: str):
     try:
         data = signing.loads(token, salt=SALT, max_age=MAX_AGE)
@@ -40,10 +42,13 @@ def portal_view(request, token: str):
         'prescriptions': prescriptions,
         'invoices': invoices,
     }
-    return render(request, 'portal/view.html', context)
+    response = render(request, 'portal/view.html', context)
+    response['Referrer-Policy'] = 'no-referrer'
+    return response
 
 
 @login_required
+@never_cache
 def token_create_view(request):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','reception','clinician')):

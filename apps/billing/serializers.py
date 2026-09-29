@@ -1,18 +1,20 @@
+from decimal import Decimal
 from rest_framework import serializers
+from common.serializers import FacilityScopedSerializer
 from .models import PriceList, PriceListItem, Invoice, InvoiceLine, Payment
 
-class PriceListItemSerializer(serializers.ModelSerializer):
+class PriceListItemSerializer(FacilityScopedSerializer):
     class Meta:
         model = PriceListItem
         fields = '__all__'
 
-class InvoiceLineSerializer(serializers.ModelSerializer):
+class InvoiceLineSerializer(FacilityScopedSerializer):
     class Meta:
         model = InvoiceLine
         fields = ('id','code','description','quantity','unit_price','line_total','source_ref')
         read_only_fields = ('line_total',)
 
-class InvoiceSerializer(serializers.ModelSerializer):
+class InvoiceSerializer(FacilityScopedSerializer):
     lines = InvoiceLineSerializer(many=True, read_only=True)
 
     class Meta:
@@ -20,7 +22,10 @@ class InvoiceSerializer(serializers.ModelSerializer):
         fields = ('id','patient','total_amount','paid_amount','status','created_at','lines')
         read_only_fields = ('total_amount','paid_amount','status','created_at','lines')
 
-class PaymentSerializer(serializers.ModelSerializer):
+class PaymentSerializer(FacilityScopedSerializer):
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
+
     class Meta:
         model = Payment
         fields = '__all__'
+        read_only_fields = ('cash_session', 'paid_at')

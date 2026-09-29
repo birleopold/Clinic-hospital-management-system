@@ -1,10 +1,17 @@
-from datetime import datetime, timedelta
+from datetime import datetime, time
 from decimal import Decimal
 from django.db.models import Sum, F
-from django.utils.timezone import make_aware
+from django.utils.timezone import make_aware, localdate
+from rest_framework.exceptions import ValidationError
+from common.facility_scope import filter_by_facility, filter_by_patient_facility
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from .serializers import (
+    DailyRevenueSerializer, PatientVolumesSerializer, ServiceMixSerializer,
+    RawInvoicesSerializer, RawPaymentsSerializer,
+)
 from common.exports import csv_response, xlsx_response
 from common.permissions import RolePermission
 
@@ -12,28 +19,45 @@ from apps.billing.models import Payment, InvoiceLine, Invoice
 from apps.demographics.models import Patient
 
 
+def report_schema(serializer):
+    return extend_schema(
+        parameters=[
+            OpenApiParameter('date', OpenApiTypes.DATE),
+            OpenApiParameter('start', OpenApiTypes.DATE),
+            OpenApiParameter('end', OpenApiTypes.DATE),
+            OpenApiParameter('export', str, enum=['csv', 'xls', 'xlsx']),
+        ],
+        responses={
+            (200, 'application/json'): serializer,
+            (200, 'text/csv'): OpenApiTypes.BINARY,
+            (200, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'): OpenApiTypes.BINARY,
+        },
+    )
+
+
 def _range_from_request(request):
-    date_str = request.query_params.get('date')
-    start_str = request.query_params.get('start')
-    end_str = request.query_params.get('end')
-    if date_str:
-        d = datetime.strptime(date_str, '%Y-%m-%d')
-        start = make_aware(datetime(d.year, d.month, d.day, 0, 0, 0))
-        end = make_aware(datetime(d.year, d.month, d.day, 23, 59, 59))
-        return start, end
-    if start_str and end_str:
-        s = datetime.strptime(start_str, '%Y-%m-%d')
-        e = datetime.strptime(end_str, '%Y-%m-%d')
-        start = make_aware(datetime(s.year, s.month, s.day, 0, 0, 0))
-        end = make_aware(datetime(e.year, e.month, e.day, 23, 59, 59))
-        return start, end
-    # default today
-    today = datetime.now()
-    start = make_aware(datetime(today.year, today.month, today.day, 0, 0, 0))
-    end = make_aware(datetime(today.year, today.month, today.day, 23, 59, 59))
-    return start, end
+    params = request.query_params
+    date_str, start_str, end_str = (params.get(k) for k in ('date', 'start', 'end'))
+    try:
+        if date_str:
+            if start_str or end_str:
+                raise ValueError
+            first = last = datetime.strptime(date_str, '%Y-%m-%d').date()
+        elif start_str or end_str:
+            if not start_str or not end_str:
+                raise ValueError
+            first = datetime.strptime(start_str, '%Y-%m-%d').date()
+            last = datetime.strptime(end_str, '%Y-%m-%d').date()
+        else:
+            first = last = localdate()
+        if first > last:
+            raise ValueError
+    except (TypeError, ValueError):
+        raise ValidationError({'date': 'Use YYYY-MM-DD: either date, or start and end in chronological order.'})
+    return make_aware(datetime.combine(first, time.min)), make_aware(datetime.combine(last, time.max))
 
 
+@report_schema(DailyRevenueSerializer)
 class DailyRevenueView(APIView):
     permission_classes = [RolePermission]
     role_map = {
@@ -41,7 +65,7 @@ class DailyRevenueView(APIView):
     }
     def get(self, request):
         start, end = _range_from_request(request)
-        total = Payment.objects.filter(paid_at__range=(start, end)).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        total = filter_by_patient_facility(Payment.objects.all(), request.user, prefix='invoice__patient__').filter(paid_at__range=(start, end)).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         export = request.query_params.get('export')
         payload = {'start': start.isoformat(), 'end': end.isoformat(), 'total_revenue': str(total)}
         if export == 'csv':
@@ -54,6 +78,7 @@ class DailyRevenueView(APIView):
             return xlsx_response('daily_revenue.xlsx', headers, rows)
         return Response(payload)
 
+@report_schema(PatientVolumesSerializer)
 class PatientVolumesView(APIView):
     permission_classes = [RolePermission]
     role_map = {
@@ -61,7 +86,7 @@ class PatientVolumesView(APIView):
     }
     def get(self, request):
         start, end = _range_from_request(request)
-        total = Patient.objects.filter(created_at__range=(start, end)).count()
+        total = filter_by_facility(Patient.objects.all(), request.user).filter(created_at__range=(start, end)).count()
         export = request.query_params.get('export')
         payload = {'start': start.isoformat(), 'end': end.isoformat(), 'new_patients': total}
         if export == 'csv':
@@ -74,6 +99,7 @@ class PatientVolumesView(APIView):
             return xlsx_response('patient_volumes.xlsx', headers, rows)
         return Response(payload)
 
+@report_schema(ServiceMixSerializer)
 class ServiceMixView(APIView):
     permission_classes = [RolePermission]
     role_map = {
@@ -81,7 +107,7 @@ class ServiceMixView(APIView):
     }
     def get(self, request):
         start, end = _range_from_request(request)
-        qs = InvoiceLine.objects.filter(created_at__range=(start, end)).values('code').annotate(
+        qs = filter_by_patient_facility(InvoiceLine.objects.all(), request.user, prefix='invoice__patient__').filter(created_at__range=(start, end)).values('code').annotate(
             total_amount=Sum('line_total'),
             total_qty=Sum('quantity'),
         ).order_by('-total_amount')
@@ -103,6 +129,7 @@ class ServiceMixView(APIView):
         return Response({'start': start.isoformat(), 'end': end.isoformat(), 'service_mix': rows})
 
 
+@report_schema(RawInvoicesSerializer)
 class RawInvoicesView(APIView):
     permission_classes = [RolePermission]
     role_map = {
@@ -112,7 +139,7 @@ class RawInvoicesView(APIView):
     def get(self, request):
         start, end = _range_from_request(request)
         status_filter = request.query_params.get('status')
-        qs = Invoice.objects.filter(created_at__range=(start, end)).select_related('patient').order_by('-id')
+        qs = filter_by_patient_facility(Invoice.objects.all(), request.user).filter(created_at__range=(start, end)).select_related('patient').order_by('-id')
         if status_filter:
             qs = qs.filter(status=status_filter)
         rows = [
@@ -136,6 +163,7 @@ class RawInvoicesView(APIView):
         return Response({'start': start.isoformat(), 'end': end.isoformat(), 'count': len(rows), 'rows': rows})
 
 
+@report_schema(RawPaymentsSerializer)
 class RawPaymentsView(APIView):
     permission_classes = [RolePermission]
     role_map = {
@@ -144,7 +172,7 @@ class RawPaymentsView(APIView):
 
     def get(self, request):
         start, end = _range_from_request(request)
-        qs = Payment.objects.filter(paid_at__range=(start, end)).select_related('invoice__patient').order_by('-paid_at')
+        qs = filter_by_patient_facility(Payment.objects.all(), request.user, prefix='invoice__patient__').filter(paid_at__range=(start, end)).select_related('invoice__patient').order_by('-paid_at')
         rows = [
             {
                 'id': p.id,

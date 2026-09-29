@@ -4,12 +4,19 @@ from typing import List, Sequence, Dict
 from django.http import HttpResponse
 
 
+def spreadsheet_value(value):
+    # Preserve numeric types; neutralize untrusted text interpreted as formulas.
+    if isinstance(value, str) and (value.lstrip().startswith(('=', '+', '-', '@')) or value.startswith(('\t', '\r', '\n'))):
+        return "'" + value
+    return value
+
+
 def csv_response(filename: str, headers: List[str], rows: Sequence[Dict]) -> HttpResponse:
     sio = StringIO()
     writer = csv.DictWriter(sio, fieldnames=headers)
     writer.writeheader()
     for row in rows:
-        writer.writerow({k: row.get(k, '') for k in headers})
+        writer.writerow({k: spreadsheet_value(row.get(k, '')) for k in headers})
     output = sio.getvalue()
     resp = HttpResponse(output, content_type='text/csv')
     resp['Content-Disposition'] = f'attachment; filename="{filename}"'
@@ -24,7 +31,7 @@ def xlsx_response(filename: str, headers: List[str], rows: Sequence[Dict]) -> Ht
     ws.title = 'Report'
     ws.append(headers)
     for row in rows:
-        ws.append([row.get(k, '') for k in headers])
+        ws.append([spreadsheet_value(row.get(k, '')) for k in headers])
     bio = BytesIO()
     wb.save(bio)
     bio.seek(0)

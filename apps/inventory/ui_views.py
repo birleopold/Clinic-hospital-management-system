@@ -1,3 +1,4 @@
+from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
@@ -474,6 +475,7 @@ def po_line_delete_view(request, po_id: int, line_id: int):
 
 
 @login_required
+@require_POST
 def po_approve_view(request, po_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
@@ -488,6 +490,7 @@ def po_approve_view(request, po_id: int):
 
 
 @login_required
+@require_POST
 def po_close_view(request, po_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
@@ -515,6 +518,7 @@ def po_close_view(request, po_id: int):
 
 
 @login_required
+@require_POST
 def po_cancel_view(request, po_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
@@ -656,6 +660,7 @@ def grn_detail_view(request, grn_id: int):
 
 
 @login_required
+@require_POST
 def grn_post_view(request, grn_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):

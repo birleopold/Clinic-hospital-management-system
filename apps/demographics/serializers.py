@@ -1,20 +1,31 @@
 from django.utils import timezone
 from rest_framework import serializers
+from common.serializers import FacilityScopedSerializer
 from common.facility_scope import user_staff_facility_id
 from .models import Patient
 
 
-class PatientSerializer(serializers.ModelSerializer):
+class PatientSerializer(FacilityScopedSerializer):
     class Meta:
         model = Patient
         fields = '__all__'
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        user = getattr(self.context.get('request'), 'user', None)
+        fid = user_staff_facility_id(user)
+        if not getattr(user, 'is_superuser', False) and fid is None:
+            raise serializers.ValidationError({'facility': 'Ask an administrator to assign your staff facility.'})
+        if fid and not user.is_superuser and 'facility' in attrs and attrs['facility'] is None:
+            raise serializers.ValidationError({'facility': 'Your facility cannot be cleared.'})
+        return attrs
 
     def create(self, validated_data):
         if validated_data.get('consent_data_processing') and not validated_data.get('consent_recorded_at'):
             validated_data['consent_recorded_at'] = timezone.now()
         request = self.context.get('request')
         user = getattr(request, 'user', None) if request else None
-        if user and not validated_data.get('facility_id'):
+        if user and 'facility' not in validated_data:
             fid = user_staff_facility_id(user)
             if fid:
                 validated_data['facility_id'] = fid

@@ -6,6 +6,14 @@ logger = logging.getLogger(__name__)
 from .models import AuditEvent
 
 
+def audit_path(request):
+    # Search queries may contain patient details; portal paths contain bearer tokens.
+    match = getattr(request, 'resolver_match', None)
+    if match and match.url_name == 'portal-view':
+        return '/portal/<redacted>/'
+    return request.path[:512]
+
+
 class RequestAuditMiddleware(MiddlewareMixin):
     def process_request(self, request):
         request._audit_start = time.monotonic()
@@ -22,12 +30,12 @@ class RequestAuditMiddleware(MiddlewareMixin):
                 user=user if getattr(user, "is_authenticated", False) else None,
                 role=role or "",
                 method=request.method,
-                path=request.get_full_path()[:512],
+                path=audit_path(request),
                 status_code=getattr(response, "status_code", 0) or 0,
                 remote_addr=remote_addr,
                 user_agent=ua,
                 duration_ms=duration_ms,
             )
         except Exception:
-            logger.exception('Failed to persist audit event for %s', getattr(request, 'path', ''))
+            logger.exception('Failed to persist audit event for %s', audit_path(request))
         return response

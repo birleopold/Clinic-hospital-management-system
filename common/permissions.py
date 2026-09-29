@@ -12,30 +12,22 @@ class RolePermission(BasePermission):
 
     def has_permission(self, request, view) -> bool:
         user = getattr(request, 'user', None)
-        if not user or not user.is_authenticated:
+        if not user or not user.is_authenticated or not user.is_active:
             return False
         if getattr(user, 'is_superuser', False):
             return True
         # Resolve role map
         role_map = self._get_role_map(view)
-        # Allow read for all authenticated staff by default unless role_map specifies restrictions
-        if request.method in SAFE_METHODS and not (role_map and (role_map.get('GET') or role_map.get('any'))):
-            return True
         if not role_map:
             return True  # fallback to default IsAuthenticated
-        # Prefer action over method if present
+        # Resolve explicit rules before the read fallback. An empty rule denies access.
         action = getattr(view, 'action', None)
-        required_roles: Optional[List[str]] = None
-        if action and action in role_map:
-            required_roles = role_map.get(action)
-        if not required_roles:
-            required_roles = role_map.get(request.method)
-        if not required_roles:
-            required_roles = role_map.get('any')
-        if not required_roles:
-            # No restriction specified; allow
-            return True
-        return getattr(user, 'role', None) in required_roles
+        method = 'GET' if request.method == 'HEAD' else request.method
+        for key in (action, method, 'any'):
+            if key in role_map:
+                return getattr(user, 'role', None) in (role_map[key] or [])
+        # Preserve authenticated read access; unspecified writes fail closed.
+        return request.method in SAFE_METHODS
 
     def has_object_permission(self, request, view, obj) -> bool:
         # Defer to has_permission for simplicity in MVP

@@ -3,6 +3,8 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponseForbidden, HttpResponse
 from django.db.models import F, ExpressionWrapper, DecimalField
+from django.db import transaction
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from .models import Invoice, Payment, ClinicConfig, CashSession
@@ -87,36 +89,44 @@ def receipt_print_view(request, payment_id: int):
 
 
 @login_required
+@transaction.atomic
 def cash_session_open_view(request):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','cashier')):
         return HttpResponseForbidden('Not allowed')
     if request.method != 'POST':
         return HttpResponseForbidden('Invalid method')
+    get_user_model().objects.select_for_update().get(pk=user.pk)
     if CashSession.objects.filter(opened_by=user, close_time__isnull=True).exists():
         return redirect('cashier')
     try:
         opening_float = Decimal(request.POST.get('opening_float') or '0')
     except Exception:
         opening_float = Decimal('0')
+    if not opening_float.is_finite() or opening_float < 0 or opening_float > Decimal('9999999999.99'):
+        return HttpResponse('Invalid opening float', status=400)
     CashSession.objects.create(opened_by=user, opening_float=opening_float, expected_cash=opening_float)
     return redirect('cashier')
 
 
 @login_required
+@transaction.atomic
 def cash_session_close_view(request):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','cashier')):
         return HttpResponseForbidden('Not allowed')
     if request.method != 'POST':
         return HttpResponseForbidden('Invalid method')
-    session = CashSession.objects.filter(opened_by=user, close_time__isnull=True).first()
+    get_user_model().objects.select_for_update().get(pk=user.pk)
+    session = CashSession.objects.select_for_update().filter(opened_by=user, close_time__isnull=True).first()
     if not session:
         return redirect('cashier')
     try:
         counted_cash = Decimal(request.POST.get('counted_cash') or '0')
     except Exception:
         counted_cash = Decimal('0')
+    if not counted_cash.is_finite() or counted_cash < 0 or counted_cash > Decimal('9999999999.99'):
+        return HttpResponse('Invalid counted cash', status=400)
     notes = request.POST.get('notes','')
     session.counted_cash = counted_cash
     session.discrepancy = (counted_cash or Decimal('0')) - (session.expected_cash or Decimal('0'))
@@ -132,7 +142,10 @@ def cash_session_report_view(request, session_id: int = None):
     if not (user.is_superuser or user.role in ('admin','cashier')):
         return HttpResponseForbidden('Not allowed')
     if session_id:
-        session = get_object_or_404(CashSession, pk=session_id)
+        sessions = CashSession.objects.all()
+        if not user.is_superuser:
+            sessions = sessions.filter(opened_by=user)
+        session = get_object_or_404(sessions, pk=session_id)
     else:
         session = CashSession.objects.filter(opened_by=user).order_by('-open_time').first()
         if not session:

@@ -107,7 +107,7 @@ def patient_create_view(request):
         # duplicate warning (do not block unless you want to confirm)
         dup_candidates = []
         if p.phone:
-            dup_candidates = list(Patient.objects.filter(phone=p.phone))
+            dup_candidates = list(filter_by_facility(Patient.objects.all(), user).filter(phone=p.phone))
         confirm_duplicate = (request.POST.get('confirm_duplicate') == '1')
         if errors:
             return render(request, 'demographics/patient_form.html', {
@@ -171,7 +171,7 @@ def patient_edit_view(request, patient_id: int):
         errors.extend(_apply_consent_and_retention(p, request.POST, prev_consent=prev_consent))
         dup_candidates = []
         if p.phone:
-            dup_candidates = list(Patient.objects.filter(phone=p.phone).exclude(id=p.id))
+            dup_candidates = list(filter_by_facility(Patient.objects.all(), user).filter(phone=p.phone).exclude(id=p.id))
         confirm_duplicate = (request.POST.get('confirm_duplicate') == '1')
         if errors:
             return render(request, 'demographics/patient_form.html', {'patient': p, 'errors': errors, 'mode': 'edit', 'audit': audit, 'dup_candidates': dup_candidates})

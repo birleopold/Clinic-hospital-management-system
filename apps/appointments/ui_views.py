@@ -4,7 +4,7 @@ from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.db.models import Count
 from django.db.models.functions import TruncDate
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, HttpResponseBadRequest
 from django.utils import timezone
 from datetime import datetime, time as dtime, timedelta
 from django.contrib.auth import get_user_model
@@ -282,6 +282,9 @@ def appointment_slots_fragment(request):
         slot_minutes = int(request.GET.get('slot') or duration)
     except Exception:
         slot_minutes = duration
+
+    if not 1 <= duration <= 1440 or not 1 <= slot_minutes <= 1440:
+        return HttpResponseBadRequest('Duration and slot must be between 1 and 1440 minutes.')
 
     # Buffer minutes from availability; use the first active as baseline
     buffer_minutes = default_av.buffer_minutes if default_av else 0

@@ -12,8 +12,8 @@ Operational guidance for **UG HMS** databases and static/media files. Adapt rete
 
 ## SQLite (development / small pilots)
 
-1. **Stop traffic** to the app (or ensure no writes) before copying the file to avoid torn pages.
-2. Copy the database file:
+1. The command uses the SQLite backup API to capture a consistent database snapshot, including committed WAL data. Coordinate media backups separately; a database snapshot is not a synchronized media snapshot.
+2. Create the database snapshot:
 
    ```bash
    python manage.py backup_snapshot /path/to/backups/hms-$(date +%F).sqlite3
@@ -35,7 +35,7 @@ Operational guidance for **UG HMS** databases and static/media files. Adapt rete
    pg_dump -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -Fc -f /secure/backups/hms-$(date +%F).dump
    ```
 
-2. Optional: run the bundled command (requires `pg_dump` on `PATH` and a password in `PGPASSWORD` or `.pgpass`):
+2. Optional: run the bundled command (requires `pg_dump` on `PATH` and the configured database password, `PGPASSWORD` or `.pgpass`):
 
    ```bash
    python manage.py backup_snapshot /secure/backups/hms.dump --pgdump

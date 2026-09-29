@@ -1,17 +1,18 @@
 from rest_framework import serializers
+from common.serializers import FacilityScopedSerializer
 from .models import Encounter, Vital, Diagnosis
 
-class VitalSerializer(serializers.ModelSerializer):
+class VitalSerializer(FacilityScopedSerializer):
     class Meta:
         model = Vital
         fields = '__all__'
 
-class DiagnosisSerializer(serializers.ModelSerializer):
+class DiagnosisSerializer(FacilityScopedSerializer):
     class Meta:
         model = Diagnosis
         fields = '__all__'
 
-class EncounterSerializer(serializers.ModelSerializer):
+class EncounterSerializer(FacilityScopedSerializer):
     vitals = VitalSerializer(many=True, read_only=True)
     diagnoses = DiagnosisSerializer(many=True, read_only=True)
 

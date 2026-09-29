@@ -10,7 +10,7 @@ from apps.inventory.models import InventoryItem, Batch
 from apps.demographics.models import Patient
 from apps.billing.models import ClinicConfig
 from common.exports import pdf_response_from_template
-from common.facility_scope import filter_by_patient_facility
+from common.facility_scope import filter_by_facility, filter_by_patient_facility
 from .models import Backorder
 
 
@@ -111,7 +111,7 @@ def dispense_create_view(request):
     patient = None
     pi = None
     if prescription_item_id:
-        pi = get_object_or_404(PrescriptionItem.objects.select_related('prescription__patient'), pk=prescription_item_id)
+        pi = get_object_or_404(filter_by_patient_facility(PrescriptionItem.objects.all(), user, prefix='prescription__patient__').select_related('prescription__patient'), pk=prescription_item_id)
         patient = pi.prescription.patient
         if not item_code:
             item_code = pi.item_code
@@ -121,14 +121,14 @@ def dispense_create_view(request):
         except Exception:
             patient_id = 0
         if patient_id:
-            patient = get_object_or_404(Patient, pk=patient_id)
+            patient = get_object_or_404(filter_by_facility(Patient.objects.all(), user), pk=patient_id)
 
     # Basic validations
     if not patient:
         return HttpResponseForbidden('Missing patient')
     if not item_code:
         return HttpResponseForbidden('Missing item code')
-    if quantity <= 0:
+    if not quantity.is_finite() or quantity <= 0:
         return HttpResponseForbidden('Quantity must be > 0')
 
     # Stock check
@@ -218,7 +218,7 @@ def rx_item_add_view(request, rx_id: int):
         return HttpResponseForbidden('Not allowed')
     if request.method != 'POST':
         return HttpResponseForbidden('Invalid method')
-    rx = get_object_or_404(Prescription, pk=rx_id)
+    rx = get_object_or_404(filter_by_patient_facility(Prescription.objects.all(), user), pk=rx_id)
     item_code = (request.POST.get('item_code') or '').strip()
     item_name = (request.POST.get('item_name') or '').strip()
     dose = (request.POST.get('dose') or '').strip()
@@ -249,7 +249,7 @@ def rx_item_delete_view(request, item_id: int):
         return HttpResponseForbidden('Not allowed')
     if request.method != 'POST':
         return HttpResponseForbidden('Invalid method')
-    it = get_object_or_404(PrescriptionItem, pk=item_id)
+    it = get_object_or_404(filter_by_patient_facility(PrescriptionItem.objects.all(), user, prefix='prescription__patient__'), pk=item_id)
     rx_id = it.prescription_id
     it.delete()
     return redirect('rx-detail', rx_id=rx_id)
@@ -283,7 +283,7 @@ def backorders_list_view(request):
         return HttpResponseForbidden('Not allowed')
     status_f = (request.GET.get('status') or '').strip()
     q = (request.GET.get('q') or '').strip()
-    qs = Backorder.objects.select_related('patient').order_by('-created_at')
+    qs = filter_by_patient_facility(Backorder.objects.all(), user).select_related('patient').order_by('-created_at')
     if status_f:
         qs = qs.filter(status=status_f)
     if q:
@@ -300,7 +300,7 @@ def backorder_detail_view(request, bo_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','pharmacy')):
         return HttpResponseForbidden('Not allowed')
-    bo = get_object_or_404(Backorder.objects.select_related('patient','prescription_item'), pk=bo_id)
+    bo = get_object_or_404(filter_by_patient_facility(Backorder.objects.all(), user).select_related('patient','prescription_item'), pk=bo_id)
     # Gather FEFO batches and availability for this item code
     it = InventoryItem.objects.filter(code=bo.item_code).first()
     fefo_batches = []
@@ -331,7 +331,7 @@ def backorder_fulfill_view(request, bo_id: int):
         return HttpResponseForbidden('Not allowed')
     if request.method != 'POST':
         return HttpResponseForbidden('Invalid method')
-    bo = get_object_or_404(Backorder.objects.select_related('patient','prescription_item'), pk=bo_id)
+    bo = get_object_or_404(filter_by_patient_facility(Backorder.objects.all(), user).select_related('patient','prescription_item'), pk=bo_id)
     try:
         qty = Decimal(request.POST.get('quantity') or '0')
     except Exception:
@@ -340,7 +340,7 @@ def backorder_fulfill_view(request, bo_id: int):
         batch_id = int(request.POST.get('batch_id') or '0')
     except Exception:
         batch_id = 0
-    if qty <= 0:
+    if not qty.is_finite() or qty <= 0:
         return HttpResponseForbidden('Quantity must be > 0')
     # Resolve or create item
     item = InventoryItem.objects.filter(code=bo.item_code).first()
@@ -396,7 +396,7 @@ def backorder_close_view(request, bo_id: int):
         return HttpResponseForbidden('Not allowed')
     if request.method != 'POST':
         return HttpResponseForbidden('Invalid method')
-    bo = get_object_or_404(Backorder, pk=bo_id)
+    bo = get_object_or_404(filter_by_patient_facility(Backorder.objects.all(), user), pk=bo_id)
     bo.status = Backorder.CLOSED
     bo.save(update_fields=['status'])
     return redirect('pharmacy-backorder-detail', bo_id=bo.id)

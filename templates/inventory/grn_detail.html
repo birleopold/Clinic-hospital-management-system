@@ -42,7 +42,7 @@
   </div>
   <div style="margin-top:12px; display:flex; gap:8px;">
     {% if not grn.posted %}
-      <a class="btn" href="{% url 'inventory-grn-post' grn.id %}">Post to stock</a>
+      <form method="post" action="{% url 'inventory-grn-post' grn.id %}" style="display:inline">{% csrf_token %}<button type="submit" class="btn">Post to stock</button></form>
     {% endif %}
     <a class="btn btn-secondary" href="{% url 'inventory-grn-list' %}">Done</a>
   </div>

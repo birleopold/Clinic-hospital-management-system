@@ -140,23 +140,11 @@
     </div>
     <div style="margin-top:12px; display:flex; gap:8px;">
       {% if po.status == 'draft' %}
-        <a class="btn btn-secondary"
-           hx-get="{% url 'inventory-po-approve' po.id %}"
-           hx-target="#po-msg" hx-swap="innerHTML"
-           data-success-message="PO approved" data-reload-after="true"
-           href="{% url 'inventory-po-approve' po.id %}">Approve</a>
-        <a class="btn btn-secondary"
-           hx-get="{% url 'inventory-po-cancel' po.id %}"
-           hx-target="#po-msg" hx-swap="innerHTML"
-           data-success-message="PO cancelled" data-reload-after="true"
-           href="{% url 'inventory-po-cancel' po.id %}">Cancel</a>
+        <form method="post" action="{% url 'inventory-po-approve' po.id %}" style="display:inline">{% csrf_token %}<button type="submit" class="btn btn-secondary">Approve</button></form>
+        <form method="post" action="{% url 'inventory-po-cancel' po.id %}" style="display:inline">{% csrf_token %}<button type="submit" class="btn btn-secondary">Cancel</button></form>
       {% elif po.status == 'approved' %}
         {% if is_fully_received %}
-          <a class="btn"
-             hx-get="{% url 'inventory-po-close' po.id %}"
-             hx-target="#po-msg" hx-swap="innerHTML"
-             data-success-message="PO closed" data-reload-after="true"
-             href="{% url 'inventory-po-close' po.id %}">Close PO</a>
+          <form method="post" action="{% url 'inventory-po-close' po.id %}" style="display:inline">{% csrf_token %}<button type="submit" class="btn">Close PO</button></form>
         {% else %}
           <a class="btn btn-secondary" href="{% url 'inventory-grn-create' %}">Receive (Create GRN)</a>
         {% endif %}

@@ -1,5 +1,5 @@
 import os
-import shutil
+import sqlite3
 import subprocess
 from pathlib import Path
 
@@ -34,9 +34,13 @@ class Command(BaseCommand):
             if not src_path.is_file():
                 raise CommandError(f'SQLite database file not found: {src_path}')
             dest = Path(output)
+            if dest.resolve() == src_path.resolve():
+                raise CommandError('Backup destination must differ from the live database.')
             dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src_path, dest)
-            self.stdout.write(self.style.SUCCESS(f'Copied {src_path} -> {dest}'))
+            # SQLite's backup API includes committed WAL data and a consistent snapshot.
+            with sqlite3.connect(src_path) as source, sqlite3.connect(dest) as target:
+                source.backup(target)
+            self.stdout.write(self.style.SUCCESS(f'Backed up {src_path} -> {dest}'))
             return
 
         if 'postgresql' in engine or engine.endswith('postgis'):
@@ -69,6 +73,8 @@ class Command(BaseCommand):
                 str(dest),
             ]
             env = os.environ.copy()
+            if db.get('PASSWORD'):
+                env['PGPASSWORD'] = db['PASSWORD']
             try:
                 subprocess.run(cmd, check=True, env=env)
             except FileNotFoundError as exc:

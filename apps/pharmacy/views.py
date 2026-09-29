@@ -1,4 +1,4 @@
-from rest_framework import viewsets
+from rest_framework import mixins, viewsets
 from rest_framework.exceptions import ValidationError
 from django.db.models import Sum
 from common.permissions import RolePermission
@@ -42,7 +42,8 @@ class PrescriptionItemViewSet(viewsets.ModelViewSet):
         )
 
 
-class DispenseViewSet(viewsets.ModelViewSet):
+class DispenseViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
+                      mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Dispense.objects.all().order_by('-id')
     serializer_class = DispenseSerializer
     permission_classes = [RolePermission]

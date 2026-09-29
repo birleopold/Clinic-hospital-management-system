@@ -1,4 +1,7 @@
-# UG HMS — Roadmap
+# UG HMS — Earlier roadmap
+
+Updated audit and feature priorities: [AUDIT.md](AUDIT.md) and [OPERATIONS_ROADMAP.md](OPERATIONS_ROADMAP.md). Historical “Done” labels describe starter implementations, not production validation.
+
 
 This roadmap turns the audit into sequenced work: **harden first**, then **trust & data**, then **Uganda/MoH alignment**, then **integrations & scale**.
 
@@ -30,7 +33,7 @@ See [BACKUP_AND_RESTORE.md](BACKUP_AND_RESTORE.md) for procedures and `python ma
 **Facility scoping rules**
 
 - If `user.staff_profile.facility` is set, list/detail views and APIs restrict to that `facility_id` (via `patient__facility_id` or `encounter__facility_id` as appropriate).
-- **Superusers** and users **without** a facility on their staff profile still see **all** rows (migration / head-office mode).
+- Only **superusers** see all patient-scoped rows. Other users must have a facility on their staff profile; unassigned staff see no patient-scoped rows.
 - New patients created in UI or via API receive the creator’s facility when none is supplied.
 - Run `python manage.py migrate` after pull: new columns + **guardian** tables. If exactly one `Facility` exists in the DB, existing patients are backfilled to it.
 
@@ -59,7 +62,7 @@ Reference: [HMIS_EXPORTS.md](HMIS_EXPORTS.md) for column dictionaries. [UgandaEM
 
 | ID | Deliverable | Status |
 |----|-------------|--------|
-| E+ | IPD/beds, theatre, referrals, vaccination campaigns | Planned (see `IMPLEMENTATION_PLAN.md` “Ongoing”) |
+| E+ | IPD/beds, theatre, referrals, vaccination campaigns | Planned (see [OPERATIONS_ROADMAP.md](OPERATIONS_ROADMAP.md)) |
 
 ---
 

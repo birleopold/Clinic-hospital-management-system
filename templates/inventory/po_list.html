@@ -49,8 +49,8 @@
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
               <a class="btn btn-secondary" href="{% url 'inventory-po-edit' po.id %}">Open</a>
               {% if po.status == 'draft' %}
-                <a class="btn btn-secondary" href="{% url 'inventory-po-approve' po.id %}">Approve</a>
-                <a class="btn btn-secondary" href="{% url 'inventory-po-cancel' po.id %}">Cancel</a>
+                <form method="post" action="{% url 'inventory-po-approve' po.id %}" style="display:inline">{% csrf_token %}<button type="submit" class="btn btn-secondary">Approve</button></form>
+                <form method="post" action="{% url 'inventory-po-cancel' po.id %}" style="display:inline">{% csrf_token %}<button type="submit" class="btn btn-secondary">Cancel</button></form>
               {% elif po.status == 'approved' %}
                 {% if po.recv_state != 'received' %}
                   <a class="btn btn-secondary" href="{% url 'inventory-grn-create' %}">Receive</a>

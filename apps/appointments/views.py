@@ -47,8 +47,13 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             qdate = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else timezone.localdate()
         except Exception:
             return Response({'detail': 'invalid date'}, status=400)
-        duration = int(request.query_params.get('duration', '30'))
-        slot_minutes = int(request.query_params.get('slot', str(duration)))
+        try:
+            duration = int(request.query_params.get('duration', '30'))
+            slot_minutes = int(request.query_params.get('slot', str(duration)))
+            if not 1 <= duration <= 1440 or not 1 <= slot_minutes <= 1440:
+                raise ValueError
+        except (TypeError, ValueError):
+            return Response({'detail': 'duration and slot must be integers from 1 to 1440 minutes'}, status=400)
 
         dow = qdate.weekday()  # Monday=0
         avails = DoctorWeeklyAvailability.objects.filter(
@@ -151,8 +156,13 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         except Exception:
             return Response({'detail': 'invalid scheduled_for'}, status=400)
         # Optional clinician or duration
-        clinician_id = int(request.data.get('clinician') or appt.clinician_id)
-        duration = int(request.data.get('duration_minutes') or appt.duration_minutes)
+        try:
+            clinician_id = int(request.data.get('clinician', appt.clinician_id))
+            duration = int(request.data.get('duration_minutes', appt.duration_minutes))
+            if clinician_id < 1 or not 1 <= duration <= 1440:
+                raise ValueError
+        except (TypeError, ValueError):
+            return Response({'detail': 'Invalid clinician or duration_minutes (1 to 1440)'}, status=400)
 
         # Basic conflict check using available_slots logic for that exact start
         req_date = new_dt.astimezone(timezone.get_current_timezone()).date()
@@ -197,6 +207,7 @@ class QueueTicketViewSet(viewsets.ModelViewSet):
     permission_classes = [RolePermission]
     role_map = {
         'POST': ['admin','reception'],  # enqueue via create
+        'PUT': ['admin','reception','nurse','clinician','lab','pharmacy','cashier'],
         'PATCH': ['admin','reception','nurse','clinician','lab','pharmacy','cashier'],
         'DELETE': ['admin','reception'],
         'start': ['admin','nurse','clinician','lab','pharmacy','cashier'],
