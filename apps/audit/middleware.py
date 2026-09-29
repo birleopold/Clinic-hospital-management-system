@@ -9,7 +9,7 @@ from .models import AuditEvent
 def audit_path(request):
     # Search queries may contain patient details; portal paths contain bearer tokens.
     match = getattr(request, 'resolver_match', None)
-    if match and match.url_name == 'portal-view':
+    if match and match.url_name in ('portal-view','portal-download'):
         return '/portal/<redacted>/'
     return request.path[:512]
 

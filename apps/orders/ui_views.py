@@ -42,9 +42,9 @@ def lab_submit_result_view(request):
         return redirect('labs-worklist')
     text = (request.POST.get('result_text') or '').strip()
     if text:
-        OrderResult.objects.create(order=order, result_text=text)
-    order.status = Order.COMPLETED
-    order.save(update_fields=['status'])
+        OrderResult.objects.create(order=order, result_text=text, recorded_by=request.user)
+    from django.contrib import messages
+    messages.success(request, 'Draft result saved. Review and release it from the suite results workspace.')
     return redirect('labs-worklist')
 
 

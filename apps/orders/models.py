@@ -44,6 +44,18 @@ class Order(models.Model):
 
 
 class OrderResult(models.Model):
+    recorded_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    supersedes = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey('accounts.User', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    analyte = models.CharField(max_length=120, blank=True)
+    value = models.CharField(max_length=120, blank=True)
+    units = models.CharField(max_length=40, blank=True)
+    reference_range = models.CharField(max_length=120, blank=True)
+    critical = models.BooleanField(default=False)
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    acknowledged_by = models.ForeignKey('accounts.User', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='results')
     result_text = models.TextField(blank=True)
     attachment = models.FileField(upload_to='order_results/', blank=True)

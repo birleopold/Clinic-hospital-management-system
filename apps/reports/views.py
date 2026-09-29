@@ -67,6 +67,8 @@ class DailyRevenueView(APIView):
         start, end = _range_from_request(request)
         total = filter_by_patient_facility(Payment.objects.all(), request.user, prefix='invoice__patient__').filter(paid_at__range=(start, end)).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         export = request.query_params.get('export')
+        from apps.billing.reporting import refunded_between
+        total -= refunded_between(request.user, start, end)
         payload = {'start': start.isoformat(), 'end': end.isoformat(), 'total_revenue': str(total)}
         if export == 'csv':
             headers = ['start','end','total_revenue']

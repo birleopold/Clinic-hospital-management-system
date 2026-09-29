@@ -22,6 +22,9 @@ class InvoiceAdmin(admin.ModelAdmin):
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request): return False
+    def has_change_permission(self, request, obj=None): return False
+    def has_delete_permission(self, request, obj=None): return False
     list_display = ('id','invoice','amount','method','paid_at')
 
 @admin.register(ClinicConfig)

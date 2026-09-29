@@ -1,3 +1,5 @@
+from common.facility_scope import filter_by_facility, user_staff_facility_id
+from django.db.models import Q
 from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -27,7 +29,7 @@ def stock_view(request):
         return HttpResponseForbidden('Not allowed')
     items = (
         InventoryItem.objects
-        .annotate(qoh=Sum('batches__quantity_on_hand'))
+        .annotate(qoh=Sum('batches__quantity_on_hand', filter=Q() if user.is_superuser else Q(batches__location__facility_id=user_staff_facility_id(user) or -1)))
         .order_by('code')[:500]
     )
     context = { 'items': items }
@@ -39,7 +41,7 @@ def movements_view(request):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','pharmacy','store','manager')):
         return HttpResponseForbidden('Not allowed')
-    moves = StockMovement.objects.select_related('item','batch').order_by('-created_at')[:200]
+    moves = filter_by_facility(StockMovement.objects.all(), user, field='batch__location__facility_id').select_related('item','batch').order_by('-created_at')[:200]
     context = { 'movements': moves }
     return render(request, 'inventory/movements.html', context)
 
@@ -117,84 +119,12 @@ def item_edit_view(request, item_id: int):
 
 @login_required
 def batch_create_view(request, item_id: int):
-    user = request.user
-    if not (user.is_superuser or user.role in ('admin','store','manager')):
-        return HttpResponseForbidden('Not allowed')
-    it = get_object_or_404(InventoryItem, pk=item_id)
-    if request.method == 'GET' and (request.headers.get('HX-Request') or request.GET.get('partial') == '1'):
-        return render(request, 'inventory/_batch_inline_form.html', {'item': it})
-    if request.method == 'POST':
-        batch_no = (request.POST.get('batch_no') or '').strip()
-        exp = request.POST.get('expiry') or ''
-        qty = request.POST.get('quantity') or ''
-        try:
-            expiry = datetime.fromisoformat(exp).date() if exp else None
-        except Exception:
-            expiry = None
-        q = Decimal('0')
-        try:
-            q = Decimal(str(qty)) if qty else Decimal('0')
-        except Exception:
-            q = Decimal('0')
-        b = Batch.objects.create(item=it, batch_no=batch_no, expiry=expiry, quantity_on_hand=Decimal('0'))
-        if q != 0:
-            # Increase stock via IN movement
-            b.quantity_on_hand = b.quantity_on_hand + q
-            b.save(update_fields=['quantity_on_hand'])
-            StockMovement.objects.create(
-                item=it, batch=b, direction=StockMovement.IN, quantity=abs(q), reason='manual', ref='batch-create'
-            )
-        if request.headers.get('HX-Request'):
-            resp = HttpResponse(status=204)
-            resp['HX-Redirect'] = reverse('inventory-stock')
-            return resp
-        return redirect('inventory-stock')
-    return render(request, 'inventory/item_form.html', {'item': it, 'mode': 'edit'})
+    return redirect('suite-stock')
 
 
 @login_required
 def item_adjust_view(request, item_id: int):
-    user = request.user
-    if not (user.is_superuser or user.role in ('admin','store','manager')):
-        return HttpResponseForbidden('Not allowed')
-    it = get_object_or_404(InventoryItem, pk=item_id)
-    batches = it.batches.order_by('expiry','batch_no').all()
-    if request.method == 'GET' and (request.headers.get('HX-Request') or request.GET.get('partial') == '1'):
-        return render(request, 'inventory/_adjust_inline_form.html', {'item': it, 'batches': batches})
-    if request.method == 'POST':
-        try:
-            batch_id = int(request.POST.get('batch_id') or '0')
-        except Exception:
-            batch_id = 0
-        delta_raw = request.POST.get('delta') or '0'
-        reason = (request.POST.get('reason') or 'adjust').strip()
-        b = None
-        if batch_id:
-            b = it.batches.filter(pk=batch_id).first()
-        if not b:
-            # If no batch selected, create a no-batch record
-            b = Batch.objects.create(item=it, batch_no='', expiry=None, quantity_on_hand=Decimal('0'))
-        try:
-            delta = Decimal(str(delta_raw))
-        except Exception:
-            delta = Decimal('0')
-        if delta != 0:
-            b.quantity_on_hand = (b.quantity_on_hand or Decimal('0')) + delta
-            b.save(update_fields=['quantity_on_hand'])
-            StockMovement.objects.create(
-                item=it,
-                batch=b,
-                direction=(StockMovement.ADJUST),
-                quantity=abs(delta),
-                reason=reason[:64],
-                ref='manual-adjust'
-            )
-        if request.headers.get('HX-Request'):
-            resp = HttpResponse(status=204)
-            resp['HX-Redirect'] = reverse('inventory-stock')
-            return resp
-        return redirect('inventory-stock')
-    return render(request, 'inventory/item_form.html', {'item': it, 'mode': 'edit'})
+    return redirect('suite-collection', slug='counts')
 
 # Procurement: Suppliers
 @login_required
@@ -253,7 +183,7 @@ def po_list_view(request):
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
     status_f = request.GET.get('status')
-    qs = PurchaseOrder.objects.select_related('supplier').order_by('-id')
+    qs = filter_by_facility(PurchaseOrder.objects.all(), user).select_related('supplier').order_by('-id')
     if status_f:
         qs = qs.filter(status=status_f)
     pos = list(qs[:200])
@@ -308,7 +238,7 @@ def po_create_view(request):
     if request.method == 'POST':
         sid = int(request.POST.get('supplier') or '0')
         supplier = get_object_or_404(Supplier, pk=sid)
-        po = PurchaseOrder.objects.create(supplier=supplier, remarks=(request.POST.get('remarks') or '').strip())
+        po = PurchaseOrder.objects.create(facility_id=user_staff_facility_id(user), supplier=supplier, remarks=(request.POST.get('remarks') or '').strip())
         return redirect('inventory-po-edit', po_id=po.id)
     suppliers = Supplier.objects.all().order_by('name')
     return render(request, 'inventory/po_form.html', {'po': None, 'suppliers': suppliers, 'items': [], 'mode': 'create'})
@@ -319,7 +249,7 @@ def po_edit_view(request, po_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
-    po = get_object_or_404(PurchaseOrder.objects.select_related('supplier'), pk=po_id)
+    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user).select_related('supplier'), pk=po_id)
     items = InventoryItem.objects.all().order_by('code')[:500]
     if request.method == 'POST' and po.status == PurchaseOrder.DRAFT:
         try:
@@ -421,7 +351,7 @@ def po_line_update_view(request, po_id: int, line_id: int):
         return HttpResponseForbidden('Not allowed')
     if request.method != 'POST':
         return HttpResponseForbidden('Invalid method')
-    po = get_object_or_404(PurchaseOrder, pk=po_id)
+    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user), pk=po_id)
     if po.status != PurchaseOrder.DRAFT:
         return HttpResponseForbidden('Cannot edit a non-draft PO')
     ln = get_object_or_404(PurchaseOrderLine, pk=line_id, po=po)
@@ -461,7 +391,7 @@ def po_line_delete_view(request, po_id: int, line_id: int):
         return HttpResponseForbidden('Not allowed')
     if request.method != 'POST':
         return HttpResponseForbidden('Invalid method')
-    po = get_object_or_404(PurchaseOrder, pk=po_id)
+    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user), pk=po_id)
     if po.status != PurchaseOrder.DRAFT:
         return HttpResponseForbidden('Cannot delete from a non-draft PO')
     ln = get_object_or_404(PurchaseOrderLine, pk=line_id, po=po)
@@ -480,7 +410,7 @@ def po_approve_view(request, po_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
-    po = get_object_or_404(PurchaseOrder, pk=po_id)
+    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user), pk=po_id)
     if po.status == PurchaseOrder.DRAFT:
         po.status = PurchaseOrder.APPROVED
         po.save(update_fields=['status'])
@@ -495,7 +425,7 @@ def po_close_view(request, po_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
-    po = get_object_or_404(PurchaseOrder, pk=po_id)
+    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user), pk=po_id)
     if po.status != PurchaseOrder.APPROVED:
         return HttpResponseForbidden('Only approved POs can be closed')
     # Fully received check: all lines received >= ordered
@@ -523,7 +453,7 @@ def po_cancel_view(request, po_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
-    po = get_object_or_404(PurchaseOrder, pk=po_id)
+    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user), pk=po_id)
     if po.status in (PurchaseOrder.DRAFT, PurchaseOrder.APPROVED):
         po.status = PurchaseOrder.CANCELLED
         po.save(update_fields=['status'])
@@ -538,7 +468,7 @@ def grn_list_view(request):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
-    qs = GoodsReceipt.objects.select_related('po','po__supplier').order_by('-id')
+    qs = filter_by_facility(GoodsReceipt.objects.all(), user, field='po__facility_id').select_related('po','po__supplier').order_by('-id')
     return render(request, 'inventory/grn_list.html', {'grns': qs[:200]})
 
 
@@ -550,7 +480,7 @@ def grn_create_view(request):
     # Pick an approved PO to receive
     if request.method == 'POST':
         po_id = int(request.POST.get('po') or '0')
-        po = get_object_or_404(PurchaseOrder, pk=po_id)
+        po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user), pk=po_id)
         grn = GoodsReceipt.objects.create(po=po, reference=(request.POST.get('reference') or '').strip())
         # capture lines arrays
         item_ids = request.POST.getlist('item')
@@ -627,7 +557,7 @@ def grn_create_view(request):
             resp['HX-Redirect'] = reverse('inventory-grn-detail', kwargs={'grn_id': grn.id})
             return resp
         return redirect('inventory-grn-detail', grn_id=grn.id)
-    approved_pos = PurchaseOrder.objects.filter(status=PurchaseOrder.APPROVED).select_related('supplier').order_by('-id')[:200]
+    approved_pos = filter_by_facility(PurchaseOrder.objects.all(), user).filter(status=PurchaseOrder.APPROVED).select_related('supplier').order_by('-id')[:200]
     items = InventoryItem.objects.all().order_by('code')[:500]
     return render(request, 'inventory/grn_form.html', {'approved_pos': approved_pos, 'items': items})
 
@@ -637,7 +567,7 @@ def grn_detail_view(request, grn_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
-    grn = get_object_or_404(GoodsReceipt.objects.select_related('po','po__supplier'), pk=grn_id)
+    grn = get_object_or_404(filter_by_facility(GoodsReceipt.objects.all(), user, field='po__facility_id').select_related('po','po__supplier'), pk=grn_id)
     lines = list(grn.lines.select_related('item','po_line').all())
     # Compute cumulative over-receipt variance per po_line within the PO
     rec_by_line = {
@@ -656,7 +586,9 @@ def grn_detail_view(request, grn_id: int):
         except Exception:
             over = Decimal('0')
         setattr(ln, 'over_received', over)
-    return render(request, 'inventory/grn_detail.html', {'grn': grn, 'lines': lines})
+    from apps.operations.models import StockLocation
+    context_locations = filter_by_facility(StockLocation.objects.all(), request.user)
+    return render(request, 'inventory/grn_detail.html', {'grn': grn, 'lines': lines, 'locations': context_locations})
 
 
 @login_required
@@ -665,103 +597,27 @@ def grn_post_view(request, grn_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
-    grn = get_object_or_404(GoodsReceipt.objects.select_related('po'), pk=grn_id)
-    if grn.posted:
-        return redirect('inventory-grn-detail', grn_id=grn.id)
-    # Post lines to stock
-    for ln in grn.lines.select_related('item').all():
-        batch, _ = Batch.objects.get_or_create(
-            item=ln.item, batch_no=ln.batch_no or '', expiry=ln.expiry,
-            defaults={'quantity_on_hand': 0}
-        )
-        batch.quantity_on_hand = (batch.quantity_on_hand or 0) + ln.quantity_received
-        batch.save()
-        StockMovement.objects.create(
-            item=ln.item, batch=batch, direction=StockMovement.IN,
-            quantity=ln.quantity_received, reason='GRN', ref=f'GRN:{grn.id}'
-        )
-    grn.posted = True
-    grn.save(update_fields=['posted'])
-    # Optionally update PO status to RECEIVED if fully received
-    po = grn.po
-    fully = True
-    for pl in po.lines.all():
-        rec_total = GoodsReceiptLine.objects.filter(grn__po=po, item=pl.item).aggregate(s=Sum('quantity_received'))['s'] or 0
-        if rec_total < pl.quantity_ordered:
-            fully = False
-            break
-    if fully and po.status != PurchaseOrder.RECEIVED:
-        po.status = PurchaseOrder.RECEIVED
-        po.save(update_fields=['status'])
-
-    # Auto-fulfill Backorders for items involved in this GRN (FEFO allocation)
-    def auto_fulfill_backorders(grn_obj: GoodsReceipt):
-        # Build item_id set from GRN lines
-        item_ids = list(grn_obj.lines.values_list('item_id', flat=True))
-        if not item_ids:
-            return
-        # Map InventoryItem by code quickly
-        items = InventoryItem.objects.filter(id__in=item_ids)
-        id_to_item = {it.id: it for it in items}
-        codes = [it.code for it in items]
-        open_bos = (
-            Backorder.objects
-            .filter(status=Backorder.OPEN, item_code__in=codes)
-            .select_related('patient','prescription_item')
-            .order_by('created_at', 'id')
-        )
-        # For each item code, maintain FEFO batches list
-        from collections import defaultdict
-        batches_by_item = defaultdict(list)
-        for it in items:
-            blist = list(Batch.objects.filter(item=it, quantity_on_hand__gt=0).order_by('expiry','id'))
-            batches_by_item[it.id] = blist
-        for bo in open_bos:
-            # Resolve InventoryItem by code; skip if missing
-            it = next((v for v in id_to_item.values() if v.code == bo.item_code), None)
-            if not it:
-                continue
-            remaining = (bo.quantity or Decimal('0')) - (bo.fulfilled_quantity or Decimal('0'))
-            if remaining <= 0:
-                # Close
-                if bo.status != Backorder.CLOSED:
-                    bo.status = Backorder.CLOSED
-                    bo.save(update_fields=['status'])
-                continue
-            blist = batches_by_item.get(it.id, [])
-            # Try to fulfill across batches FEFO
-            bi = 0
-            while remaining > 0 and bi < len(blist):
-                b = blist[bi]
-                avail = (b.quantity_on_hand or Decimal('0'))
-                if avail <= 0:
-                    bi += 1
-                    continue
-                take = avail if avail <= remaining else remaining
-                # Create dispense which will also decrement stock via signal
-                disp = Dispense.objects.create(
-                    patient=bo.patient,
-                    prescription_item=bo.prescription_item,
-                    batch=b,
-                    item_code=bo.item_code,
-                    item_name=(bo.item_name or it.name),
-                    quantity=take,
-                    notes=f'Auto-fulfill BO#{bo.id} on GRN#{grn_obj.id}',
-                )
-                # Update running quantities
-                remaining = remaining - take
-                # Reload batch quantity after signal adjustment (optional refresh)
-                b.refresh_from_db(fields=['quantity_on_hand'])
-                if (b.quantity_on_hand or Decimal('0')) <= 0:
-                    bi += 1
-                # Update Backorder progress
-                bo.fulfilled_quantity = (bo.fulfilled_quantity or Decimal('0')) + take
-                if remaining <= 0:
-                    bo.status = Backorder.CLOSED
-                bo.save(update_fields=['fulfilled_quantity','status'])
-        return
-
-    auto_fulfill_backorders(grn)
+    grn = get_object_or_404(filter_by_facility(GoodsReceipt.objects.all(), user, field='po__facility_id').select_related('po'), pk=grn_id)
+    from .services import post_goods_receipt
+    from django.core.exceptions import ValidationError
+    from django.contrib import messages
+    try:
+        from apps.operations.models import StockLocation
+        from django.db import transaction
+        with transaction.atomic():
+            grn = GoodsReceipt.objects.select_for_update().get(pk=grn.pk)
+            if not grn.posted:
+                location = get_object_or_404(filter_by_facility(StockLocation.objects.all(),user),pk=request.POST.get('location'))
+                if grn.po.facility_id and grn.po.facility_id != location.facility_id:
+                    raise ValidationError('Receiving location must match the purchase order facility.')
+                grn.location = location
+                grn.save(update_fields=['location'])
+            elif not user.is_superuser and grn.location.facility_id != user_staff_facility_id(user):
+                return HttpResponseForbidden('Not allowed')
+            post_goods_receipt(grn.pk)
+        messages.success(request, 'Receipt posted. Backorders remain pending patient handover.')
+    except ValidationError as exc:
+        messages.error(request, '; '.join(exc.messages))
     return redirect('inventory-grn-detail', grn_id=grn.id)
 
 
@@ -783,6 +639,8 @@ def inventory_import_sample_view(request):
 
 @login_required
 def inventory_import_view(request):
+    if not request.user.is_superuser:
+        return HttpResponseForbidden("Bulk legacy imports require a superuser. Use Stock control for facility stock.")
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')

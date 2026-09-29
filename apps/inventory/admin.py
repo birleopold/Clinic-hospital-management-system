@@ -5,18 +5,23 @@ from .models import (
     GoodsReceipt, GoodsReceiptLine,
 )
 
+class LedgerReadOnlyAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request): return False
+    def has_change_permission(self, request, obj=None): return False
+    def has_delete_permission(self, request, obj=None): return False
+
 @admin.register(InventoryItem)
 class InventoryItemAdmin(admin.ModelAdmin):
     list_display = ('id','code','name','uom','reorder_level','created_at')
     search_fields = ('code','name')
 
 @admin.register(Batch)
-class BatchAdmin(admin.ModelAdmin):
+class BatchAdmin(LedgerReadOnlyAdmin):
     list_display = ('id','item','batch_no','expiry','quantity_on_hand')
     list_filter = ('expiry',)
 
 @admin.register(StockMovement)
-class StockMovementAdmin(admin.ModelAdmin):
+class StockMovementAdmin(LedgerReadOnlyAdmin):
     list_display = ('id','item','direction','quantity','reason','ref','created_at')
     list_filter = ('direction',)
 
@@ -45,7 +50,7 @@ class GoodsReceiptLineInline(admin.TabularInline):
 
 
 @admin.register(GoodsReceipt)
-class GoodsReceiptAdmin(admin.ModelAdmin):
+class GoodsReceiptAdmin(LedgerReadOnlyAdmin):
     list_display = ('id','po','received_at','posted','reference')
     list_filter = ('posted',)
     inlines = [GoodsReceiptLineInline]

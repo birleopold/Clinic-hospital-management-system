@@ -46,7 +46,7 @@
     </div>
   {% endif %}
   <form method="post" action="" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; align-items:end;">
-    {% csrf_token %}
+    {% csrf_token %}<div><label for="guardian-name">Guardian / next of kin</label><input id="guardian-name" name="guardian_name" value="{{ patient.guardian_name }}" maxlength="160"></div><div><label for="guardian-phone">Guardian phone</label><input id="guardian-phone" name="guardian_phone" value="{{ patient.guardian_phone }}" maxlength="32"></div>
     <div><label>First name</label><br/><input type="text" name="first_name" value="{{ patient.first_name|default:'' }}" /></div>
     <div><label>Last name</label><br/><input type="text" name="last_name" value="{{ patient.last_name|default:'' }}" /></div>
     <div><label>Other names</label><br/><input type="text" name="other_names" value="{{ patient.other_names|default:'' }}" /></div>

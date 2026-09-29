@@ -1,3 +1,4 @@
+from common.facility_scope import filter_by_facility
 from rest_framework import viewsets, filters
 from common.permissions import RolePermission
 from .models import InventoryItem, Batch, StockMovement
@@ -16,7 +17,10 @@ class InventoryItemViewSet(viewsets.ModelViewSet):
         'DELETE': ['admin'],
     }
 
-class BatchViewSet(viewsets.ModelViewSet):
+class BatchViewSet(viewsets.ReadOnlyModelViewSet):
+    def get_queryset(self):
+        return filter_by_facility(super().get_queryset(), self.request.user, field="location__facility_id")
+
     queryset = Batch.objects.all().order_by('expiry')
     serializer_class = BatchSerializer
     permission_classes = [RolePermission]
@@ -28,5 +32,8 @@ class BatchViewSet(viewsets.ModelViewSet):
     }
 
 class StockMovementViewSet(viewsets.ReadOnlyModelViewSet):
+    def get_queryset(self):
+        return filter_by_facility(super().get_queryset(), self.request.user, field="batch__location__facility_id")
+
     queryset = StockMovement.objects.all().order_by('-created_at')
     serializer_class = StockMovementSerializer

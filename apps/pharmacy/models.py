@@ -15,6 +15,19 @@ class Prescription(models.Model):
 
 
 class PrescriptionItem(models.Model):
+    def save(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+        from decimal import Decimal
+        quantity=Decimal(str(self.quantity))
+        dispensed=Decimal(str(self.dispensed_quantity))
+        if not quantity.is_finite() or quantity <= 0 or quantity < dispensed:
+            raise ValidationError('Prescription quantity must be positive and cover quantities already dispensed.')
+        if self.pk:
+            previous=type(self).objects.get(pk=self.pk)
+            if previous.dispensed_quantity and (previous.item_code!=self.item_code or previous.prescription_id!=self.prescription_id):
+                raise ValidationError('Cannot change a dispensed prescription line to a different medicine or prescription.')
+        return super().save(*args, **kwargs)
+
     prescription = models.ForeignKey(Prescription, on_delete=models.CASCADE, related_name='items')
     item_code = models.CharField(max_length=64)
     item_name = models.CharField(max_length=255, blank=True)
@@ -31,6 +44,10 @@ class PrescriptionItem(models.Model):
 
 
 class Dispense(models.Model):
+    def save(self, *args, **kwargs):
+        from .services import save_dispense
+        return save_dispense(self, *args, **kwargs)
+
     patient = models.ForeignKey('demographics.Patient', on_delete=models.CASCADE)
     prescription_item = models.ForeignKey(PrescriptionItem, on_delete=models.SET_NULL, null=True, blank=True, related_name='dispenses')
     batch = models.ForeignKey('inventory.Batch', on_delete=models.SET_NULL, null=True, blank=True, related_name='dispenses')

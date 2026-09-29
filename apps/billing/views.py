@@ -1,3 +1,4 @@
+from apps.operations.models import Refund
 from decimal import Decimal
 from rest_framework import mixins, viewsets, status
 from rest_framework.response import Response
@@ -64,6 +65,7 @@ class PaymentViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
         if invoice.status == Invoice.CANCELLED:
             raise ValidationError({'invoice': 'Cannot pay a cancelled invoice.'})
         paid = invoice.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        paid -= Refund.objects.filter(payment__invoice=invoice, status='approved').aggregate(total=Sum('amount'))['total'] or Decimal('0')
         if amount > invoice.total_amount - paid:
             raise ValidationError({'amount': 'Amount exceeds the outstanding balance.'})
         session = CashSession.objects.select_for_update().filter(
@@ -79,6 +81,7 @@ class PaymentViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
         session.expected_cash = session.opening_float + (
             session.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
         )
+        session.expected_cash -= Refund.objects.filter(cash_session=session, status='approved').aggregate(total=Sum('amount'))['total'] or Decimal('0')
         session.save(update_fields=['expected_cash'])
         return Response(serializer.data, status=status.HTTP_201_CREATED,
                         headers=self.get_success_headers(serializer.data))

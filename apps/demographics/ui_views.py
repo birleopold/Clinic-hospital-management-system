@@ -18,6 +18,8 @@ ALLOWED_VIEW_ROLES = ('admin', 'reception', 'clinician')
 def _apply_consent_and_retention(patient: Patient, post, prev_consent: bool) -> list:
     """Parse consent checkbox and retention date; return validation error strings."""
     errors = []
+    patient.guardian_name = post.get('guardian_name','').strip()[:160]
+    patient.guardian_phone = post.get('guardian_phone','').strip()[:32]
     consent = post.get('consent_data_processing') == '1'
     patient.consent_data_processing = consent
     if consent and not prev_consent:
@@ -52,7 +54,7 @@ def patient_list_view(request):
             pid = None
         flt = (
             Q(first_name__icontains=q) | Q(last_name__icontains=q) |
-            Q(other_names__icontains=q) | Q(phone__icontains=q)
+            Q(other_names__icontains=q) | Q(phone__icontains=q) | Q(medical_record_id__icontains=q)
         )
         if pid is not None:
             flt = flt | Q(id=pid)

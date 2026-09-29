@@ -1,3 +1,5 @@
+> Subsequent implementation: see [SUITE_RELEASE.md](SUITE_RELEASE.md). This audit records the earlier baseline; several findings have since been addressed and others remain open.
+
 # Repository audit — 29 September 2026
 
 Baseline reviewed: `f82f3f0033bdb1b8af7cba7779a97da95aaddeaa` (`main`, initial project upload).

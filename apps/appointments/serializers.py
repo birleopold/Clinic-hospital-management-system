@@ -14,6 +14,7 @@ class QueueTicketSerializer(FacilityScopedSerializer):
     class Meta:
         model = QueueTicket
         fields = '__all__'
+        read_only_fields = ('started_at','finished_at','created_at')
 
 
 class DoctorWeeklyAvailabilitySerializer(FacilityScopedSerializer):

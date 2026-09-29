@@ -42,7 +42,7 @@
   </div>
   <div style="margin-top:12px; display:flex; gap:8px;">
     {% if not grn.posted %}
-      <form method="post" action="{% url 'inventory-grn-post' grn.id %}" style="display:inline">{% csrf_token %}<button type="submit" class="btn">Post to stock</button></form>
+      <form method="post" action="{% url 'inventory-grn-post' grn.id %}" style="display:inline">{% csrf_token %}<label for="receiving-location">Receiving location</label><select id="receiving-location" name="location" required>{% for location in locations %}<option value="{{ location.pk }}">{{ location }}</option>{% endfor %}</select><button type="submit" class="btn">Post to stock</button></form>
     {% endif %}
     <a class="btn btn-secondary" href="{% url 'inventory-grn-list' %}">Done</a>
   </div>

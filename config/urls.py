@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/', include('apps.pharmacy.urls')),
     path('api/', include('apps.billing.urls')),
     path('api/', include('apps.inventory.urls')),
+    path('', include('apps.operations.urls')),
     # UI routes
     path('', include('apps.appointments.ui_urls')),
     path('', include('apps.encounters.ui_urls')),
@@ -32,5 +33,4 @@ urlpatterns = [
     path('', include('apps.orders.ui_urls')),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Clinical documents are served only through authenticated download views.

@@ -19,7 +19,10 @@ def price_for(code: str) -> Optional[Decimal]:
     return item.amount if item else None
 
 
+@transaction.atomic
 def get_or_create_open_invoice(patient) -> Invoice:
+    from apps.demographics.models import Patient
+    Patient.objects.select_for_update().get(pk=patient.pk)
     inv = Invoice.objects.filter(patient=patient, status=Invoice.DRAFT).order_by('-id').first()
     if inv:
         return inv
@@ -32,6 +35,7 @@ def recalc_invoice(invoice: Invoice) -> None:
     invoice.save(update_fields=['total_amount'])
 
 
+@transaction.atomic
 def add_line_from_order(order) -> InvoiceLine:
     source_ref = f"order:{order.id}"
     invoice = get_or_create_open_invoice(order.patient)
@@ -60,6 +64,7 @@ def ready_open_invoices_for_patient(patient) -> None:
             inv.save(update_fields=['status'])
 
 
+@transaction.atomic
 def add_line_from_dispense(dispense) -> InvoiceLine:
     source_ref = f"dispense:{dispense.id}"
     invoice = get_or_create_open_invoice(dispense.patient)

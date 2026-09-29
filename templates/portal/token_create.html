@@ -17,6 +17,7 @@
   </form>
 </div>
 
+{% if patient and not link %}<form method="post">{% csrf_token %}<button>Create expiring patient link</button></form>{% endif %}
 {% if link %}
 <div class="card">
   <h3 style="margin:0 0 8px;">Shareable Link</h3>

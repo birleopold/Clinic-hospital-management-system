@@ -169,7 +169,11 @@ def test_pharmacy_ui_rejects_other_facility_objects(clinic, client):
 def test_audit_redacts_patient_queries_and_portal_tokens(clinic, client):
     client.force_login(clinic.user)
     client.get('/patients', {'q': 'SensitivePatientSearch'})
-    token = signing.dumps({'p': clinic.own.pk}, salt='patient-portal')
+    from apps.operations.models import PortalGrant
+    from datetime import timedelta
+    from django.utils import timezone
+    grant = PortalGrant.objects.create(patient=clinic.own, created_by=clinic.user, expires_at=timezone.now()+timedelta(hours=1))
+    token = signing.dumps({'p': clinic.own.pk, 'g': str(grant.key)}, salt='patient-portal')
     response = client.get(reverse('portal-view', args=[token]))
     assert response.status_code == 200
     assert 'no-store' in response['Cache-Control']
@@ -215,7 +219,7 @@ def test_procurement_requires_csrf_and_valid_post_succeeds(clinic):
     from apps.inventory.models import PurchaseOrder, Supplier
 
     supplier = Supplier.objects.create(name='Supplier')
-    po = PurchaseOrder.objects.create(supplier=supplier)
+    po = PurchaseOrder.objects.create(supplier=supplier, facility=clinic.a)
     client = Client(enforce_csrf_checks=True)
     client.force_login(clinic.user)
     url = reverse('inventory-po-approve', args=[po.pk])

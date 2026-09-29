@@ -3,6 +3,10 @@ from .models import Dispense, Prescription, PrescriptionItem, Backorder
 
 @admin.register(Dispense)
 class DispenseAdmin(admin.ModelAdmin):
+    def has_change_permission(self, request, obj=None):
+        return False
+    def has_delete_permission(self, request, obj=None):
+        return False
     list_display = ('id', 'patient', 'item_code', 'quantity', 'dispensed_at')
     search_fields = ('item_code', 'item_name', 'patient__first_name', 'patient__last_name')
 

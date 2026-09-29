@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -34,7 +35,7 @@
     .autocomplete-item { padding:8px 10px; cursor:pointer; }
     .autocomplete-item:hover { background:#f1f5f9; }
   </style>
-  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="{% static 'vendor/htmx.min.js' %}"></script>
   <script>
     (function() {
       function getCookie(name) {
@@ -155,6 +156,7 @@
         }
         input.addEventListener('input', function(){
           const term = input.value.trim();
+          if(target) target.value = '';
           if(term === lastTerm) return;
           lastTerm = term;
           if(timer) clearTimeout(timer);
@@ -186,12 +188,14 @@
       });
     })();
   </script>
+  <link rel="stylesheet" href="{% static 'css/suite.css' %}">
   {% block head %}{% endblock %}
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <header>
     <nav>
-      <a href="/">Home</a>
+      <a class="branding" href="/suite/">Clinic Suite</a><a href="/">Overview</a>
       {% if user.is_authenticated %}
         <a href="/queues">Queues</a>
         {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' or user.role == 'clinician' %}
@@ -262,7 +266,7 @@
     </nav>
   </header>
   <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
-  <main>
+  <main id="main-content">
     {% if messages %}
     <div style="margin-bottom:12px;">
       {% for message in messages %}

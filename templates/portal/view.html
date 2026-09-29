@@ -48,7 +48,7 @@
             {% if o.results.all %}
               <ul style="margin:0; padding-left:16px;">
                 {% for r in o.results.all %}
-                  <li>{{ r.recorded_at|date:"Y-m-d H:i" }} — {{ r.result_text|default:"(see attachment)" }}{% if r.attachment %} — <a href="{{ r.attachment.url }}" target="_blank">Download</a>{% endif %}</li>
+                  <li>{{ r.recorded_at|date:"Y-m-d H:i" }} — {{ r.analyte }} {{ r.value }} {{ r.units }} {{ r.result_text }}{% if r.attachment %} — <a href="{% url 'portal-download' token r.pk %}" target="_blank">Download</a>{% endif %}</li>
                 {% empty %}
                   <li class="muted">No results yet.</li>
                 {% endfor %}

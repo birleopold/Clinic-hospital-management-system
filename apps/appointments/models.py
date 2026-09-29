@@ -2,6 +2,38 @@ from django.conf import settings
 from django.db import models
 
 class Appointment(models.Model):
+    room = models.ForeignKey("operations.ServiceRoom", null=True, blank=True, on_delete=models.PROTECT)
+    appointment_type = models.CharField(max_length=100, blank=True)
+    def save(self, *args, **kwargs):
+        from datetime import timedelta
+        from django.db import transaction
+        from django.core.exceptions import ValidationError
+        from apps.accounts.models import User
+        with transaction.atomic():
+            User.objects.select_for_update().get(pk=self.clinician_id)
+            if not 1 <= self.duration_minutes <= 1440:
+                raise ValidationError('Appointment duration must be between 1 and 1440 minutes.')
+            previous = type(self).objects.select_for_update().filter(pk=self.pk).first() if self.pk else None
+            transitions = {'scheduled':('confirmed','in_progress','cancelled','no_show'), 'confirmed':('in_progress','cancelled','no_show'), 'in_progress':('completed','cancelled')}
+            if previous and previous.status != self.status and self.status not in transitions.get(previous.status, ()):
+                raise ValidationError('Invalid appointment status transition.')
+            if self.status not in ('cancelled','no_show'):
+                end = self.scheduled_for + timedelta(minutes=self.duration_minutes)
+                candidates = type(self).objects.filter(clinician_id=self.clinician_id, scheduled_for__lt=end, scheduled_for__gt=self.scheduled_for-timedelta(days=1)).exclude(status__in=['cancelled','no_show']).exclude(pk=self.pk)
+                if any(a.scheduled_for + timedelta(minutes=a.duration_minutes) > self.scheduled_for for a in candidates):
+                    raise ValidationError('This clinician already has an overlapping appointment.')
+                if self.room_id:
+                    from apps.operations.models import ServiceRoom
+                    room=ServiceRoom.objects.select_for_update().get(pk=self.room_id)
+                    if room.facility_id!=self.patient.facility_id:
+                        raise ValidationError('Room must belong to the patient facility.')
+                    room_bookings=type(self).objects.filter(room_id=self.room_id,scheduled_for__lt=end,scheduled_for__gt=self.scheduled_for-timedelta(days=1)).exclude(status__in=['cancelled','no_show']).exclude(pk=self.pk)
+                    if any(a.scheduled_for+timedelta(minutes=a.duration_minutes)>self.scheduled_for for a in room_bookings):
+                        raise ValidationError('This room already has an overlapping appointment.')
+                if DoctorTimeOff.objects.filter(clinician_id=self.clinician_id,start__lt=end,end__gt=self.scheduled_for).exists():
+                    raise ValidationError('Clinician is unavailable during this appointment.')
+            return super().save(*args, **kwargs)
+
     SCHEDULED = 'scheduled'
     CONFIRMED = 'confirmed'
     IN_PROGRESS = 'in_progress'
@@ -31,6 +63,23 @@ class Appointment(models.Model):
 
 
 class QueueTicket(models.Model):
+    def save(self, *args, **kwargs):
+        from django.db import transaction
+        from django.utils import timezone
+        from django.core.exceptions import ValidationError
+        with transaction.atomic():
+            previous = type(self).objects.select_for_update().filter(pk=self.pk).first() if self.pk else None
+            transitions = {'waiting':('in_service','cancelled'),'in_service':('done','cancelled')}
+            if previous and previous.status != self.status and self.status not in transitions.get(previous.status, ()):
+                raise ValidationError('Invalid queue transition.')
+            if previous and previous.status == self.status:
+                self.started_at, self.finished_at = previous.started_at, previous.finished_at
+            elif self.status == 'in_service':
+                self.started_at = timezone.now()
+            elif self.status in ('done','cancelled'):
+                self.finished_at = timezone.now()
+            return super().save(*args, **kwargs)
+
     TRIAGE = 'triage'
     CONSULT = 'consult'
     LAB = 'lab'

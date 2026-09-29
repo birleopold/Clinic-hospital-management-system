@@ -13,6 +13,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
     permission_classes = [RolePermission]
     role_map = {
+        'GET': ['admin','clinician','lab','nurse'],
         'POST': ['admin', 'clinician', 'lab'],
         'PUT': ['admin', 'clinician', 'lab'],
         'PATCH': ['admin', 'clinician', 'lab'],
@@ -37,10 +38,14 @@ class OrderViewSet(viewsets.ModelViewSet):
 
 
 class OrderResultViewSet(viewsets.ModelViewSet):
+    http_method_names = ["get", "post", "put", "patch", "head", "options"]
+    def perform_create(self, serializer):
+        serializer.save(recorded_by=self.request.user)
     queryset = OrderResult.objects.all().select_related('order').order_by('-recorded_at', '-id')
     serializer_class = OrderResultSerializer
     permission_classes = [RolePermission]
     role_map = {
+        'GET': ['admin','clinician','lab','nurse'],
         'POST': ['admin', 'clinician', 'lab'],
         'PUT': ['admin', 'lab'],
         'PATCH': ['admin', 'lab'],

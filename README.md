@@ -4,6 +4,10 @@ A Django application for outpatient clinic operations: registration, appointment
 
 **Status:** development / pilot software. Core workflows exist, but this is not a validated production clinical system. Read the [audit](docs/AUDIT.md) before using real patient data and the [research-based feature plan](docs/OPERATIONS_ROADMAP.md) for the next milestones.
 
+## Integrated clinic suite
+
+Open `/suite/` for the staff workspace, patient history, laboratory review, stock operations, finance controls, referral tracking and inpatient basics. Existing module screens remain connected through the shared navigation. Read [the suite release and upgrade guide](docs/SUITE_RELEASE.md) before migrating existing data. External integrations and advanced roadmap items remain explicitly tracked there.
+
 ## Existing modules
 
 | Area | Implemented capability |

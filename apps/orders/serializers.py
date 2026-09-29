@@ -5,10 +5,26 @@ from .models import Order, OrderResult
 
 
 class OrderResultSerializer(FacilityScopedSerializer):
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.attachment:
+            data['attachment'] = f'/suite/results/{instance.pk}/download/'
+        return data
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        prior = attrs.get('supersedes')
+        order = attrs.get('order', self.instance.order if self.instance else None)
+        if prior and (prior.order_id != getattr(order,'pk',None) or not prior.approved_at):
+            raise serializers.ValidationError('Amendments must reference a released result for this order.')
+        if self.instance and self.instance.approved_at:
+            raise serializers.ValidationError('Released results are immutable. Add an amended result.')
+        return attrs
+
     class Meta:
         model = OrderResult
         fields = '__all__'
-        read_only_fields = ('recorded_at',)
+        read_only_fields = ('recorded_at','recorded_by','approved_at','approved_by','acknowledged_at','acknowledged_by')
 
 
 class OrderSerializer(FacilityScopedSerializer):

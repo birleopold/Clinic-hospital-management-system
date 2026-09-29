@@ -130,6 +130,8 @@ def cash_session_close_view(request):
     notes = request.POST.get('notes','')
     session.counted_cash = counted_cash
     session.discrepancy = (counted_cash or Decimal('0')) - (session.expected_cash or Decimal('0'))
+    if session.discrepancy and not notes.strip():
+        return HttpResponse('Explain the cash discrepancy before closing the shift.', status=400)
     session.close_time = timezone.now()
     session.notes = notes
     session.save(update_fields=['counted_cash','discrepancy','close_time','notes'])

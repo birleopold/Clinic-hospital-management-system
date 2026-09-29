@@ -2,6 +2,10 @@
 
 Research and repository review: **29 September 2026**. This is a prioritized proposal based on the current code, not a claim that all features below are implemented. The review compared first-party documentation and public repository descriptions; it did not run or audit the reference systems.
 
+## Implementation status
+
+An integrated suite foundation is now implemented. See [SUITE_RELEASE.md](SUITE_RELEASE.md) for the exact available workflows, upgrade steps, validation and remaining work. The proposal below retains the original target scope and must not be read as a completion checklist.
+
 ## Recommendation
 
 Build a dependable **outpatient clinic product first**, then expand to inpatient hospital workflows. The existing Django/HTMX architecture is suitable for that sequence. Keep one deployable application and extract shared transactional services for billing, dispensing and stock posting before adding more screens. A React rewrite or microservice split would not address the data-integrity gaps found in this review.

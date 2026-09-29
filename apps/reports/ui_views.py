@@ -24,6 +24,9 @@ def reports_dashboard_view(request):
     mstart = timezone.make_aware(datetime(today.year, today.month, 1, 0, 0, 0))
     mend = end
     revenue_mtd = pay.filter(paid_at__range=(mstart, mend)).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    from apps.billing.reporting import refunded_between
+    revenue_today -= refunded_between(request.user,start,end)
+    revenue_mtd -= refunded_between(request.user,mstart,mend)
     context = {
         'revenue_today': revenue_today,
         'revenue_mtd': revenue_mtd,

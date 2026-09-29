@@ -9,6 +9,7 @@ class EncounterViewSet(viewsets.ModelViewSet):
     serializer_class = EncounterSerializer
     permission_classes = [RolePermission]
     role_map = {
+        'GET': ['admin','clinician','nurse'],
         'POST': ['admin','nurse','clinician'],
         'PUT': ['admin','nurse','clinician'],
         'PATCH': ['admin','nurse','clinician'],
@@ -23,6 +24,7 @@ class VitalViewSet(viewsets.ModelViewSet):
     serializer_class = VitalSerializer
     permission_classes = [RolePermission]
     role_map = {
+        'GET': ['admin','clinician','nurse'],
         'POST': ['admin','nurse'],
         'PUT': ['admin','nurse'],
         'PATCH': ['admin','nurse'],
@@ -37,6 +39,7 @@ class DiagnosisViewSet(viewsets.ModelViewSet):
     serializer_class = DiagnosisSerializer
     permission_classes = [RolePermission]
     role_map = {
+        'GET': ['admin','clinician','nurse'],
         'POST': ['admin','clinician'],
         'PUT': ['admin','clinician'],
         'PATCH': ['admin','clinician'],

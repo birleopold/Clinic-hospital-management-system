@@ -36,6 +36,8 @@ def home_view(request):
         .filter(paid_at__range=(start, end))
         .aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
     )
+    from apps.billing.reporting import refunded_between
+    revenue_total -= refunded_between(user,start,end)
     new_patients = filter_by_facility(Patient.objects.all(), user).filter(created_at__range=(start, end)).count()
 
     # Queue snapshot

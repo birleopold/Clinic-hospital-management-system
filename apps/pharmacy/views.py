@@ -13,6 +13,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
     serializer_class = PrescriptionSerializer
     permission_classes = [RolePermission]
     role_map = {
+        'GET': ['admin','clinician','pharmacy','nurse'],
         'POST': ['admin','clinician'],
         'PUT': ['admin','clinician'],
         'PATCH': ['admin','clinician'],
@@ -28,6 +29,7 @@ class PrescriptionItemViewSet(viewsets.ModelViewSet):
     serializer_class = PrescriptionItemSerializer
     permission_classes = [RolePermission]
     role_map = {
+        'GET': ['admin','clinician','pharmacy','nurse'],
         'POST': ['admin','clinician'],
         'PUT': ['admin','clinician'],
         'PATCH': ['admin','clinician'],
@@ -48,6 +50,7 @@ class DispenseViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
     serializer_class = DispenseSerializer
     permission_classes = [RolePermission]
     role_map = {
+        'GET': ['admin','clinician','pharmacy','nurse'],
         'POST': ['admin','pharmacy'],
         'PUT': ['admin','pharmacy'],
         'PATCH': ['admin','pharmacy'],
@@ -88,9 +91,8 @@ class DispenseViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
             if not selected_batch:
                 raise ValidationError({'batch': 'Insufficient in a single batch. Specify a batch or lower the quantity.'})
 
-        instance = serializer.save(batch=selected_batch)
-        # Update dispensed qty on prescription item if linked
-        pi = getattr(instance, 'prescription_item', None)
-        if pi:
-            new_disp = (pi.dispensed_quantity or 0) + qty
-            PrescriptionItem.objects.filter(pk=pi.pk).update(dispensed_quantity=new_disp)
+        from django.core.exceptions import ValidationError as ModelValidationError
+        try:
+            serializer.save(batch=selected_batch)
+        except ModelValidationError as exc:
+            raise ValidationError({'detail': exc.messages})

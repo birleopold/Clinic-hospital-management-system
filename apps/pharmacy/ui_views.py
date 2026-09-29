@@ -1,3 +1,19 @@
+from django.db import transaction
+from django.core.exceptions import ValidationError
+from django.contrib import messages
+from functools import wraps
+
+def dispensing_action(fn):
+    @wraps(fn)
+    def wrapped(request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                return fn(request, *args, **kwargs)
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
+            return redirect("pharmacy-board")
+    return wrapped
+
 from decimal import Decimal
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
@@ -7,6 +23,7 @@ from datetime import date, timedelta
 
 from .models import Dispense, Prescription, PrescriptionItem
 from apps.inventory.models import InventoryItem, Batch
+from .services import usable_batches
 from apps.demographics.models import Patient
 from apps.billing.models import ClinicConfig
 from common.exports import pdf_response_from_template
@@ -41,7 +58,7 @@ def pharmacy_board_view(request):
     avail_map = {}
     if code_to_item:
         batches = (
-            Batch.objects
+            filter_by_facility(usable_batches(), user, field="location__facility_id")
             .filter(item_id__in=code_to_item.values(), quantity_on_hand__gt=0)
             .order_by('expiry','id')
         )
@@ -65,7 +82,7 @@ def pharmacy_board_view(request):
             batches_map[code] = arr[:8]
         # availability totals
         totals = (
-            Batch.objects
+            filter_by_facility(usable_batches(), user, field="location__facility_id")
             .filter(item_id__in=code_to_item.values())
             .values('item_id').annotate(total=Sum('quantity_on_hand'))
         )
@@ -86,6 +103,7 @@ def pharmacy_board_view(request):
 
 
 @login_required
+@dispensing_action
 def dispense_create_view(request):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','pharmacy')):
@@ -141,7 +159,7 @@ def dispense_create_view(request):
             return HttpResponseForbidden('Unknown inventory item code')
         name_guess = (request.POST.get('item_name') or (pi.item_name if pi else '') or item_code).strip()
         item = InventoryItem.objects.create(code=item_code, name=name_guess)
-    available = Batch.objects.filter(item=item).aggregate(total=Sum('quantity_on_hand'))['total'] or 0
+    available = filter_by_facility(usable_batches(), user, field="location__facility_id").filter(item=item).aggregate(total=Sum('quantity_on_hand'))['total'] or 0
     if quantity > available:
         # Auto-create backorder and stop
         bo = Backorder.objects.create(
@@ -149,9 +167,9 @@ def dispense_create_view(request):
             prescription_item=pi,
             item_code=item_code,
             item_name=getattr(item, 'name', ''),
-            quantity=quantity - (available or 0),
+            quantity=quantity,
         )
-        return HttpResponseForbidden(f'Insufficient stock. Backorder created #{bo.id} for shortage {bo.quantity}. Available now: {available}.')
+        return HttpResponseForbidden(f'Insufficient stock. Backorder created #{bo.id} for requested quantity {bo.quantity}; no stock handed over. Available now: {available}.')
 
     # Determine batch for this dispense
     selected_batch = None
@@ -168,7 +186,7 @@ def dispense_create_view(request):
     else:
         # FEFO single-batch selection (must have enough in one batch)
         selected_batch = (
-            Batch.objects
+            filter_by_facility(usable_batches(), user, field="location__facility_id")
             .filter(item=item, quantity_on_hand__gte=quantity)
             .order_by('expiry','id')
             .first()
@@ -186,11 +204,6 @@ def dispense_create_view(request):
         quantity=quantity,
         notes=(request.POST.get('notes') or ''),
     )
-
-    # Update dispensed qty on prescription item if linked
-    if pi:
-        new_disp = (pi.dispensed_quantity or 0) + quantity
-        PrescriptionItem.objects.filter(pk=pi.pk).update(dispensed_quantity=new_disp)
 
     return redirect('pharmacy-board')
 
@@ -308,13 +321,13 @@ def backorder_detail_view(request, bo_id: int):
     if it:
         cfg = ClinicConfig.get_solo()
         near_cutoff = date.today() + timedelta(days=getattr(cfg, 'near_expiry_days', 30))
-        fefo_batches = list(Batch.objects.filter(item=it, quantity_on_hand__gt=0).order_by('expiry','id')[:12])
+        fefo_batches = list(filter_by_facility(usable_batches(), user, field="location__facility_id").filter(item=it, quantity_on_hand__gt=0).order_by('expiry','id')[:12])
         for b in fefo_batches:
             try:
                 setattr(b, 'near_expiry', bool(b.expiry and b.expiry <= near_cutoff))
             except Exception:
                 setattr(b, 'near_expiry', False)
-        avail_total = Batch.objects.filter(item=it).aggregate(total=Sum('quantity_on_hand'))['total'] or 0
+        avail_total = filter_by_facility(usable_batches(), user, field="location__facility_id").filter(item=it).aggregate(total=Sum('quantity_on_hand'))['total'] or 0
     ctx = {
         'bo': bo,
         'item': it,
@@ -325,13 +338,14 @@ def backorder_detail_view(request, bo_id: int):
 
 
 @login_required
+@dispensing_action
 def backorder_fulfill_view(request, bo_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','pharmacy')):
         return HttpResponseForbidden('Not allowed')
     if request.method != 'POST':
         return HttpResponseForbidden('Invalid method')
-    bo = get_object_or_404(filter_by_patient_facility(Backorder.objects.all(), user).select_related('patient','prescription_item'), pk=bo_id)
+    bo = get_object_or_404(filter_by_patient_facility(Backorder.objects.select_for_update(), user).select_related('patient','prescription_item'), pk=bo_id)
     try:
         qty = Decimal(request.POST.get('quantity') or '0')
     except Exception:
@@ -342,6 +356,8 @@ def backorder_fulfill_view(request, bo_id: int):
         batch_id = 0
     if not qty.is_finite() or qty <= 0:
         return HttpResponseForbidden('Quantity must be > 0')
+    if bo.status != Backorder.OPEN or qty > bo.remaining():
+        raise ValidationError("Quantity exceeds the open backorder.")
     # Resolve or create item
     item = InventoryItem.objects.filter(code=bo.item_code).first()
     if not item:
@@ -350,7 +366,7 @@ def backorder_fulfill_view(request, bo_id: int):
             item = InventoryItem.objects.create(code=bo.item_code, name=name_guess)
         else:
             return HttpResponseForbidden('Inventory item not found for this backorder')
-    available = Batch.objects.filter(item=item).aggregate(total=Sum('quantity_on_hand'))['total'] or 0
+    available = filter_by_facility(usable_batches(), user, field="location__facility_id").filter(item=item).aggregate(total=Sum('quantity_on_hand'))['total'] or 0
     if qty > available:
         return HttpResponseForbidden(f'Insufficient stock. Available: {available}.')
     # Select batch: require single batch to cover the qty
@@ -364,7 +380,7 @@ def backorder_fulfill_view(request, bo_id: int):
         selected_batch = b
     else:
         selected_batch = (
-            Batch.objects
+            filter_by_facility(usable_batches(), user, field="location__facility_id")
             .filter(item=item, quantity_on_hand__gte=qty)
             .order_by('expiry','id')
             .first()

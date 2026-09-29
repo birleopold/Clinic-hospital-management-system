@@ -1,3 +1,7 @@
+from django.utils import timezone
+from django.db.models import Prefetch
+from apps.operations.models import PortalGrant
+from apps.orders.models import OrderResult
 from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -28,14 +32,18 @@ def portal_view(request, token: str):
     except Exception:
         return HttpResponseForbidden('Invalid or expired link')
 
+    grant = PortalGrant.objects.filter(key=data.get('g'), patient_id=patient_id, revoked_at__isnull=True, expires_at__gt=timezone.now()).first() if data.get('g') else None
+    if not grant:
+        return HttpResponseForbidden('Invalid or revoked link')
     patient = get_object_or_404(Patient, pk=patient_id)
 
     encounters = Encounter.objects.filter(patient=patient).select_related('clinician').order_by('-id')[:50]
-    lab_orders = Order.objects.filter(patient=patient, order_type=Order.LAB).prefetch_related('results').order_by('-id')[:50]
+    lab_orders = Order.objects.filter(patient=patient, order_type=Order.LAB).prefetch_related(Prefetch('results', queryset=OrderResult.objects.filter(approved_at__isnull=False))).order_by('-id')[:50]
     prescriptions = Prescription.objects.filter(patient=patient).prefetch_related('items').order_by('-id')[:50]
     invoices = Invoice.objects.filter(patient=patient).order_by('-id')[:50]
 
     context = {
+        'token': token,
         'patient': patient,
         'encounters': encounters,
         'lab_orders': lab_orders,
@@ -61,8 +69,9 @@ def token_create_view(request):
     patient = get_object_or_404(filter_by_facility(Patient.objects.all(), user), pk=patient_id) if patient_id else None
 
     link = None
-    if patient:
-        token = signing.dumps({'p': patient.id}, salt=SALT)
+    if patient and request.method == 'POST':
+        grant = PortalGrant.objects.create(patient=patient, created_by=user, expires_at=timezone.now()+timedelta(seconds=MAX_AGE))
+        token = signing.dumps({'p': patient.id, 'g': str(grant.key)}, salt=SALT)
         link = request.build_absolute_uri(reverse('portal-view', args=[token]))
 
     context = {
@@ -71,3 +80,20 @@ def token_create_view(request):
         'max_age_hours': int(MAX_AGE // 3600),
     }
     return render(request, 'portal/token_create.html', context)
+
+
+@never_cache
+def portal_download(request, token, pk):
+    from django.http import FileResponse, Http404
+    try:
+        data = signing.loads(token, salt=SALT, max_age=MAX_AGE)
+        grant = PortalGrant.objects.get(key=data.get('g'), patient_id=data.get('p'), revoked_at__isnull=True, expires_at__gt=timezone.now())
+    except Exception:
+        return HttpResponseForbidden('Invalid or expired link')
+    result = get_object_or_404(OrderResult, pk=pk, order__patient_id=grant.patient_id, approved_at__isnull=False)
+    if not result.attachment:
+        raise Http404
+    response = FileResponse(result.attachment.open('rb'), as_attachment=True, filename=result.attachment.name.rsplit('/',1)[-1])
+    response['Referrer-Policy'] = 'no-referrer'
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response

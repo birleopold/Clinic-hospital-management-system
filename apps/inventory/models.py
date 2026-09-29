@@ -14,6 +14,9 @@ class InventoryItem(models.Model):
         return f"{self.code} - {self.name}"
 
 class Batch(models.Model):
+    location = models.ForeignKey('operations.StockLocation', null=True, blank=True, on_delete=models.PROTECT)
+    quarantined = models.BooleanField(default=False)
+
     item = models.ForeignKey(InventoryItem, on_delete=models.CASCADE, related_name='batches')
     batch_no = models.CharField(max_length=64, blank=True)
     expiry = models.DateField(null=True, blank=True)
@@ -61,6 +64,8 @@ class Supplier(models.Model):
 
 
 class PurchaseOrder(models.Model):
+    facility = models.ForeignKey("accounts.Facility", null=True, blank=True, on_delete=models.PROTECT)
+
     DRAFT = 'draft'
     APPROVED = 'approved'
     RECEIVED = 'received'
@@ -95,6 +100,8 @@ class PurchaseOrderLine(models.Model):
 
 
 class GoodsReceipt(models.Model):
+    location = models.ForeignKey("operations.StockLocation", null=True, blank=True, on_delete=models.PROTECT)
+
     po = models.ForeignKey(PurchaseOrder, on_delete=models.PROTECT, related_name='receipts')
     received_at = models.DateTimeField(auto_now_add=True)
     reference = models.CharField(max_length=128, blank=True)
