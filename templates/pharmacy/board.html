@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% block title %}Pharmacy{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin:0 0 12px;">Pending Prescriptions</h2>
+  <div style="overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Rx</th>
+          <th>Patient</th>
+          <th>Clinician</th>
+          <th>Items</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rx in prescriptions %}
+        <tr>
+          <td>#{{ rx.id }}</td>
+          <td>{{ rx.patient }}</td>
+          <td>{{ rx.clinician|default:"—" }}</td>
+          <td>
+            <ul style="margin:0; padding-left:16px;">
+              {% for it in rx.items.all %}
+                <li>{{ it.item_code }} — {{ it.item_name }} ({{ it.quantity }})
+                  {% if it.dispensed_quantity %}<span class="muted">dispensed {{ it.dispensed_quantity }}</span>{% endif %}
+                </li>
+              {% empty %}
+                <li class="muted">No items</li>
+              {% endfor %}
+            </ul>
+          </td>
+          <td>
+            {% for it in rx.items.all %}
+              <form method="post" action="{% url 'pharmacy-dispense-create' %}" style="margin:0 0 8px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                {% csrf_token %}
+                <input type="hidden" name="prescription_item_id" value="{{ it.id }}" />
+                <input type="text" name="item_code" value="{{ it.item_code }}" placeholder="Item code" style="width:110px;" />
+                <input type="number" step="0.01" name="quantity" value="{{ it.quantity }}" style="width:100px;" />
+                <div class="muted">Avail: {{ it.avail_total }}</div>
+                {% with blist=it.fefo_batches %}
+                  {% if blist %}
+                  <select name="batch_id" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; min-width:180px;">
+                    <option value="">FEFO auto</option>
+                    {% for b in blist %}
+                      <option value="{{ b.id }}">{{ b.batch_no|default:'—' }} · exp {{ b.expiry|date:'Y-m-d'|default:'—' }} · {{ b.quantity_on_hand }}{% if b.near_expiry %} · Near expiry{% endif %}</option>
+                    {% endfor %}
+                  </select>
+                  {% endif %}
+                {% endwith %}
+                <input type="text" name="item_name" placeholder="Item name if new" style="width:160px;" />
+                <label class="muted" style="display:flex; align-items:center; gap:4px;">
+                  <input type="checkbox" name="create_if_missing" value="1" /> Create if missing
+                </label>
+                <button class="btn" type="submit">Dispense</button>
+              </form>
+            {% endfor %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="muted">No prescriptions.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 12px;">Quick dispense (no Rx)</h2>
+  <form method="post" action="{% url 'pharmacy-dispense-create' %}" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+    {% csrf_token %}
+    <div class="autocomplete" style="min-width:280px;">
+      <label>Patient</label><br/>
+      <input type="text" placeholder="Search patient" data-autocomplete="patient" data-target-input-id="q_patient_id" />
+      <input id="q_patient_id" type="hidden" name="patient_id" />
+    </div>
+    <div>
+      <label>Item code</label><br/>
+      <input type="text" name="item_code" required />
+    </div>
+    <div>
+      <label>Item name (if new)</label><br/>
+      <input type="text" name="item_name" placeholder="If creating new" />
+    </div>
+    <div>
+      <label>Quantity</label><br/>
+      <input type="number" step="0.01" name="quantity" required />
+    </div>
+    <div style="display:flex; gap:6px; align-items:center;">
+      <input type="checkbox" id="create_if_missing" name="create_if_missing" value="1" />
+      <label for="create_if_missing" class="muted">Create item if code not found</label>
+    </div>
+    <div>
+      <button class="btn" type="submit">Dispense</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 12px;">Recent Dispenses</h2>
+  <div style="overflow:auto;">
+    <table>
+      <thead><tr><th>ID</th><th>Time</th><th>Patient</th><th>Item</th><th>Qty</th><th>Print</th></tr></thead>
+      <tbody>
+        {% for d in recent_dispenses %}
+        <tr>
+          <td>#{{ d.id }}</td>
+          <td>{{ d.dispensed_at|date:"Y-m-d H:i" }}</td>
+          <td>{{ d.patient }}</td>
+          <td>{{ d.item_code }} — {{ d.item_name }}</td>
+          <td>{{ d.quantity }}</td>
+          <td><a class="btn btn-secondary" href="{% url 'pharmacy-dispense-print' d.id %}" target="_blank">Print</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="muted">No recent dispenses.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

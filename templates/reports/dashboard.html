@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin:0 0 12px;">Key Metrics</h2>
+  <div class="chips">
+    <span class="chip">Revenue today: {{ revenue_today }}</span>
+    <span class="chip">Revenue MTD: {{ revenue_mtd }}</span>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 12px;">Data Exports</h3>
+  <div class="chips">
+    <a class="btn btn-secondary" href="/api/reports/daily-revenue?export=csv">Daily revenue (CSV)</a>
+    <a class="btn btn-secondary" href="/api/reports/daily-revenue?export=xlsx">Daily revenue (XLSX)</a>
+    <a class="btn btn-secondary" href="/api/reports/service-mix?export=csv">Service mix (CSV)</a>
+    <a class="btn btn-secondary" href="/api/reports/service-mix?export=xlsx">Service mix (XLSX)</a>
+  </div>
+</div>
+{% endblock %}

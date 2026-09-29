@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Receipt {{ payment.id }}</title>
+  <style>
+    @page { size: 80mm auto; margin: 3mm; }
+    body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 10pt; color:#111827; width: 72mm; }
+    h1, h2, h3 { margin: 0 0 4px 0; }
+    .center { text-align:center; }
+    .muted { color:#6b7280; }
+    .line { border-top:1px dashed #9ca3af; margin:6px 0; }
+    .row { display:flex; justify-content:space-between; }
+  </style>
+</head>
+<body>
+  <div class="center"><strong>{{ config.clinic_name|default:"Clinic" }}</strong></div>
+  <div class="center muted">RECEIPT #{{ payment.id }}</div>
+  <div class="center muted">{{ payment.paid_at|date:"Y-m-d H:i" }}</div>
+  <div class="line"></div>
+
+  <div>Patient: {{ invoice.patient }}</div>
+  <div>Invoice #: {{ invoice.id }}</div>
+  <div class="line"></div>
+
+  <div class="row"><div>Total</div><div>{{ invoice.total_amount }}</div></div>
+  <div class="row"><div>Paid Now</div><div>{{ payment.amount }}</div></div>
+  <div class="row"><div><strong>Balance</strong></div><div><strong>{{ invoice.total_amount|add:-invoice.paid_amount }}</strong></div></div>
+  <div class="line"></div>
+  <div class="center muted">Thank you.</div>
+</body>
+</html>

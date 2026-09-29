@@ -1,0 +1,31 @@
+<tr class="inline-form">
+  <td colspan="6">
+    <div class="card" style="margin:8px 0;">
+      <form method="post" action="" hx-post="{% url 'inventory-item-edit' item.id %}" data-success-message="Item updated">
+        {% csrf_token %}
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; align-items:end;">
+          <div>
+            <label>Code</label><br/>
+            <input type="text" name="code" value="{{ item.code }}" required />
+          </div>
+          <div>
+            <label>Name</label><br/>
+            <input type="text" name="name" value="{{ item.name }}" required />
+          </div>
+          <div>
+            <label>UoM</label><br/>
+            <input type="text" name="uom" value="{{ item.uom|default:'unit' }}" />
+          </div>
+          <div>
+            <label>Reorder level</label><br/>
+            <input type="number" step="0.01" name="reorder_level" value="{{ item.reorder_level|default:0 }}" />
+          </div>
+          <div style="grid-column:1/-1; display:flex; gap:8px;">
+            <button class="btn" type="submit">Save</button>
+            <button type="button" class="btn btn-secondary" onclick="this.closest('tr').remove()">Cancel</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </td>
+</tr>

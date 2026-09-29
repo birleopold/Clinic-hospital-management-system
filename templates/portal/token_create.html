@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Patient Portal Link{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin:0 0 12px;">Generate Patient Portal Link</h2>
+  <form method="get" action="" style="display:flex; gap:12px; align-items:end; flex-wrap:wrap;">
+    <div class="autocomplete" style="min-width:300px;">
+      <label for="patient_search">Patient</label><br/>
+      <input id="patient_search" type="text" placeholder="Search patient by name or phone" data-autocomplete="patient" data-target-input-id="patient_id" />
+      <input id="patient_id" type="hidden" name="patient_id" value="{% if patient %}{{ patient.id }}{% endif %}" />
+    </div>
+    <div>
+      <label>&nbsp;</label><br/>
+      <button class="btn" type="submit">Generate link</button>
+    </div>
+    <div class="muted" style="margin-left:auto;">Link valid for {{ max_age_hours }} hours.</div>
+  </form>
+</div>
+
+{% if link %}
+<div class="card">
+  <h3 style="margin:0 0 8px;">Shareable Link</h3>
+  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <input id="portal_link" type="text" value="{{ link }}" style="width: min(100%, 720px);" readonly />
+    <button class="btn btn-secondary" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText(document.getElementById('portal_link').value)">Copy</button>
+  </div>
+  <p class="muted" style="margin-top:8px;">Anyone with this link can view the patient’s read‑only summary until it expires. Share securely.</p>
+</div>
+{% endif %}
+{% endblock %}

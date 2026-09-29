@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Dispense {{ dispense.id }}</title>
+  <style>
+    @page { size: 80mm auto; margin: 3mm; }
+    body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 10pt; color:#111827; width: 72mm; }
+    h1, h2, h3 { margin: 0 0 4px 0; }
+    .center { text-align:center; }
+    .muted { color:#6b7280; }
+    .line { border-top:1px dashed #9ca3af; margin:6px 0; }
+    .row { display:flex; justify-content:space-between; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { padding:4px 0; text-align:left; }
+    th { border-bottom:1px dashed #9ca3af; }
+    .right { text-align:right; }
+  </style>
+</head>
+<body>
+  <div class="center"><strong>{{ config.clinic_name|default:"Clinic" }}</strong></div>
+  <div class="center muted">DISPENSE #{{ dispense.id }}</div>
+  <div class="center muted">{{ dispense.dispensed_at|date:"Y-m-d H:i" }}</div>
+  <div class="line"></div>
+
+  <div>Patient: {{ dispense.patient }}</div>
+  <div class="line"></div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th class="right">Qty</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{{ dispense.item_code }} — {{ dispense.item_name }}</td>
+        <td class="right">{{ dispense.quantity }}</td>
+      </tr>
+      {% if dispense.batch %}
+      <tr>
+        <td class="muted">Batch: {{ dispense.batch.batch_no|default:'—' }}{% if dispense.batch.expiry %} · Exp: {{ dispense.batch.expiry|date:'Y-m-d' }}{% endif %}</td>
+        <td></td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  {% if dispense.notes %}
+  <div class="line"></div>
+  <div class="muted">Notes: {{ dispense.notes }}</div>
+  {% endif %}
+
+  <div class="line"></div>
+  <div class="center muted">Thank you.</div>
+</body>
+</html>

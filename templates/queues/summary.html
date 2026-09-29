@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% load queue_extras %}
+{% block title %}Queues Summary{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Queues Summary</h2>
+  <div class="chips">
+    {% for code,label in services %}
+      <div class="card" style="min-width:260px">
+        <h3 style="margin-top:0">{{ label }}</h3>
+        <div class="chips">
+          {% for st_code,st_label in statuses %}
+            <span class="chip">{{ st_label }}: {{ data|get_item:code|get_item:st_code }}</span>
+          {% endfor %}
+        </div>
+        <div style="margin-top:8px">
+          <a class="btn" href="/queues/{{ code }}">Open {{ label }} Queue</a>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

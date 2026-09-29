@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}New GRN{% endblock %}
+{% block content %}
+<a href="{% url 'inventory-grn-list' %}" class="muted">← Back to GRNs</a>
+<div class="card">
+  <h2 style="margin:0 0 12px;">New Goods Receipt</h2>
+  <form method="post" action="" hx-post="{% url 'inventory-grn-create' %}" data-success-message="GRN created" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; align-items:end;">
+    {% csrf_token %}
+    <div>
+      <label>PO</label><br/>
+      <select name="po" required style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; min-width:240px;">
+        {% for po in approved_pos %}
+        <option value="{{ po.id }}">#{{ po.id }} — {{ po.supplier.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="full">
+      <label>Reference</label><br/>
+      <input type="text" name="reference" placeholder="Supplier doc # or notes" />
+    </div>
+    <div style="grid-column: 1 / -1;">
+      <h3>Lines</h3>
+      <div id="lines">
+        <div class="line-row" style="display:flex; gap:8px; align-items:end; flex-wrap:wrap; margin-bottom:8px;">
+          <div>
+            <label>Item</label><br/>
+            <select name="item" required style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; min-width:240px;">
+              {% for it in items %}
+              <option value="{{ it.id }}">{{ it.code }} — {{ it.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>Qty</label><br/>
+            <input name="qty" type="number" step="0.01" min="0" value="1" style="padding:6px; width:120px; border:1px solid #cbd5e1; border-radius:6px;" />
+          </div>
+          <div>
+            <label>Unit Cost</label><br/>
+            <input name="unit_cost" type="number" step="0.01" min="0" value="0" style="padding:6px; width:140px; border:1px solid #cbd5e1; border-radius:6px;" />
+          </div>
+          <div>
+            <label>Batch</label><br/>
+            <input name="batch_no" type="text" placeholder="Batch #" style="padding:6px; width:160px; border:1px solid #cbd5e1; border-radius:6px;" />
+          </div>
+          <div>
+            <label>Expiry</label><br/>
+            <input name="expiry" type="date" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px;" />
+          </div>
+        </div>
+      </div>
+      <div class="muted" style="margin:8px 0;">Submit to save this single line. You can add multiple lines by re-opening the GRN and appending additional lines in the future iteration.</div>
+    </div>
+    {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' %}
+    <div class="full" style="grid-column: 1 / -1; display:flex; gap:12px; align-items:end; flex-wrap:wrap; border-top:1px dashed #e5e7eb; padding-top:8px;">
+      <div>
+        <label>Over-receipt override</label><br/>
+        <label class="muted" style="display:flex; align-items:center; gap:6px;">
+          <input type="checkbox" name="allow_overreceipt" value="1" /> Allow receiving more than ordered
+        </label>
+      </div>
+      <div style="min-width: 260px;">
+        <label>Override reason</label><br/>
+        <input type="text" name="override_reason" placeholder="Required when allowing over-receipt" />
+      </div>
+    </div>
+    {% endif %}
+    <div style="grid-column: 1 / -1; display:flex; gap:8px;">
+      <button class="btn" type="submit">Create</button>
+      <a class="btn btn-secondary" href="{% url 'inventory-grn-list' %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

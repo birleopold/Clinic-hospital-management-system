@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% block title %}Cashier{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Cash Session</h2>
+  <div class="chips" style="margin-bottom:8px">
+    <a class="btn btn-secondary" href="/cashier/session/report">Session Report</a>
+    <a class="btn btn-secondary" href="/cashier/cashbook">Cashbook</a>
+  </div>
+  {% if session %}
+    <div class="chips" style="margin-bottom:8px">
+      <span class="chip">Open since {{ session.open_time|date:"Y-m-d H:i" }}</span>
+      <span class="chip">Opening Float: {{ session.opening_float }}</span>
+      <span class="chip">Expected Cash: {{ session.expected_cash }}</span>
+    </div>
+    <form method="post" action="/cashier/session/close" style="display:flex; gap:12px; align-items:end; flex-wrap:wrap">
+      {% csrf_token %}
+      <div>
+        <label>Counted Cash</label><br />
+        <input type="number" name="counted_cash" step="0.01" min="0" required style="padding:6px; border:1px solid #cbd5e1; border-radius:6px;" />
+      </div>
+      <div>
+        <label>Notes</label><br />
+        <input type="text" name="notes" placeholder="optional" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; min-width:260px;" />
+      </div>
+      <div>
+        <button class="btn" type="submit">Close Session</button>
+      </div>
+    </form>
+  {% else %}
+    <form method="post" action="/cashier/session/open" style="display:flex; gap:12px; align-items:end; flex-wrap:wrap">
+      {% csrf_token %}
+      <div>
+        <label>Opening Float</label><br />
+        <input type="number" name="opening_float" step="0.01" min="0" value="0.00" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px;" />
+      </div>
+      <div>
+        <button class="btn" type="submit">Open Session</button>
+      </div>
+    </form>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Ready to Pay Invoices</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Patient</th>
+        <th>Total</th>
+        <th>Paid</th>
+        <th>Balance</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr>
+        <td>{{ inv.id }}</td>
+        <td>{{ inv.patient }}</td>
+        <td>{{ inv.total_amount }}</td>
+        <td>{{ inv.paid_amount }}</td>
+        <td>{{ inv.balance }}</td>
+        <td>
+          <form hx-post="/api/payments/" hx-swap="none" data-success-message="Payment recorded" data-reload-after="true" style="display:inline-flex; gap:8px; align-items:center">
+            <input type="hidden" name="invoice" value="{{ inv.id }}" />
+            <input type="hidden" name="method" value="cash" />
+            <input type="number" name="amount" step="0.01" min="0" max="{{ inv.balance }}" value="{{ inv.balance }}" style="width:120px; padding:6px; border:1px solid #cbd5e1; border-radius:6px;" />
+            <button class="btn" type="submit">Receipt</button>
+            <a class="btn btn-secondary" href="/cashier/invoice/{{ inv.id }}/print" style="margin-left:6px">Print</a>
+            <a class="btn btn-secondary" href="/cashier/invoice/{{ inv.id }}/print?format=pdf" style="margin-left:6px">PDF</a>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="muted">No invoices ready for payment</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if session and recent_payments %}
+<div class="card">
+  <h2>Recent Payments (This Session)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Invoice</th>
+        <th>Patient</th>
+        <th>Amount</th>
+        <th>Time</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in recent_payments %}
+      <tr>
+        <td>{{ p.id }}</td>
+        <td>{{ p.invoice.id }}</td>
+        <td>{{ p.invoice.patient }}</td>
+        <td>{{ p.amount }}</td>
+        <td>{{ p.paid_at|date:"Y-m-d H:i" }}</td>
+        <td>
+          <a class="btn btn-secondary" href="/cashier/receipt/{{ p.id }}/print">Print</a>
+          <a class="btn btn-secondary" href="/cashier/receipt/{{ p.id }}/print?format=pdf" style="margin-left:6px">PDF</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

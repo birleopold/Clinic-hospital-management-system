@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Backorders{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin:0 0 12px;">Backorders</h2>
+  <form method="get" action="" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin-bottom:10px;">
+    <div>
+      <label>Status</label><br/>
+      <select name="status" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; min-width:160px;">
+        <option value="">All</option>
+        <option value="open" {% if status == 'open' %}selected{% endif %}>Open</option>
+        <option value="closed" {% if status == 'closed' %}selected{% endif %}>Closed</option>
+      </select>
+    </div>
+    <div>
+      <label>Search</label><br/>
+      <input type="text" name="q" value="{{ q }}" placeholder="Patient or item" style="padding:6px; min-width:260px; border:1px solid #cbd5e1; border-radius:6px;" />
+    </div>
+    <div>
+      <button class="btn" type="submit">Filter</button>
+    </div>
+  </form>
+  <div style="overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Created</th>
+          <th>Patient</th>
+          <th>Item</th>
+          <th class="right">Qty</th>
+          <th class="right">Fulfilled</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for bo in backorders %}
+        <tr>
+          <td>#{{ bo.id }}</td>
+          <td>{{ bo.created_at|date:'Y-m-d H:i' }}</td>
+          <td>{{ bo.patient }}</td>
+          <td>{{ bo.item_code }} — {{ bo.item_name }}</td>
+          <td class="right">{{ bo.quantity }}</td>
+          <td class="right">{{ bo.fulfilled_quantity }}</td>
+          <td>{{ bo.status }}</td>
+          <td><a class="btn btn-secondary" href="{% url 'pharmacy-backorder-detail' bo.id %}">Open</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="muted">No backorders.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

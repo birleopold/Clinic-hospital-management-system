@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block title %}Purchase Orders{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin:0 0 10px;">Purchase Orders</h2>
+  <form method="get" action="" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin-bottom:10px;">
+    <div>
+      <label>Status</label><br/>
+      <select name="status" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; min-width:180px">
+        <option value="">All</option>
+        <option value="draft" {% if status == 'draft' %}selected{% endif %}>Draft</option>
+        <option value="approved" {% if status == 'approved' %}selected{% endif %}>Approved</option>
+        <option value="received" {% if status == 'received' %}selected{% endif %}>Received</option>
+        <option value="cancelled" {% if status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+      </select>
+    </div>
+    <div>
+      <button class="btn" type="submit">Filter</button>
+    </div>
+    {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' or user.role == 'store' %}
+    <div style="margin-left:auto;">
+      <a class="btn" href="{% url 'inventory-po-create' %}">New PO</a>
+    </div>
+    {% endif %}
+  </form>
+  <div style="overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Supplier</th>
+          <th>Ordered</th>
+          <th>Status</th>
+          <th class="right">Received %</th>
+          <th>Remarks</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for po in pos %}
+        <tr>
+          <td>#{{ po.id }}</td>
+          <td>{{ po.supplier }}</td>
+          <td>{{ po.ordered_date|date:'Y-m-d' }}</td>
+          <td>{{ po.recv_state|default:po.status }}</td>
+          <td class="right">{% if po.received_pct %}{{ po.received_pct|floatformat:0 }}%{% else %}—{% endif %}</td>
+          <td>{{ po.remarks }}</td>
+          <td>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <a class="btn btn-secondary" href="{% url 'inventory-po-edit' po.id %}">Open</a>
+              {% if po.status == 'draft' %}
+                <a class="btn btn-secondary" href="{% url 'inventory-po-approve' po.id %}">Approve</a>
+                <a class="btn btn-secondary" href="{% url 'inventory-po-cancel' po.id %}">Cancel</a>
+              {% elif po.status == 'approved' %}
+                {% if po.recv_state != 'received' %}
+                  <a class="btn btn-secondary" href="{% url 'inventory-grn-create' %}">Receive</a>
+                {% endif %}
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="muted">No purchase orders.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

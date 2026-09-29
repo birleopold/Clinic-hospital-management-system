@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Patients{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin:0 0 10px;">Patients</h2>
+  <form method="get" action="" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin-bottom:10px;">
+    <div>
+      <label>Search</label><br/>
+      <input type="text" name="q" value="{{ q }}" placeholder="Name, phone or #ID" style="padding:6px; min-width:260px; border:1px solid #cbd5e1; border-radius:6px;" />
+    </div>
+    <div>
+      <button class="btn" type="submit">Search</button>
+    </div>
+    {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' %}
+    <div style="margin-left:auto;">
+      <a class="btn" href="{% url 'patients-create' %}">New Patient</a>
+    </div>
+    {% endif %}
+  </form>
+  <div style="overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Gender</th>
+          <th>Phone</th>
+          <th>DOB</th>
+          <th>Insurance</th>
+          {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in patients %}
+        <tr>
+          <td>#{{ p.id }}</td>
+          <td>{{ p.first_name }} {{ p.last_name }}{% if p.other_names %} {{ p.other_names }}{% endif %}</td>
+          <td>{{ p.get_gender_display }}</td>
+          <td>{{ p.phone }}</td>
+          <td>{{ p.date_of_birth|date:"Y-m-d" }}</td>
+          <td>{% if p.insurance_provider %}{{ p.insurance_provider }}{% if p.insurance_id %} ({{ p.insurance_id }}){% endif %}{% else %}—{% endif %}</td>
+          {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' %}
+          <td><a class="btn btn-secondary" href="{% url 'patients-edit' p.id %}">Edit</a></td>
+          {% endif %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="muted">No patients found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

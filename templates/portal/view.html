@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% block title %}Patient Portal{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin:0 0 8px;">Welcome, {{ patient.first_name }} {{ patient.last_name }}</h2>
+  <div class="chips">
+    <span class="chip">Patient ID: #{{ patient.id }}</span>
+    {% if patient.phone %}<span class="chip">Phone: {{ patient.phone }}</span>{% endif %}
+  </div>
+  <p class="muted" style="margin:8px 0 0;">This read‑only view shows your recent visits, lab results, prescriptions, and invoices.</p>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 10px;">Visits (Encounters)</h3>
+  <div style="overflow:auto;">
+    <table>
+      <thead><tr><th>ID</th><th>Status</th><th>Clinician</th><th>Started</th><th>Ended</th></tr></thead>
+      <tbody>
+        {% for e in encounters %}
+        <tr>
+          <td>#{{ e.id }}</td>
+          <td>{{ e.get_status_display }}</td>
+          <td>{{ e.clinician|default:"—" }}</td>
+          <td>{{ e.started_at|date:"Y-m-d H:i" }}</td>
+          <td>{% if e.ended_at %}{{ e.ended_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="muted">No visits found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 10px;">Lab Results</h3>
+  <div style="overflow:auto;">
+    <table>
+      <thead><tr><th>Order #</th><th>Code</th><th>Description</th><th>Status</th><th>Results</th></tr></thead>
+      <tbody>
+        {% for o in lab_orders %}
+        <tr>
+          <td>#{{ o.id }}</td>
+          <td>{{ o.code }}</td>
+          <td>{{ o.description }}</td>
+          <td>{{ o.get_status_display }}</td>
+          <td>
+            {% if o.results.all %}
+              <ul style="margin:0; padding-left:16px;">
+                {% for r in o.results.all %}
+                  <li>{{ r.recorded_at|date:"Y-m-d H:i" }} — {{ r.result_text|default:"(see attachment)" }}{% if r.attachment %} — <a href="{{ r.attachment.url }}" target="_blank">Download</a>{% endif %}</li>
+                {% empty %}
+                  <li class="muted">No results yet.</li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <span class="muted">No results.</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="muted">No lab results found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 10px;">Prescriptions</h3>
+  <div style="overflow:auto;">
+    <table>
+      <thead><tr><th>Rx #</th><th>Created</th><th>Items</th></tr></thead>
+      <tbody>
+        {% for rx in prescriptions %}
+        <tr>
+          <td>#{{ rx.id }}</td>
+          <td>{{ rx.created_at|date:"Y-m-d H:i" }}</td>
+          <td>
+            <ul style="margin:0; padding-left:16px;">
+              {% for it in rx.items.all %}
+                <li>{{ it.item_code }} — {{ it.item_name }}; {{ it.dose }} {{ it.frequency }} {{ it.duration }}; Qty {{ it.quantity }}{% if it.dispensed_quantity %}, Dispensed {{ it.dispensed_quantity }}{% endif %}</li>
+              {% empty %}
+                <li class="muted">No items.</li>
+              {% endfor %}
+            </ul>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="muted">No prescriptions found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 10px;">Invoices</h3>
+  <div style="overflow:auto;">
+    <table>
+      <thead><tr><th>ID</th><th>Total</th><th>Paid</th><th>Status</th><th>Date</th></tr></thead>
+      <tbody>
+        {% for inv in invoices %}
+        <tr>
+          <td>#{{ inv.id }}</td>
+          <td>{{ inv.total_amount }}</td>
+          <td>{{ inv.paid_amount }}</td>
+          <td>{{ inv.status }}</td>
+          <td>{{ inv.created_at|date:"Y-m-d H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="muted">No invoices found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted" style="margin-top:8px;">For prints or official copies, visit the facility cashier.</p>
+</div>
+{% endblock %}

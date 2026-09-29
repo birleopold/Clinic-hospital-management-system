@@ -1,0 +1,18 @@
+{% load tz %}
+{% if slots %}
+  <div class="muted" style="margin-bottom:6px;">Pick a new start time:</div>
+  <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:8px">
+    {% for s in slots %}
+    <button type="button" class="btn btn-secondary"
+            hx-post="/api/appointments/{{ appt }}/reschedule/"
+            hx-vals='{"scheduled_for":"{{ s|localtime|date:"c" }}"}'
+            hx-swap="none"
+            data-success-message="Rescheduled"
+            data-reload-after="true">
+      {{ s|localtime|date:"H:i" }}
+    </button>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="muted">No available slots for this day.</div>
+{% endif %}

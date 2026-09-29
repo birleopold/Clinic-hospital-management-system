@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}{% if mode == 'edit' %}Edit Supplier{% else %}New Supplier{% endif %}{% endblock %}
+{% block content %}
+<a href="{% url 'inventory-suppliers' %}" class="muted">← Back to Suppliers</a>
+<div class="card">
+  <h2 style="margin:0 0 12px;">{% if mode == 'edit' %}Edit Supplier{% else %}New Supplier{% endif %}</h2>
+  <form method="post" action="" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; align-items:end;">
+    {% csrf_token %}
+    <div><label>Name</label><br/><input type="text" name="name" value="{{ supplier.name|default:'' }}" required /></div>
+    <div><label>Phone</label><br/><input type="text" name="phone" value="{{ supplier.phone|default:'' }}" /></div>
+    <div><label>Email</label><br/><input type="email" name="email" value="{{ supplier.email|default:'' }}" /></div>
+    <div class="full"><label>Address</label><br/><input type="text" name="address" value="{{ supplier.address|default:'' }}" /></div>
+    <div><label>Contact Person</label><br/><input type="text" name="contact_person" value="{{ supplier.contact_person|default:'' }}" /></div>
+    <div class="full"><label>Notes</label><br/><input type="text" name="notes" value="{{ supplier.notes|default:'' }}" /></div>
+    <div style="grid-column: 1 / -1; display:flex; gap:8px;">
+      <button class="btn" type="submit">Save</button>
+      <a class="btn btn-secondary" href="{% url 'inventory-suppliers' %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

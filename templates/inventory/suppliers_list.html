@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Suppliers{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin:0 0 10px;">Suppliers</h2>
+  <form method="get" action="" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin-bottom:10px;">
+    <div>
+      <label>Search</label><br/>
+      <input type="text" name="q" value="{{ q }}" placeholder="Name, phone, or email" style="padding:6px; min-width:260px; border:1px solid #cbd5e1; border-radius:6px;" />
+    </div>
+    <div>
+      <button class="btn" type="submit">Search</button>
+    </div>
+    {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' or user.role == 'store' %}
+    <div style="margin-left:auto;">
+      <a class="btn" href="{% url 'inventory-supplier-create' %}">New Supplier</a>
+    </div>
+    {% endif %}
+  </form>
+  <div style="overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>Contact</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in suppliers %}
+        <tr>
+          <td>#{{ s.id }}</td>
+          <td>{{ s.name }}</td>
+          <td>{{ s.phone }}</td>
+          <td>{{ s.email }}</td>
+          <td>{{ s.contact_person }}</td>
+          <td><a class="btn btn-secondary" href="{% url 'inventory-supplier-edit' s.id %}">Edit</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="muted">No suppliers found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

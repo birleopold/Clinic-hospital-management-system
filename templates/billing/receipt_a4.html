@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Receipt {{ payment.id }}</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 11pt; color:#111827; }
+    h1, h2, h3 { margin: 0 0 6px 0; }
+    .muted { color:#6b7280; }
+    .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px; }
+    .clinic { font-size: 16pt; font-weight: 700; }
+    .doc-title { font-size: 16pt; font-weight: 700; text-align: right; }
+    .meta { font-size:10pt; }
+    table { width:100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border:1px solid #e5e7eb; padding:6px; text-align:left; }
+    th { background:#f3f4f6; }
+    .totals { width: 280px; margin-left:auto; margin-top: 10px; }
+    .totals td { border:1px solid #e5e7eb; padding:6px; }
+    .right { text-align:right; }
+    .footer { margin-top: 18px; font-size:10pt; color:#6b7280; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="clinic">{{ config.clinic_name|default:"Clinic" }}</div>
+      <div class="muted">Receipt #: {{ payment.id }}</div>
+      <div class="muted">Date: {{ payment.paid_at|date:"Y-m-d H:i" }}</div>
+    </div>
+    <div class="doc-title">RECEIPT</div>
+  </div>
+
+  <div class="meta">
+    <div><strong>Patient:</strong> {{ invoice.patient }}</div>
+    <div><strong>Invoice #:</strong> {{ invoice.id }}</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:20%">Code</th>
+        <th>Description</th>
+        <th style="width:10%" class="right">Qty</th>
+        <th style="width:15%" class="right">Unit Price</th>
+        <th style="width:15%" class="right">Line Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ln in lines %}
+      <tr>
+        <td>{{ ln.code }}</td>
+        <td>{{ ln.description|default:ln.code }}</td>
+        <td class="right">{{ ln.quantity }}</td>
+        <td class="right">{{ ln.unit_price }}</td>
+        <td class="right">{{ ln.line_total }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr>
+      <td>Total</td>
+      <td class="right">{{ invoice.total_amount }}</td>
+    </tr>
+    <tr>
+      <td>Previously Paid</td>
+      <td class="right">{{ invoice.paid_amount|add:-payment.amount }}</td>
+    </tr>
+    <tr>
+      <td><strong>Paid Now</strong></td>
+      <td class="right"><strong>{{ payment.amount }}</strong></td>
+    </tr>
+    <tr>
+      <td><strong>Balance</strong></td>
+      <td class="right"><strong>{{ invoice.total_amount|add:-invoice.paid_amount }}</strong></td>
+    </tr>
+  </table>
+
+  <div class="footer">Thank you.</div>
+</body>
+</html>

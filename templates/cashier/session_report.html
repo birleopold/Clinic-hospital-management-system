@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Session Report{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Cash Session Report</h2>
+  <div class="chips" style="margin-bottom:8px">
+    <span class="chip">Session #{{ session.id }}</span>
+    <span class="chip">Opened: {{ session.open_time|date:"Y-m-d H:i" }}</span>
+    {% if session.close_time %}<span class="chip">Closed: {{ session.close_time|date:"Y-m-d H:i" }}</span>{% else %}<span class="chip">Status: OPEN</span>{% endif %}
+    <span class="chip">Opening Float: {{ session.opening_float }}</span>
+    <span class="chip">Expected Cash: {{ session.expected_cash }}</span>
+    {% if session.counted_cash %}<span class="chip">Counted: {{ session.counted_cash }}</span>{% endif %}
+    {% if session.discrepancy %}<span class="chip">Discrepancy: {{ session.discrepancy }}</span>{% endif %}
+  </div>
+  <div class="chips" style="margin-bottom:12px">
+    <a class="btn btn-secondary" href="/cashier/session/{{ session.id }}/report?export=csv">CSV</a>
+    <a class="btn btn-secondary" href="/cashier/session/{{ session.id }}/report?export=xlsx">XLSX</a>
+    <a class="btn btn-secondary" href="/cashier/session/{{ session.id }}/report?format=pdf">PDF</a>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Time</th>
+        <th>Invoice</th>
+        <th>Patient</th>
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in payments %}
+      <tr>
+        <td>{{ p.id }}</td>
+        <td>{{ p.paid_at|date:"Y-m-d H:i" }}</td>
+        <td>{{ p.invoice_id }}</td>
+        <td>{{ p.invoice.patient }}</td>
+        <td>{{ p.amount }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="muted">No payments in this session</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div style="margin-top:12px; text-align:right"><strong>Total: {{ total_amount }}</strong></div>
+</div>
+{% endblock %}

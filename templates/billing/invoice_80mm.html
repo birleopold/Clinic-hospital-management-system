@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Invoice {{ invoice.id }}</title>
+  <style>
+    @page { size: 80mm auto; margin: 3mm; }
+    body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 10pt; color:#111827; width: 72mm; }
+    h1, h2, h3 { margin: 0 0 4px 0; }
+    .center { text-align:center; }
+    .muted { color:#6b7280; }
+    .line { border-top:1px dashed #9ca3af; margin:6px 0; }
+    .row { display:flex; justify-content:space-between; }
+    .totals { margin-top: 6px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { padding:4px 0; text-align:left; }
+    th { border-bottom:1px dashed #9ca3af; }
+    .right { text-align:right; }
+  </style>
+</head>
+<body>
+  <div class="center"><strong>{{ config.clinic_name|default:"Clinic" }}</strong></div>
+  <div class="center muted">INVOICE #{{ invoice.id }}</div>
+  <div class="center muted">{{ invoice.created_at|date:"Y-m-d H:i" }}</div>
+  <div class="line"></div>
+
+  <div>Patient: {{ invoice.patient }}</div>
+  <div class="line"></div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th class="right">Qty</th>
+        <th class="right">Price</th>
+        <th class="right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ln in lines %}
+      <tr>
+        <td>{{ ln.description|default:ln.code }}</td>
+        <td class="right">{{ ln.quantity }}</td>
+        <td class="right">{{ ln.unit_price }}</td>
+        <td class="right">{{ ln.line_total }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="line"></div>
+  <div class="totals">
+    <div class="row"><div>Total</div><div>{{ invoice.total_amount }}</div></div>
+    <div class="row"><div>Paid</div><div>{{ invoice.paid_amount }}</div></div>
+    <div class="row"><div><strong>Balance</strong></div><div><strong>{{ balance }}</strong></div></div>
+  </div>
+  <div class="line"></div>
+  <div class="center muted">Thank you.</div>
+</body>
+</html>

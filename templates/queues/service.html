@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+{% block title %}{{ service_label }} Queue{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>{{ service_label }} Queue</h2>
+  <div class="chips" style="margin-bottom:12px">
+    <a class="btn btn-secondary" href="/queues">Back to Summary</a>
+  </div>
+  {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' %}
+  <div class="card">
+    <h3 style="margin-top:0">Enqueue New Ticket</h3>
+    <form hx-post="/api/queue-tickets/enqueue/" hx-swap="none" data-success-message="Ticket enqueued" data-reload-after="true">
+      <input type="hidden" name="service" value="{{ service }}" />
+      <div style="display:flex; gap:12px; align-items:end; flex-wrap:wrap">
+        <div class="autocomplete">
+          <label>Patient</label><br />
+          <input type="text" placeholder="Search by name or phone" data-autocomplete="patient" data-target-input-id="enqueue-patient-id" data-selected-hint-id="patient-selected" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; min-width:260px" />
+          <div class="autocomplete-list"></div>
+          <div id="patient-selected" class="muted" style="font-size:12px; margin-top:4px"></div>
+          <input type="hidden" id="enqueue-patient-id" name="patient" required />
+        </div>
+        <div>
+          <label>Notes</label><br />
+          <input type="text" name="notes" placeholder="optional" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; min-width:240px" />
+        </div>
+        <div>
+          <button class="btn" type="submit">Enqueue</button>
+        </div>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+  <div class="card">
+    <h3 style="margin-top:0">In Service</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Patient</th>
+          <th>Assigned To</th>
+          <th>Started</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in in_service %}
+        <tr>
+          <td>{{ t.id }}</td>
+          <td>{{ t.patient }}</td>
+          <td>{{ t.assigned_to|default:"-" }}</td>
+          <td>{{ t.started_at|date:"Y-m-d H:i" }}</td>
+          <td>
+            {% if user.is_superuser or user.role == 'admin' %}
+              <button class="btn"
+                      hx-post="/api/queue-tickets/{{ t.id }}/finish/"
+                      hx-swap="none"
+                      data-success-message="Ticket finished"
+                      data-reload-after="true">
+                Finish
+              </button>
+            {% elif service == 'triage' and user.role == 'nurse' %}
+              <button class="btn"
+                      hx-post="/api/queue-tickets/{{ t.id }}/finish/"
+                      hx-swap="none"
+                      data-success-message="Ticket finished"
+                      data-reload-after="true">
+                Finish
+              </button>
+            {% elif service == 'consult' and user.role == 'clinician' %}
+              <button class="btn"
+                      hx-post="/api/queue-tickets/{{ t.id }}/finish/"
+                      hx-swap="none"
+                      data-success-message="Ticket finished"
+                      data-reload-after="true">
+                Finish
+              </button>
+            {% elif service == 'lab' and user.role == 'lab' %}
+              <button class="btn"
+                      hx-post="/api/queue-tickets/{{ t.id }}/finish/"
+                      hx-swap="none"
+                      data-success-message="Ticket finished"
+                      data-reload-after="true">
+                Finish
+              </button>
+            {% elif service == 'pharmacy' and user.role == 'pharmacy' %}
+              <button class="btn"
+                      hx-post="/api/queue-tickets/{{ t.id }}/finish/"
+                      hx-swap="none"
+                      data-success-message="Ticket finished"
+                      data-reload-after="true">
+                Finish
+              </button>
+            {% elif service == 'cashier' and user.role == 'cashier' %}
+              <button class="btn"
+                      hx-post="/api/queue-tickets/{{ t.id }}/finish/"
+                      hx-swap="none"
+                      data-success-message="Ticket finished"
+                      data-reload-after="true">
+                Finish
+              </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="muted">No active tickets</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Waiting</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Patient</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in waiting %}
+        <tr>
+          <td>{{ t.id }}</td>
+          <td>{{ t.patient }}</td>
+          <td>{{ t.created_at|date:"Y-m-d H:i" }}</td>
+          <td>
+            {% if user.is_superuser or user.role == 'admin' %}
+              <button class="btn"
+                      hx-post="/api/queue-tickets/{{ t.id }}/start/"
+                      hx-swap="none"
+                      data-success-message="Ticket started"
+                      data-reload-after="true">
+                Start
+              </button>
+            {% elif service == 'triage' and user.role == 'nurse' %}
+              <button class="btn"
+                      hx-post="/api/queue-tickets/{{ t.id }}/start/"
+                      hx-swap="none"
+                      data-success-message="Ticket started"
+                      data-reload-after="true">
+                Start
+              </button>
+            {% elif service == 'consult' and user.role == 'clinician' %}
+              <button class="btn"
+                      hx-post="/api/queue-tickets/{{ t.id }}/start/"
+                      hx-swap="none"
+                      data-success-message="Ticket started"
+                      data-reload-after="true">
+                Start
+              </button>
+            {% elif service == 'lab' and user.role == 'lab' %}
+              <button class="btn"
+                      hx-post="/api/queue-tickets/{{ t.id }}/start/"
+                      hx-swap="none"
+                      data-success-message="Ticket started"
+                      data-reload-after="true">
+                Start
+              </button>
+            {% elif service == 'pharmacy' and user.role == 'pharmacy' %}
+              <button class="btn"
+                      hx-post="/api/queue-tickets/{{ t.id }}/start/"
+                      hx-swap="none"
+                      data-success-message="Ticket started"
+                      data-reload-after="true">
+                Start
+              </button>
+            {% elif service == 'cashier' and user.role == 'cashier' %}
+              <button class="btn"
+                      hx-post="/api/queue-tickets/{{ t.id }}/start/"
+                      hx-swap="none"
+                      data-success-message="Ticket started"
+                      data-reload-after="true">
+                Start
+              </button>
+            {% endif %}
+            {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' %}
+              <button class="btn btn-secondary"
+                      hx-post="/api/queue-tickets/{{ t.id }}/cancel/"
+                      hx-swap="none"
+                      data-success-message="Ticket cancelled"
+                      data-reload-after="true">
+                Cancel
+              </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="muted">No waiting tickets</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

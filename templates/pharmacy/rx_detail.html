@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Prescription #{{ rx.id }}{% endblock %}
+{% block content %}
+<a href="{% if rx.encounter_id %}/ehr/encounter/{{ rx.encounter_id }}{% else %}/pharmacy{% endif %}" class="muted">← Back</a>
+
+<div class="card">
+  <h2 style="margin:0 0 8px;">Prescription #{{ rx.id }}</h2>
+  <div class="chips">
+    <span class="chip">Patient: {{ rx.patient }}</span>
+    <span class="chip">Clinician: {{ rx.clinician|default:"—" }}</span>
+    <span class="chip">Created: {{ rx.created_at|date:"Y-m-d H:i" }}</span>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 10px;">Add Item</h3>
+  <form method="post" action="{% url 'rx-item-add' rx.id %}" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:12px; align-items:end;">
+    {% csrf_token %}
+    <div><label>Item code</label><br/><input type="text" name="item_code" required /></div>
+    <div><label>Name</label><br/><input type="text" name="item_name" /></div>
+    <div><label>Dose</label><br/><input type="text" name="dose" /></div>
+    <div><label>Frequency</label><br/><input type="text" name="frequency" /></div>
+    <div><label>Duration</label><br/><input type="text" name="duration" /></div>
+    <div><label>Quantity</label><br/><input type="number" step="0.01" name="quantity" value="1" /></div>
+    <div><button class="btn" type="submit">Add</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 10px;">Items</h3>
+  <div style="overflow:auto;">
+    <table>
+      <thead><tr><th>Code</th><th>Name</th><th>Dose</th><th>Freq</th><th>Duration</th><th>Qty</th><th>Dispensed</th><th></th></tr></thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td>{{ it.item_code }}</td>
+          <td>{{ it.item_name }}</td>
+          <td>{{ it.dose }}</td>
+          <td>{{ it.frequency }}</td>
+          <td>{{ it.duration }}</td>
+          <td>{{ it.quantity }}</td>
+          <td>{{ it.dispensed_quantity }}</td>
+          <td>
+            <form method="post" action="{% url 'rx-item-delete' it.id %}" style="margin:0;">
+              {% csrf_token %}
+              <button class="btn btn-secondary" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="muted">No items. Add one above.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="chips">
+    <a class="btn btn-secondary" href="/pharmacy">Open Pharmacy Board</a>
+  </div>
+</div>
+{% endblock %}

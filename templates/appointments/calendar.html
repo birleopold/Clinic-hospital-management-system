@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+{% block title %}Appointments{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Schedule</h2>
+  <div style="display:flex; gap:8px; align-items:center; margin:8px 0 12px;">
+    <div class="chips">
+      <a class="chip" href="?mode=day&date={{ date }}&clinician={{ selected_clinician }}">Day</a>
+      <a class="chip" href="?mode=week&date={{ date }}&clinician={{ selected_clinician }}">Week</a>
+      <a class="chip" href="?mode=month&date={{ date }}&clinician={{ selected_clinician }}">Month</a>
+    </div>
+    <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+      <a class="btn btn-secondary" href="?mode={{ mode }}&date={{ prev_date }}&clinician={{ selected_clinician }}">◀ Prev</a>
+      <a class="btn btn-secondary" href="?mode={{ mode }}&date={{ next_date }}&clinician={{ selected_clinician }}">Next ▶</a>
+    </div>
+  </div>
+  <div id="filters" style="display:flex; gap:12px; align-items:end; flex-wrap:wrap; margin-bottom:12px">
+    <div>
+      <label>Clinician</label><br />
+      <select id="clinician" name="clinician" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; min-width:220px">
+        {% for c in clinicians %}
+        <option value="{{ c.id }}" {% if c.id == selected_clinician %}selected{% endif %}>{{ c.get_full_name|default:c.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Date</label><br />
+      <input id="date" name="date" type="date" value="{{ date }}" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px" />
+    </div>
+    <div>
+      <label>Duration (min)</label><br />
+      <input id="duration" name="duration" type="number" min="10" step="5" value="{{ duration }}" style="padding:6px; width:110px; border:1px solid #cbd5e1; border-radius:6px" />
+    </div>
+    <div>
+      <label>Slot (min)</label><br />
+      <input id="slot" name="slot" type="number" min="5" step="5" value="{{ duration }}" style="padding:6px; width:110px; border:1px solid #cbd5e1; border-radius:6px" />
+    </div>
+  </div>
+
+  {% if mode == 'day' %}
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start">
+      <div>
+        <h3>Available Slots</h3>
+        <div id="slots"
+             hx-get="/appointments/slots"
+             hx-trigger="load, change from:#filters"
+             hx-include="#filters"
+             hx-target="#slots"
+             hx-swap="innerHTML">
+          <!-- loaded via HTMX -->
+        </div>
+      </div>
+      <div>
+        <h3>Book Appointment</h3>
+        <form id="book-form" hx-post="/api/appointments/" hx-swap="none" data-success-message="Appointment booked" data-reload-after="true" style="display:flex; flex-direction:column; gap:10px">
+          {% csrf_token %}
+          <input type="hidden" id="book_scheduled" name="scheduled_for" />
+          <input type="hidden" id="book_clinician" name="clinician" value="{{ selected_clinician }}" />
+          <div>
+            <label>Selected Start</label><br />
+            <div id="selected_start" class="chip">None</div>
+          </div>
+          <div class="autocomplete">
+            <label>Patient</label><br />
+            <input type="text" data-autocomplete="patient" data-target-input-id="book_patient_id" placeholder="Search patient by name or phone" style="padding:6px; width:280px; border:1px solid #cbd5e1; border-radius:6px" />
+            <input type="hidden" id="book_patient_id" name="patient" />
+            <div id="patient-selected" class="muted" style="margin-top:4px"></div>
+          </div>
+          {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' %}
+          <div>
+            <a class="btn btn-secondary" href="{% url 'patients-create' %}" target="_blank">New Patient</a>
+          </div>
+          {% endif %}
+          <div>
+            <label>Reason</label><br />
+            <input type="text" name="reason_for_visit" placeholder="Reason for visit" style="padding:6px; width:320px; border:1px solid #cbd5e1; border-radius:6px" />
+          </div>
+          <div>
+            <label>Duration (min)</label><br />
+            <input type="number" name="duration_minutes" min="10" step="5" value="{{ duration }}" style="padding:6px; width:120px; border:1px solid #cbd5e1; border-radius:6px" />
+          </div>
+          <button class="btn" type="submit">Create</button>
+        </form>
+
+        <h3 style="margin-top:18px">Day Appointments</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Time</th>
+              <th>Patient</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ap in appointments %}
+            <tr>
+              <td>{{ ap.id }}</td>
+              <td>{{ ap.scheduled_for|date:"H:i" }} ({{ ap.duration_minutes }}m)</td>
+              <td>{{ ap.patient }}</td>
+              <td>{{ ap.status }}</td>
+              <td>
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap">
+                  <button class="btn btn-secondary" hx-post="/api/appointments/{{ ap.id }}/confirm/" hx-swap="none" data-success-message="Confirmed" data-reload-after="true">Confirm</button>
+                  <button class="btn btn-secondary" hx-post="/api/appointments/{{ ap.id }}/cancel/" hx-swap="none" data-success-message="Cancelled" data-reload-after="true">Cancel</button>
+                  <button class="btn btn-secondary" hx-post="/api/appointments/{{ ap.id }}/no_show/" hx-swap="none" data-success-message="No-show" data-reload-after="true">No-show</button>
+                  <form hx-post="/api/appointments/{{ ap.id }}/reschedule/" hx-include="this" hx-swap="none" data-success-message="Rescheduled" data-reload-after="true" style="display:inline-flex; gap:6px; align-items:center">
+                    <input type="datetime-local" name="scheduled_for" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px" />
+                    <button class="btn btn-secondary" type="submit">Reschedule</button>
+                  </form>
+                  <button class="btn btn-secondary" 
+                          hx-get="/appointments/slots?mode=reschedule&clinician={{ selected_clinician }}&date={{ date }}&duration={{ ap.duration_minutes }}&appt={{ ap.id }}"
+                          hx-target="#resched-{{ ap.id }}" hx-swap="innerHTML">Pick Slot</button>
+                </div>
+                <div id="resched-{{ ap.id }}"></div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="muted">No appointments for this day</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% elif mode == 'week' %}
+    <div>
+      <h3>Week View</h3>
+      <div style="display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap:12px;">
+        {% for col in week_columns %}
+          <div class="card" style="margin:0;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <strong>{{ col.label }}</strong>
+              <a class="btn btn-secondary" href="?mode=day&date={{ col.date }}&clinician={{ selected_clinician }}">Open day</a>
+            </div>
+            <div>
+              {% for ap in col.appts %}
+                <div class="chip" style="display:block; margin-bottom:6px;">
+                  {{ ap.scheduled_for|date:"H:i" }} ({{ ap.duration_minutes }}m) — {{ ap.patient }} — {{ ap.status }}
+                </div>
+              {% empty %}
+                <div class="muted">No appointments</div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% elif mode == 'month' %}
+    <div>
+      <h3>Month View</h3>
+      <div style="display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap:8px;">
+        {% for week in month_weeks %}
+          {% for d in week %}
+            <a href="?mode=day&date={{ d.date }}&clinician={{ selected_clinician }}" class="card" style="margin:0; text-decoration:none; color:inherit;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong>{{ d.day }}</strong>
+                {% if d.count %}<span class="chip">{{ d.count }}</span>{% endif %}
+              </div>
+            </a>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+<script>
+  (function(){
+    function setSelected(startIso){
+      var tgt = document.getElementById('book_scheduled');
+      if(tgt){ tgt.value = startIso; }
+      var lbl = document.getElementById('selected_start');
+      if(lbl){ lbl.textContent = startIso || 'None'; }
+      var cl = document.getElementById('book_clinician');
+      var sel = document.getElementById('clinician');
+      if(cl && sel){ cl.value = sel.value; }
+    }
+    document.addEventListener('click', function(e){
+      var el = e.target.closest('[data-slot-start]');
+      if(!el) return;
+      var iso = el.getAttribute('data-slot-start');
+      if(iso){ setSelected(iso); window.showToast && window.showToast('Slot selected'); }
+    });
+  })();
+</script>
+{% endblock %}

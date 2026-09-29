@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}{% if mode == 'edit' %}Edit Item{% else %}New Item{% endif %}{% endblock %}
+{% block content %}
+<a href="{% url 'inventory-stock' %}" class="muted">← Back to Inventory</a>
+<div class="card">
+  <h2 style="margin:0 0 12px;">{% if mode == 'edit' %}Edit Item{% else %}New Item{% endif %}</h2>
+  {% if error %}
+    <div style="background:#fee2e2; color:#991b1b; padding:8px 10px; border-radius:6px; margin-bottom:10px;">{{ error }}</div>
+  {% endif %}
+  <form method="post" action="">
+    {% csrf_token %}
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; align-items:end;">
+      <div>
+        <label>Code</label><br/>
+        <input type="text" name="code" value="{{ item.code|default:'' }}" required />
+      </div>
+      <div>
+        <label>Name</label><br/>
+        <input type="text" name="name" value="{{ item.name|default:'' }}" required />
+      </div>
+      <div>
+        <label>UoM</label><br/>
+        <input type="text" name="uom" value="{{ item.uom|default:'unit' }}" />
+      </div>
+      <div>
+        <label>Reorder level</label><br/>
+        <input type="number" step="0.01" name="reorder_level" value="{{ item.reorder_level|default:0 }}" />
+      </div>
+      <div style="grid-column: 1 / -1; display:flex; gap:8px;">
+        <button class="btn" type="submit">Save</button>
+        <a class="btn btn-secondary" href="{% url 'inventory-stock' %}">Cancel</a>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}GRNs{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin:0 0 10px;">Goods Receipts</h2>
+  <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+    <a class="btn" href="{% url 'inventory-grn-create' %}">New GRN</a>
+  </div>
+  <div style="overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>PO</th>
+          <th>Supplier</th>
+          <th>Received</th>
+          <th>Posted</th>
+          <th>Ref</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in grns %}
+        <tr>
+          <td>#{{ g.id }}</td>
+          <td>#{{ g.po.id }}</td>
+          <td>{{ g.po.supplier }}</td>
+          <td>{{ g.received_at|date:'Y-m-d H:i' }}</td>
+          <td>{{ g.posted }}</td>
+          <td>{{ g.reference }}</td>
+          <td><a class="btn btn-secondary" href="{% url 'inventory-grn-detail' g.id %}">Open</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="muted">No GRNs.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

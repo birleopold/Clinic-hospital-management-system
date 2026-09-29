@@ -1,0 +1,22 @@
+{% if result %}
+<div class="card">
+  <h3 style="margin:0 0 8px;">Import Summary</h3>
+  <div class="chips" style="margin-bottom:8px;">
+    <span class="chip">Items created: {{ result.created_items }}</span>
+    <span class="chip">Items updated: {{ result.updated_items }}</span>
+    <span class="chip">Batches created: {{ result.created_batches }}</span>
+    <span class="chip">Batches updated: {{ result.updated_batches }}</span>
+    <span class="chip">Stock movements: {{ result.movements_created }}</span>
+  </div>
+  {% if result.error_count and result.error_count > 0 %}
+    <div class="muted" style="margin:6px 0;">First {{ result.errors|length }} of {{ result.error_count }} errors shown below.</div>
+    <ul style="margin:0; padding-left:18px; color:#b91c1c;">
+      {% for e in result.errors %}
+        <li>{{ e }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="muted">No errors.</div>
+  {% endif %}
+</div>
+{% endif %}

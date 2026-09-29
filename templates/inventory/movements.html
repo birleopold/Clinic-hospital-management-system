@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Stock Movements{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin:0 0 12px;">Recent Movements</h2>
+  <div style="overflow:auto;">
+    <table>
+      <thead><tr><th>Time</th><th>Direction</th><th>Item</th><th>Batch</th><th>Qty</th><th>Reason</th><th>Ref</th></tr></thead>
+      <tbody>
+        {% for m in movements %}
+        <tr>
+          <td>{{ m.created_at|date:"Y-m-d H:i" }}</td>
+          <td>{{ m.get_direction_display }}</td>
+          <td>{{ m.item.code }} — {{ m.item.name }}</td>
+          <td>{{ m.batch.batch_no|default:"—" }}</td>
+          <td>{{ m.quantity }}</td>
+          <td>{{ m.reason }}</td>
+          <td>{{ m.ref }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="muted">No movements.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Lab &amp; imaging queue{% endblock %}
+{% block content %}
+<h2 style="margin-top:0;">Pending orders</h2>
+<p class="muted">Oldest first. Enter a result narrative (optional) and submit to mark the order complete.</p>
+
+<div class="card" style="overflow:auto;">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Type</th>
+        <th>Code</th>
+        <th>Patient</th>
+        <th>Visit</th>
+        <th>Ordered</th>
+        <th>Result</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in pending_orders %}
+      <tr>
+        <td>#{{ o.id }}</td>
+        <td>{{ o.get_order_type_display }}</td>
+        <td>{{ o.code }} {% if o.description %}<span class="muted">— {{ o.description }}</span>{% endif %}</td>
+        <td>{{ o.patient }}</td>
+        <td>
+          {% if o.encounter_id %}
+            <a href="{% url 'ehr-encounter-detail' o.encounter_id %}">Encounter #{{ o.encounter_id }}</a>
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </td>
+        <td>{{ o.created_at|date:"Y-m-d H:i" }}</td>
+        <td>
+          <form method="post" action="{% url 'labs-submit-result' %}" style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
+            {% csrf_token %}
+            <input type="hidden" name="order_id" value="{{ o.id }}" />
+            <textarea name="result_text" rows="2" placeholder="Result notes (optional)" style="width:100%; box-sizing:border-box;"></textarea>
+            <button type="submit" class="btn" data-success-message="Order completed">Complete</button>
+          </form>
+          <form method="post" action="{% url 'order-cancel' o.id %}" style="margin-top:8px;" onsubmit="return confirm('Cancel this order? Billing will be reversed if it was billable.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary" data-success-message="Order cancelled">Cancel order</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="muted">No pending orders.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

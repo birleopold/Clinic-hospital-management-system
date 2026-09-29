@@ -1,0 +1,12 @@
+{% load tz %}
+{% if slots %}
+  <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:8px">
+    {% for s in slots %}
+    <button type="button" class="btn btn-secondary" data-slot-start="{{ s|localtime|date:'c' }}">
+      {{ s|localtime|date:"H:i" }}
+    </button>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="muted">No available slots for this day.</div>
+{% endif %}

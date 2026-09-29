@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}GRN #{{ grn.id }}{% endblock %}
+{% block content %}
+<a href="{% url 'inventory-grn-list' %}" class="muted">← Back to GRNs</a>
+<div class="card">
+  <h2 style="margin:0 0 12px;">Goods Receipt #{{ grn.id }}</h2>
+  <div class="muted" style="margin-bottom:8px;">
+    <div><strong>PO:</strong> #{{ grn.po.id }} — {{ grn.po.supplier }}</div>
+    <div><strong>Received:</strong> {{ grn.received_at|date:'Y-m-d H:i' }}</div>
+    <div><strong>Reference:</strong> {{ grn.reference }}</div>
+    <div><strong>Posted:</strong> {{ grn.posted }}</div>
+  </div>
+  <div style="overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Item</th>
+          <th>Batch</th>
+          <th>Expiry</th>
+          <th class="right">Qty</th>
+          <th class="right">Unit Cost</th>
+          <th class="right">Over Recv (cum)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ln in lines %}
+        <tr>
+          <td>{{ ln.item.code }}</td>
+          <td>{{ ln.item.name }}</td>
+          <td>{{ ln.batch_no }}</td>
+          <td>{{ ln.expiry|date:'Y-m-d' }}</td>
+          <td class="right">{{ ln.quantity_received }}</td>
+          <td class="right">{{ ln.unit_cost }}</td>
+          <td class="right">{{ ln.over_received|default:0 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="muted">No lines on this GRN.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div style="margin-top:12px; display:flex; gap:8px;">
+    {% if not grn.posted %}
+      <a class="btn" href="{% url 'inventory-grn-post' grn.id %}">Post to stock</a>
+    {% endif %}
+    <a class="btn btn-secondary" href="{% url 'inventory-grn-list' %}">Done</a>
+  </div>
+</div>
+{% endblock %}

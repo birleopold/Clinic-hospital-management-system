@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Cashbook{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin:0 0 12px;">Cashbook</h2>
+  <form method="get" action="" style="display:flex; gap:12px; align-items:end; flex-wrap: wrap;">
+    <div>
+      <label for="start">Start</label><br/>
+      <input id="start" type="date" name="start" value="{{ start }}" />
+    </div>
+    <div>
+      <label for="end">End</label><br/>
+      <input id="end" type="date" name="end" value="{{ end }}" />
+    </div>
+    <div>
+      <button class="btn" type="submit">Filter</button>
+    </div>
+    <div style="margin-left:auto; display:flex; gap:8px;">
+      <a class="btn btn-secondary" href="?start={{ start }}&end={{ end }}&export=csv">Export CSV</a>
+      <a class="btn btn-secondary" href="?start={{ start }}&end={{ end }}&export=xlsx">Export XLSX</a>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="chips" style="margin-bottom:10px;">
+    <span class="chip">Total amount: {{ total_amount }}</span>
+    <span class="chip">Payments shown: {{ payments|length }}</span>
+  </div>
+  <div style="overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Time</th>
+          <th>Invoice</th>
+          <th>Patient</th>
+          <th>Amount</th>
+          <th>Cashier</th>
+          <th>Session</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payments %}
+        <tr>
+          <td>{{ p.id }}</td>
+          <td>{{ p.paid_at|date:"Y-m-d H:i" }}</td>
+          <td><a href="/cashier/invoice/{{ p.invoice_id }}/print" target="_blank">#{{ p.invoice_id }}</a></td>
+          <td>{{ p.invoice.patient }}</td>
+          <td>{{ p.amount }}</td>
+          <td>{% if p.cash_session_id %}{{ p.cash_session.opened_by }}{% endif %}</td>
+          <td>{{ p.cash_session_id }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="muted">No payments found for the selected period.</td>
+        </tr>
+        {% endfor %}
+        <tr>
+          <td colspan="4" style="text-align:right;"><strong>Total</strong></td>
+          <td><strong>{{ total_amount }}</strong></td>
+          <td colspan="2"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

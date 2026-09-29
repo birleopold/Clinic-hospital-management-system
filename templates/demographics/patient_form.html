@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}{% if mode == 'edit' %}Edit Patient{% else %}New Patient{% endif %}{% endblock %}
+{% block content %}
+<a href="{% url 'patients-list' %}" class="muted">← Back to Patients</a>
+<div class="card">
+  <h2 style="margin:0 0 12px;">{% if mode == 'edit' %}Edit Patient{% else %}New Patient{% endif %}</h2>
+  {% if error %}
+    <div class="chip" style="background:#fee2e2; color:#991b1b; margin-bottom:8px;">{{ error }}</div>
+  {% endif %}
+  {% if errors %}
+    <div style="margin-bottom:8px;">
+      {% for e in errors %}
+        <div class="chip" style="background:#fee2e2; color:#991b1b; margin-right:6px; margin-bottom:6px; display:inline-block;">{{ e }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% if dup_warning %}
+    <div class="chip" style="background:#fef3c7; color:#92400e; margin-bottom:8px;">{{ dup_warning }}</div>
+  {% endif %}
+  {% if dup_candidates %}
+    <div class="card" style="margin: 0 0 12px; padding:12px; background:#fafafa;">
+      <div class="muted" style="margin-bottom:6px;">Possible duplicates:</div>
+      <div style="max-height:180px; overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Phone</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in dup_candidates %}
+            <tr>
+              <td>#{{ d.id }}</td>
+              <td>{{ d.first_name }} {{ d.last_name }}{% if d.other_names %} {{ d.other_names }}{% endif %}</td>
+              <td>{{ d.phone }}</td>
+              <td><a class="btn btn-secondary" href="{% url 'patients-edit' d.id %}" target="_blank">Open</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="muted" style="margin-top:8px">If you still want to create/save this record, tick confirm and Save again.</div>
+    </div>
+  {% endif %}
+  <form method="post" action="" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; align-items:end;">
+    {% csrf_token %}
+    <div><label>First name</label><br/><input type="text" name="first_name" value="{{ patient.first_name|default:'' }}" /></div>
+    <div><label>Last name</label><br/><input type="text" name="last_name" value="{{ patient.last_name|default:'' }}" /></div>
+    <div><label>Other names</label><br/><input type="text" name="other_names" value="{{ patient.other_names|default:'' }}" /></div>
+    <div>
+      <label>Gender</label><br/>
+      <select name="gender">
+        <option value="">—</option>
+        <option value="M" {% if patient and patient.gender == 'M' %}selected{% endif %}>Male</option>
+        <option value="F" {% if patient and patient.gender == 'F' %}selected{% endif %}>Female</option>
+        <option value="O" {% if patient and patient.gender == 'O' %}selected{% endif %}>Other</option>
+      </select>
+    </div>
+    <div><label>Date of Birth</label><br/><input type="date" name="date_of_birth" value="{{ patient.date_of_birth|date:'Y-m-d' }}" /></div>
+    <div><label>Phone</label><br/><input type="text" name="phone" value="{{ patient.phone|default:'' }}" /></div>
+    <div><label>Email</label><br/><input type="email" name="email" value="{{ patient.email|default:'' }}" /></div>
+    <div class="full"><label>Address</label><br/><input type="text" name="address" value="{{ patient.address|default:'' }}" /></div>
+    <div class="full" style="grid-column: 1 / -1; padding:10px 0; border-top:1px solid #eee; margin-top:4px;">
+      <div class="muted" style="margin-bottom:8px;">Privacy &amp; retention (clinic record)</div>
+      <div style="display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap;">
+        <input type="checkbox" id="consent_data_processing" name="consent_data_processing" value="1" {% if patient and patient.consent_data_processing %}checked{% endif %} />
+        <label for="consent_data_processing" style="margin:0;">Patient consents to processing of personal data for care and billing.</label>
+      </div>
+      <div style="margin-top:10px;">
+        <label for="data_retention_until">Data retention until (optional policy date)</label><br/>
+        <input type="date" id="data_retention_until" name="data_retention_until" value="{% if patient %}{{ patient.data_retention_until|date:'Y-m-d' }}{% endif %}" />
+      </div>
+      {% if patient and patient.consent_recorded_at %}
+        <div class="muted" style="margin-top:8px; font-size:12px;">Consent last recorded: {{ patient.consent_recorded_at|date:'Y-m-d H:i' }}</div>
+      {% endif %}
+    </div>
+    <div><label>Insurance Provider</label><br/><input type="text" name="insurance_provider" value="{{ patient.insurance_provider|default:'' }}" /></div>
+    <div><label>Insurance ID</label><br/><input type="text" name="insurance_id" value="{{ patient.insurance_id|default:'' }}" /></div>
+    {% if dup_candidates %}
+    <div class="full" style="display:flex; align-items:center; gap:8px;">
+      <input type="checkbox" id="confirm_duplicate" name="confirm_duplicate" value="1" />
+      <label for="confirm_duplicate">I have reviewed possible duplicates and want to proceed</label>
+    </div>
+    {% endif %}
+    <div style="grid-column: 1 / -1; display:flex; gap:8px;">
+      <button class="btn" type="submit">Save</button>
+      <a class="btn btn-secondary" href="{% url 'patients-list' %}">Cancel</a>
+    </div>
+  </form>
+  {% if audit %}
+    <div class="muted" style="margin-top:10px; font-size:12px;">
+      <div>Created: {{ audit.created_at|date:'Y-m-d H:i' }} {% if audit.created_by %}by {{ audit.created_by }}{% endif %}</div>
+      <div>Last updated: {{ audit.last_updated|date:'Y-m-d H:i' }} {% if audit.last_updated_by %}by {{ audit.last_updated_by }}{% endif %}</div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

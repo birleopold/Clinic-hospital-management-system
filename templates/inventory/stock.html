@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Inventory{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 12px;">
+    <h2 style="margin:0;">Stock</h2>
+    {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' or user.role == 'store' %}
+      <a class="btn" href="{% url 'inventory-item-create' %}">New Item</a>
+    {% endif %}
+  </div>
+  <div style="overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Name</th>
+          <th>UoM</th>
+          <th>QOH</th>
+          <th>Reorder level</th>
+          {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' or user.role == 'store' %}
+          <th>Actions</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr id="item-row-{{ it.id }}">
+          <td>{{ it.code }}</td>
+          <td>{{ it.name }}</td>
+          <td>{{ it.uom }}</td>
+          <td>{% if it.qoh %}{{ it.qoh }}{% else %}0{% endif %}</td>
+          <td>{{ it.reorder_level }}</td>
+          {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' or user.role == 'store' %}
+          <td>
+            <a class="btn btn-secondary" href="{% url 'inventory-item-edit' it.id %}" style="margin-right:6px;">Edit</a>
+            <a class="btn btn-secondary" hx-get="{% url 'inventory-item-edit' it.id %}?partial=1" hx-target="#item-row-{{ it.id }}" hx-swap="afterend" style="margin-right:6px;">Inline Edit</a>
+            <a class="btn btn-secondary" hx-get="{% url 'inventory-batch-create' it.id %}?partial=1" hx-target="#item-row-{{ it.id }}" hx-swap="afterend" style="margin-right:6px;">Add Batch</a>
+            <a class="btn btn-secondary" hx-get="{% url 'inventory-item-adjust' it.id %}?partial=1" hx-target="#item-row-{{ it.id }}" hx-swap="afterend">Adjust</a>
+          </td>
+          {% endif %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="muted">No items.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

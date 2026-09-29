@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Backorder #{{ bo.id }}{% endblock %}
+{% block content %}
+<a href="{% url 'pharmacy-backorders' %}" class="muted">← Back to Backorders</a>
+<div class="card">
+  <h2 style="margin:0 0 12px;">Backorder #{{ bo.id }}</h2>
+  <div class="muted" style="margin-bottom:10px;">
+    <div><strong>Patient:</strong> {{ bo.patient }}</div>
+    <div><strong>Item:</strong> {{ bo.item_code }} — {{ bo.item_name }}</div>
+    <div><strong>Qty:</strong> {{ bo.quantity }} &nbsp; <strong>Fulfilled:</strong> {{ bo.fulfilled_quantity }} &nbsp; <strong>Status:</strong> {{ bo.status }}</div>
+  </div>
+
+  <h3>Fulfill</h3>
+  <form method="post" action="{% url 'pharmacy-backorder-fulfill' bo.id %}" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+    {% csrf_token %}
+    <div>
+      <label>Quantity</label><br/>
+      <input type="number" step="0.01" name="quantity" value="{{ bo.quantity|default:0 }}" />
+    </div>
+    <div>
+      <label>Batch</label><br/>
+      <select name="batch_id" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; min-width:220px;">
+        <option value="">FEFO auto</option>
+        {% for b in fefo_batches %}
+          <option value="{{ b.id }}">{{ b.batch_no|default:'—' }} · exp {{ b.expiry|date:'Y-m-d'|default:'—' }} · {{ b.quantity_on_hand }}{% if b.near_expiry %} · Near expiry{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if not item %}
+    <div>
+      <label>Item name (if create)</label><br/>
+      <input type="text" name="item_name" placeholder="If creating new" />
+    </div>
+    <div style="display:flex; gap:6px; align-items:center;">
+      <input type="checkbox" id="create_if_missing" name="create_if_missing" value="1" />
+      <label for="create_if_missing" class="muted">Create item if missing</label>
+    </div>
+    {% endif %}
+    <div>
+      <button class="btn" type="submit">Fulfill</button>
+    </div>
+  </form>
+
+  <div style="margin-top:12px;">
+    <form method="post" action="{% url 'pharmacy-backorder-close' bo.id %}" onsubmit="return confirm('Close this backorder?');">
+      {% csrf_token %}
+      <button class="btn btn-secondary" type="submit">Close Backorder</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

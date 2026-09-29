@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Dispense #{{ dispense.id }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 840px; margin: 0 auto;">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div>
+      <h2 style="margin:0;">{{ config.clinic_name|default:"Clinic" }}</h2>
+      <div class="muted">Dispense Receipt (A4)</div>
+    </div>
+    <div>
+      <button class="btn btn-secondary" onclick="window.print()">Print</button>
+      <a class="btn" href="?format=pdf">Download PDF</a>
+    </div>
+  </div>
+  <hr/>
+  <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+    <div>
+      <div><strong>Receipt:</strong> #{{ dispense.id }}</div>
+      <div><strong>Date:</strong> {{ dispense.dispensed_at|date:"Y-m-d H:i" }}</div>
+    </div>
+    <div>
+      <div><strong>Patient:</strong> {{ dispense.patient }}</div>
+    </div>
+  </div>
+  <div style="margin-top:16px;">
+    <table>
+      <thead><tr><th>Item Code</th><th>Item Name</th><th>Batch</th><th>Expiry</th><th style="text-align:right;">Quantity</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>{{ dispense.item_code }}</td>
+          <td>{{ dispense.item_name }}</td>
+          <td>{{ dispense.batch.batch_no|default:'—' }}</td>
+          <td>{{ dispense.batch.expiry|date:'Y-m-d'|default:'—' }}</td>
+          <td style="text-align:right;">{{ dispense.quantity }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% if dispense.notes %}
+  <div style="margin-top:12px;">
+    <strong>Notes:</strong>
+    <div class="muted">{{ dispense.notes }}</div>
+  </div>
+  {% endif %}
+  <div style="margin-top:24px; display:flex; justify-content:space-between;">
+    <div>
+      <div>Dispensed by:</div>
+      <div style="margin-top:40px; border-top:1px solid #ddd; width:240px;">Signature</div>
+    </div>
+    <div>
+      <div>Received by:</div>
+      <div style="margin-top:40px; border-top:1px solid #ddd; width:240px;">Signature</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

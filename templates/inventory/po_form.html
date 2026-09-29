@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% block title %}{% if mode == 'edit' %}PO #{{ po.id }}{% else %}New PO{% endif %}{% endblock %}
+{% block content %}
+<a href="{% url 'inventory-po-list' %}" class="muted">← Back to POs</a>
+<div class="card">
+  <h2 style="margin:0 0 12px;">{% if mode == 'edit' %}Purchase Order #{{ po.id }}{% else %}New Purchase Order{% endif %}</h2>
+  {% if mode == 'create' %}
+  <form method="post" action="" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; align-items:end;">
+    {% csrf_token %}
+    <div>
+      <label>Supplier</label><br/>
+      <select name="supplier" required style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; min-width:240px;">
+        {% for s in suppliers %}
+        <option value="{{ s.id }}">{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="full">
+      <label>Remarks</label><br/>
+      <input type="text" name="remarks" placeholder="Optional remarks" />
+    </div>
+    <div style="grid-column: 1 / -1; display:flex; gap:8px;">
+      <button class="btn" type="submit">Create</button>
+      <a class="btn btn-secondary" href="{% url 'inventory-po-list' %}">Cancel</a>
+    </div>
+  </form>
+  {% else %}
+    <div id="po-msg" class="muted" style="margin-bottom:8px; min-height: 1.2em;"></div>
+    <div class="muted" style="margin-bottom:8px;">
+      <div><strong>Supplier:</strong> {{ po.supplier }}</div>
+      <div><strong>Ordered:</strong> {{ po.ordered_date|date:'Y-m-d' }}</div>
+      <div><strong>Status:</strong> {{ po.status }}</div>
+      <div><strong>Remarks:</strong> {{ po.remarks }}</div>
+    </div>
+    <div class="chips" style="margin-bottom:12px;">
+      <span class="chip">Ordered: {{ ordered_total|default:0 }}</span>
+      <span class="chip">Received: {{ received_total|default:0 }}</span>
+      <span class="chip">Outstanding: {{ outstanding_total|default:0 }}</span>
+      {% if over_total and over_total > 0 %}
+        <span class="chip" style="background:#f59e0b; color:#fff;">Over: {{ over_total }}</span>
+      {% endif %}
+    </div>
+    {% if po.status == 'draft' %}
+    <form method="post" action="" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin-bottom:12px;">
+      {% csrf_token %}
+      <div>
+        <label>Item</label><br/>
+        <select name="item" required style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; min-width:240px;">
+          {% for it in items %}
+          <option value="{{ it.id }}">{{ it.code }} — {{ it.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Qty</label><br/>
+        <input name="quantity_ordered" type="number" step="0.01" min="0" value="1" style="padding:6px; width:120px; border:1px solid #cbd5e1; border-radius:6px;" />
+      </div>
+      <div>
+        <label>Unit Cost</label><br/>
+        <input name="unit_cost" type="number" step="0.01" min="0" value="0" style="padding:6px; width:140px; border:1px solid #cbd5e1; border-radius:6px;" />
+      </div>
+      <div>
+        <button class="btn" type="submit">Add Line</button>
+      </div>
+    </form>
+    {% endif %}
+    <div style="overflow:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Item</th>
+            <th class="right">Qty</th>
+            <th class="right">Unit Cost</th>
+            <th class="right">Received</th>
+            <th class="right">Outstanding</th>
+            <th class="right">Over</th>
+            <th>Status</th>
+            {% if po.status == 'draft' %}<th></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for ln in lines %}
+          <tr>
+            <td>{{ ln.item.code }}</td>
+            <td>{{ ln.item.name }}</td>
+            <td class="right">
+              {% if po.status == 'draft' %}
+              <form
+                hx-post="{% url 'inventory-po-line-update' po.id ln.id %}"
+                hx-target="#ln-msg-{{ ln.id }}"
+                hx-swap="innerHTML"
+                data-success-message="Line updated"
+                data-reload-after="true"
+                method="post" action="{% url 'inventory-po-line-update' po.id ln.id %}"
+                style="display:flex; gap:6px; justify-content:flex-end; align-items:center; flex-wrap:wrap;"
+              >
+                {% csrf_token %}
+                <input type="number" name="quantity_ordered" step="0.01" value="{{ ln.quantity_ordered }}" style="width:110px;" />
+                <input type="number" name="unit_cost" step="0.01" value="{{ ln.unit_cost }}" style="width:110px;" />
+                <button class="btn btn-secondary" type="submit">Save</button>
+                <span class="muted" id="ln-msg-{{ ln.id }}" style="min-width: 140px;"></span>
+              </form>
+              {% else %}
+                {{ ln.quantity_ordered }}
+              {% endif %}
+            </td>
+            <td class="right">{% if po.status != 'draft' %}{{ ln.unit_cost }}{% endif %}</td>
+            <td class="right">{{ ln.received_qty|default:0 }}</td>
+            <td class="right">{{ ln.outstanding_qty|default:0 }}</td>
+            <td class="right">{% if ln.over_qty and ln.over_qty > 0 %}{{ ln.over_qty }}{% else %}0{% endif %}</td>
+            <td>
+              {% if ln.receive_status == 'full' %}<span class="chip" style="background:#10b981; color:#fff;">Full</span>
+              {% elif ln.receive_status == 'partial' %}<span class="chip" style="background:#f59e0b; color:#fff;">Partial</span>
+              {% else %}<span class="chip">None</span>{% endif %}
+            </td>
+            {% if po.status == 'draft' %}
+            <td>
+              <form
+                hx-post="{% url 'inventory-po-line-delete' po.id ln.id %}"
+                hx-confirm="Delete this line?"
+                hx-target="#ln-msg-{{ ln.id }}"
+                hx-swap="innerHTML"
+                data-success-message="Line deleted"
+                data-reload-after="true"
+                method="post" action="{% url 'inventory-po-line-delete' po.id ln.id %}"
+                style="margin:0;"
+              >
+                {% csrf_token %}
+                <button class="btn btn-secondary" type="submit">Delete</button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% empty %}
+          <tr><td colspan="{% if po.status == 'draft' %}9{% else %}8{% endif %}" class="muted">No lines yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:12px; display:flex; gap:8px;">
+      {% if po.status == 'draft' %}
+        <a class="btn btn-secondary"
+           hx-get="{% url 'inventory-po-approve' po.id %}"
+           hx-target="#po-msg" hx-swap="innerHTML"
+           data-success-message="PO approved" data-reload-after="true"
+           href="{% url 'inventory-po-approve' po.id %}">Approve</a>
+        <a class="btn btn-secondary"
+           hx-get="{% url 'inventory-po-cancel' po.id %}"
+           hx-target="#po-msg" hx-swap="innerHTML"
+           data-success-message="PO cancelled" data-reload-after="true"
+           href="{% url 'inventory-po-cancel' po.id %}">Cancel</a>
+      {% elif po.status == 'approved' %}
+        {% if is_fully_received %}
+          <a class="btn"
+             hx-get="{% url 'inventory-po-close' po.id %}"
+             hx-target="#po-msg" hx-swap="innerHTML"
+             data-success-message="PO closed" data-reload-after="true"
+             href="{% url 'inventory-po-close' po.id %}">Close PO</a>
+        {% else %}
+          <a class="btn btn-secondary" href="{% url 'inventory-grn-create' %}">Receive (Create GRN)</a>
+        {% endif %}
+      {% endif %}
+      <a class="btn" href="{% url 'inventory-po-list' %}">Done</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}EHR Board{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin:0 0 12px;">Start Encounter</h2>
+  {% if error %}
+    <div class="chip" style="background:#fee2e2; color:#991b1b; margin-bottom:8px;">{{ error }}</div>
+  {% endif %}
+  <form method="post" action="{% url 'ehr-start-encounter' %}" style="display:flex; gap:12px; align-items:end; flex-wrap:wrap;">
+    {% csrf_token %}
+    <div class="autocomplete" style="min-width:280px;">
+      <label for="patient_search">Patient</label><br/>
+      <input id="patient_search" name="patient_search" type="text" placeholder="Search patient by name or phone" data-autocomplete="patient" data-target-input-id="patient_id" data-selected-hint-id="patient-selected" />
+      <div id="patient-selected" class="muted" style="margin-top:6px; font-size:12px;"></div>
+      <input type="hidden" id="patient_id" name="patient_id" />
+    </div>
+    <div style="min-width:240px;">
+      <label for="chief_complaint">Chief complaint <span class="muted">(optional)</span></label><br/>
+      <input id="chief_complaint" name="chief_complaint" type="text" placeholder="e.g. headache 2 days" style="width:100%; max-width:360px;" maxlength="255" />
+    </div>
+    {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' %}
+    <div>
+      <a class="btn btn-secondary" href="{% url 'patients-create' %}" target="_blank">New Patient</a>
+    </div>
+    {% endif %}
+    <div>
+      <button class="btn" type="submit">Start</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 12px;">Open Encounters</h3>
+  <div style="overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Patient</th>
+          <th>Clinician</th>
+          <th>Started</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in open_encounters %}
+        <tr>
+          <td>#{{ e.id }}</td>
+          <td>{{ e.patient }}</td>
+          <td>{{ e.clinician|default:"—" }}</td>
+          <td>{{ e.started_at|date:"Y-m-d H:i" }}</td>
+          <td><a class="btn btn-secondary" href="{% url 'ehr-encounter-detail' e.id %}">Open</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="muted">No open encounters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 12px;">Recently Closed</h3>
+  <div style="overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Patient</th>
+          <th>Clinician</th>
+          <th>Ended</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in recent_closed %}
+        <tr>
+          <td>#{{ e.id }}</td>
+          <td>{{ e.patient }}</td>
+          <td>{{ e.clinician|default:"—" }}</td>
+          <td>{{ e.ended_at|date:"Y-m-d H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="muted">No recent closed encounters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+{% block title %}Encounter #{{ encounter.id }}{% endblock %}
+{% block content %}
+<a href="{% url 'ehr-board' %}" class="muted">← Back to board</a>
+
+<div class="card">
+  <h2 style="margin:0 0 10px;">Encounter #{{ encounter.id }}</h2>
+  <div class="chips">
+    <span class="chip">Patient: {{ encounter.patient }}</span>
+    <span class="chip">Clinician: {{ encounter.clinician|default:"—" }}</span>
+    <span class="chip">Status: {{ encounter.get_status_display }}</span>
+    <span class="chip">Started: {{ encounter.started_at|date:"Y-m-d H:i" }}</span>
+    {% if encounter.ended_at %}<span class="chip">Ended: {{ encounter.ended_at|date:"Y-m-d H:i" }}</span>{% endif %}
+  </div>
+  <div class="muted" style="margin-top:8px;">Chief complaint: {{ encounter.chief_complaint|default:"—" }}</div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 12px;">Vitals</h3>
+  <form method="post" action="{% url 'ehr-add-vital' encounter.id %}" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:12px; align-items:end;">
+    {% csrf_token %}
+    <div><label>Temp (°C)</label><br/><input type="number" step="0.1" name="temperature_c" /></div>
+    <div><label>Pulse</label><br/><input type="number" name="pulse" /></div>
+    <div><label>BP Sys</label><br/><input type="number" name="systolic" /></div>
+    <div><label>BP Dia</label><br/><input type="number" name="diastolic" /></div>
+    <div><label>Resp Rate</label><br/><input type="number" name="respiratory_rate" /></div>
+    <div><label>SpO₂</label><br/><input type="number" name="spo2" /></div>
+    <div><label>Weight (kg)</label><br/><input type="number" step="0.01" name="weight_kg" /></div>
+    <div><label>Height (cm)</label><br/><input type="number" step="0.1" name="height_cm" /></div>
+    <div><button class="btn" type="submit">Add Vitals</button></div>
+  </form>
+  <div style="overflow:auto; margin-top:10px;">
+    <table>
+      <thead><tr><th>Time</th><th>Temp</th><th>Pulse</th><th>BP</th><th>Resp</th><th>SpO₂</th><th>Wt</th><th>Ht</th></tr></thead>
+      <tbody>
+        {% for v in vitals %}
+        <tr>
+          <td>{{ v.taken_at|date:"Y-m-d H:i" }}</td>
+          <td>{{ v.temperature_c }}</td>
+          <td>{{ v.pulse }}</td>
+          <td>{{ v.systolic }}/{{ v.diastolic }}</td>
+          <td>{{ v.respiratory_rate }}</td>
+          <td>{{ v.spo2 }}</td>
+          <td>{{ v.weight_kg }}</td>
+          <td>{{ v.height_cm }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="muted">No vitals recorded.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 12px;">Diagnoses</h3>
+  <form method="post" action="{% url 'ehr-add-diagnosis' encounter.id %}" style="display:flex; gap:12px; align-items:end; flex-wrap:wrap;">
+    {% csrf_token %}
+    <div><label>Code</label><br/><input type="text" name="code" required /></div>
+    <div><label>Code system</label><br/>
+      <select name="coding_system">
+        <option value="ICD10">ICD-10</option>
+        <option value="WHO_MOH">WHO / MoH (HMIS)</option>
+        <option value="LOCAL">Local</option>
+      </select>
+    </div>
+    <div><label>Description</label><br/><input type="text" name="description" style="min-width: 280px;" /></div>
+    <label style="display:flex; align-items:center; gap:8px;">
+      <input type="checkbox" name="is_primary" /> Primary
+    </label>
+    <div><button class="btn" type="submit">Add Diagnosis</button></div>
+  </form>
+  <div style="overflow:auto; margin-top:10px;">
+    <table>
+      <thead><tr><th>Primary</th><th>System</th><th>Code</th><th>Description</th></tr></thead>
+      <tbody>
+        {% for d in diagnoses %}
+        <tr>
+          <td>{% if d.is_primary %}✓{% endif %}</td>
+          <td>{{ d.get_coding_system_display }}</td>
+          <td>{{ d.code }}</td>
+          <td>{{ d.description }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="muted">No diagnoses yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 12px;">Prescriptions</h3>
+  <div style="overflow:auto;">
+    <table>
+      <thead><tr><th>ID</th><th>Created</th><th>Items</th><th></th></tr></thead>
+      <tbody>
+        {% for rx in rx_list %}
+        <tr>
+          <td>#{{ rx.id }}</td>
+          <td>{{ rx.created_at|date:"Y-m-d H:i" }}</td>
+          <td>{{ rx.items.count }}</td>
+          <td><a class="btn btn-secondary" href="{% url 'rx-detail' rx.id %}">Open</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="muted">No prescriptions yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 12px;">Clinical orders &amp; results</h3>
+  {% if encounter.status == 'open' %}
+  <form method="post" action="{% url 'ehr-create-order' encounter.id %}" style="display:flex; flex-wrap:wrap; gap:12px; align-items:end; margin-bottom:14px;">
+    {% csrf_token %}
+    <div><label>Type</label><br/>
+      <select name="order_type">
+        <option value="lab">Lab</option>
+        <option value="imaging">Imaging</option>
+        <option value="procedure">Procedure</option>
+      </select>
+    </div>
+    <div><label>Service code</label><br/><input type="text" name="code" required placeholder="e.g. CBC" style="min-width:120px;" /></div>
+    <div><label>Description</label><br/><input type="text" name="description" placeholder="Optional" style="min-width:200px;" /></div>
+    <div><label>Qty</label><br/><input type="text" name="quantity" value="1" style="width:64px;" /></div>
+    <label style="display:flex; align-items:center; gap:8px;">
+      <input type="checkbox" name="billable" checked /> Billable
+    </label>
+    <div><button class="btn" type="submit">Place order</button></div>
+  </form>
+  {% endif %}
+  <div style="overflow:auto;">
+    <table>
+      <thead><tr><th>ID</th><th>Type</th><th>Code</th><th>Description</th><th>Status</th><th>Results</th><th>Links</th></tr></thead>
+      <tbody>
+        {% for o in visit_orders %}
+        <tr>
+          <td>#{{ o.id }}</td>
+          <td>{{ o.get_order_type_display }}</td>
+          <td>{{ o.code }}</td>
+          <td>{{ o.description }}</td>
+          <td>{{ o.get_status_display }}</td>
+          <td>
+            {% if o.results.all %}
+              <ul style="margin:0; padding-left:16px;">
+                {% for r in o.results.all %}
+                  <li>{{ r.recorded_at|date:"Y-m-d H:i" }} — {{ r.result_text|default:"(text)" }}{% if r.attachment %} — <a href="{{ r.attachment.url }}" target="_blank">Attachment</a>{% endif %}</li>
+                {% empty %}
+                  <li class="muted">No results yet.</li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <span class="muted">No results yet.</span>
+            {% endif %}
+          </td>
+          <td>
+            <a class="muted" href="/api/orders/{{ o.id }}/" target="_blank">API</a>
+            {% if o.invoice_id %}
+              ·
+              {% if user.is_superuser or user.role == 'admin' or user.role == 'cashier' %}
+                <a class="btn btn-secondary" href="{% url 'invoice-print' o.invoice_id %}" target="_blank">Invoice</a>
+              {% else %}
+                <span class="chip">Invoice #{{ o.invoice_id }}</span>
+              {% endif %}
+            {% endif %}
+            {% if encounter.status == 'open' and o.status == 'ordered' %}
+              {% if user.is_superuser or user.role == 'admin' or user.role == 'clinician' %}
+              <form method="post" action="{% url 'order-cancel' o.id %}" style="display:inline; margin-left:8px;" onsubmit="return confirm('Cancel this order? A matching credit line will be added to the invoice if it was billable.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary" style="font-size:12px; padding:4px 8px;">Cancel</button>
+              </form>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="muted">No orders placed for this visit yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex; gap:12px; align-items:center;">
+    <form method="post" action="{% url 'ehr-create-rx' encounter.id %}">
+      {% csrf_token %}
+      <button class="btn" type="submit">Create Prescription</button>
+    </form>
+    {% if encounter.status == 'open' %}
+    <form method="post" action="{% url 'ehr-close-encounter' encounter.id %}">
+      {% csrf_token %}
+      <button class="btn btn-secondary" type="submit">Close Encounter</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

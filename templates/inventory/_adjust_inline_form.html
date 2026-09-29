@@ -1,0 +1,32 @@
+<tr class="inline-form">
+  <td colspan="6">
+    <div class="card" style="margin:8px 0;">
+      <form method="post" action="" hx-post="{% url 'inventory-item-adjust' item.id %}" data-success-message="Stock adjusted">
+        {% csrf_token %}
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; align-items:end;">
+          <div>
+            <label>Batch</label><br/>
+            <select name="batch_id" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; min-width:200px;">
+              <option value="">– Create new empty batch –</option>
+              {% for b in batches %}
+              <option value="{{ b.id }}">{{ b.batch_no|default:'(no batch)' }} {% if b.expiry %}— {{ b.expiry|date:'Y-m-d' }}{% endif %} — QOH: {{ b.quantity_on_hand|default:0 }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>Delta (use negative to reduce)</label><br/>
+            <input type="number" step="0.01" name="delta" value="0" />
+          </div>
+          <div>
+            <label>Reason</label><br/>
+            <input type="text" name="reason" value="adjust" />
+          </div>
+          <div style="grid-column:1/-1; display:flex; gap:8px;">
+            <button class="btn" type="submit">Apply</button>
+            <button type="button" class="btn btn-secondary" onclick="this.closest('tr').remove()">Cancel</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </td>
+</tr>
