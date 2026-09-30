@@ -85,7 +85,9 @@ def test_private_document_validation_and_download(suite,settings,tmp_path):
     result=suite.client.get(download)
     assert result.status_code==200 and 'attachment' in result['Content-Disposition']
     assert 'no-store' in result['Cache-Control']
-    result.close()
+    # Consume Django test client's closing iterator so request cleanup preserves
+    # the enclosing test transaction on PostgreSQL. Also verify the file bytes.
+    assert b''.join(result.streaming_content)==b'%PDF-1.4\nsynthetic'
     assert suite.client.post(url,{'title':'Bad','file':SimpleUploadedFile('scan.pdf',b'<script>bad</script>')}).status_code==200
     assert PatientDocument.objects.count()==1
     suite.u.role='cashier';suite.u.save()
