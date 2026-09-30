@@ -21,6 +21,7 @@ def cashier_view(request):
     ready_invoices = (
         filter_by_patient_facility(Invoice.objects.all(), user)
         .filter(status=Invoice.READY)
+        .filter(**({'patient_id': int(request.GET['patient'])} if request.GET.get('patient','').isdigit() else {}))
         .annotate(balance=ExpressionWrapper(F('total_amount') - F('paid_amount'), output_field=DecimalField(max_digits=12, decimal_places=2)))
         .select_related('patient')
         .order_by('-created_at')

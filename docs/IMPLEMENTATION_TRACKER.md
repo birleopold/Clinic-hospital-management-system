@@ -2,40 +2,36 @@
 
 Source of truth: [competitive research and implementation plan](COMPETITIVE_RESEARCH_AND_PLAN_2026-09.md). Started 30 September 2026. No planned scope has been removed. An item is **partial** when only some acceptance criteria have been met. Dependencies do not mean cancellation.
 
-## Delivery 1: workflow foundation
+## Phase 1: daily workflow implementation
 
-Implemented: responsive collapsible navigation, facility context and role-permitted patient search; eight staff-role shortcut sets and relevant attention counts; clinician home lists assigned open visits; a permission-scoped patient chart with a paginated chronological feed of original visits, notes, observations, prescriptions, results and referrals. Chart sections and visit filters are server-enforced. Clinical users see released results; laboratory/admin users can see explicitly labeled drafts. Pharmacy sees prescriptions and allergy entries without general clinical notes. Specialty summaries remain linked for clinical users. Search and chart responses use no-store. Notes entered from a chart preselect the scoped patient. The encounter screen links back to the chart. Existing specialty and administrative screens remain available.
-
-The chart preserves authored amendments and device draft/synchronization timestamps. Visit filtering explicitly excludes patient-level notes/referrals that lack an encounter relation rather than inventing one. Recent visit selector is bounded to 100; feed pagination covers all eligible source records. This is an initial chart, not completion of all chart sections or all connected workflows.
-
-Validation: dedicated role/facility/direct-URL tests, pagination and visit identity tests, contextual-form tests and role destination checks. Browser coverage includes 390/768/1440 widths, keyboard menu dismissal, chart-to-note patient preselection, automated accessibility, JavaScript errors and existing clinical workflows. Final test/CI results are reported with the commit delivery.
+The Phase 1 software scope is implemented. See [release evidence and deployment notes](PHASE_ONE_RELEASE.md). Facility staff acceptance, manual assistive-technology review and production load acceptance remain open gates; this is not a claim of clinical deployment sign-off. All R2–R5 scope below remains tracked.
 
 ## R0 — baseline and design
 
 | ID | Requirement | Status / next evidence |
 | --- | --- | --- |
-| R0-01 | Synthetic dataset and repeatable role journeys | Partial: existing synthetic browser dataset plus chart/workspace tests; expand to full reception-through-payment fixture. |
-| R0-02 | Registration, consultation, dispensing and reconciliation baseline timings/clicks/errors | Pending measurement; do not claim the proposed speed targets are achieved. |
-| R0-03 | Patient chart and pharmacy prototypes | Partial: functional initial chart; pharmacy basket prototype pending. |
-| R0-04 | Pilot clinic, staff reviewers and accepted workflow designs | Needs facility participants; technical work continues meanwhile. |
-| SAFE-01 | Concurrent patient merge audit and transaction protocol across all write paths | Pending; existing quiet-registration-window limitation remains. |
+| R0-01 | Synthetic dataset and repeatable role journeys | Implemented: six-role registration-through-payment regression, browser fixtures and repeatable large-history benchmark. |
+| R0-02 | Registration, consultation, dispensing and reconciliation baseline timings/clicks/errors | Pending staff measurement; no claimed speed or click-reduction result. |
+| R0-03 | Patient chart and pharmacy prototypes | Chart implemented; pharmacy basket prototype remains an R2 prerequisite. |
+| R0-04 | Pilot clinic, staff reviewers and accepted workflow designs | Needs facility participants; release includes a concrete review checklist. |
+| SAFE-01 | Concurrent patient merge audit and transaction protocol across write paths | Implemented for current schema: database guards cover direct and indirect patient relations, including bulk writes; PostgreSQL contention regression verifies blocking/rejection of late writes. Future schema changes require guard review. |
 
 ## R1 — daily workflow UI
 
 | ID | Requirement | Status / next evidence |
 | --- | --- | --- |
-| UX-01 | Shared navigation, grouped sidebar, breadcrumbs and design components | Partial: responsive sidebar/search/facility context delivered. Grouping, breadcrumbs, shared form/dialog/status components and inline-asset cleanup remain. |
-| UX-02 | Role homes and relevant primary actions | Partial: role shortcuts, attention counts and assigned clinician visits delivered. Rich reception/triage/lab/pharmacy/cashier worklists remain. |
-| CHART-01 | Unified original-record chart, pagination, permission-aware sections | Partial: timeline/visits/notes/vitals/referrals/prescriptions/results delivered. Care plans, documents outside results, specialty events, billing section and richer overview remain. |
-| CHART-02 | Persistent identity and encounter-scoped actions | Partial: chart banner, resume links and encounter-to-chart navigation delivered. Banner across all clinical screens and complete visit handoffs remain. |
-| FORMS-01 | Scoped asynchronous selectors and preselection | Partial: server-validated patient preselection for direct-patient collection forms. Asynchronous catalog/related-record selectors remain. |
-| FORMS-02 | Versioned consultation templates and attributed note reuse | Pending; copied historical text must remain distinguishable. |
-| OPS-01 | Task inbox with owner, status, next action, resolution audit | Partial: actionable attention counts link to existing workspaces. Persisted task ownership, inbox filters and resolution history remain. |
-| FLOW-01 | Registration → triage → consultation → lab → pharmacy → cashier preserves patient/visit | Partial: chart/encounter/note links delivered. Complete journey still pending. |
-| LAB-UI | Collection/processing/review status tabs and specimen scanning | Pending; existing specimen and result workflows retained. |
-| WARD-UI | Occupancy/theatre boards and focused readiness/count/cancellation panels | Pending; existing forms retained. |
-| A11Y-01 | Keyboard, screen-reader, tablet/mobile and staff acceptance | Partial: automated browser checks and menu keyboard tests pass; manual assistive technology and staff validation remain. |
-| PERF-01 | Query/index review and agreed realistic load targets | Partial: bounded feed hydration and pagination; large-dataset measurements/index tuning pending. |
+| UX-01 | Shared navigation, grouped sidebar, breadcrumbs and design components | Implemented: grouped responsive navigation, breadcrumbs, shared fields/pagination/status/error patterns, persistent errors, confirmations and extracted shell assets. |
+| UX-02 | Role homes and relevant primary actions | Implemented: role shortcuts, assigned visits/tasks and scoped reception, triage, consultation, lab, pharmacy and cashier boards. |
+| CHART-01 | Unified original-record chart, pagination, permission-aware sections | Implemented: existing clinical feed plus versioned consultation notes, private documents, care plans, specialty events, finance-scoped billing and overview counts. Reception sees appointments; finance roles do not gain clinical notes. |
+| CHART-02 | Persistent identity and encounter-scoped actions | Implemented: contextual patient banners, visit acceptance, resume/write-note links and service handoffs. No handoff silently completes a clinical or financial action. |
+| FORMS-01 | Scoped asynchronous selectors and preselection | Implemented: server-scoped search, bounded choices, preserved selection and patient/order/admission context. Full queryset validates submitted relations. |
+| FORMS-02 | Versioned consultation templates and attributed note reuse | Implemented: immutable published versions, template snapshots, same-patient copy/amend references, explicit review and closed-visit checks. |
+| OPS-01 | Task inbox with owner, status, next action, resolution audit | Implemented: facility/audience scope, ownership, due dates, patient/general tasks, source links, optimistic revision checks and audited terminal resolution. |
+| FLOW-01 | Registration → triage → consultation → lab → pharmacy → cashier preserves patient/visit | Implemented and covered by a synthetic six-role regression using actual endpoints, including queue completion, release, dispense and payment. Staff review remains pending. |
+| LAB-UI | Collection/processing/review status tabs and specimen scanning | Implemented: status tabs, critical-result attention and accession UUID lookup accepting scanner input. Physical scanner validation remains a pilot check. |
+| WARD-UI | Occupancy/theatre boards and focused readiness/count/cancellation panels | Implemented: occupancy, active admissions and theatre schedule with focused detail/action panels reusing existing transactional services. |
+| A11Y-01 | Keyboard, screen-reader, tablet/mobile and staff acceptance | Automated checks cover 390/768/1440 widths, overflow, accessibility, JavaScript errors and keyboard menu dismissal. Manual assistive-technology and staff acceptance remain pending. |
+| PERF-01 | Query/index review and agreed realistic load targets | Bounded hydration/selection, task index and synthetic benchmark implemented: 5,000 patients/500 chart notes, 20 requests per endpoint. Production concurrency, hardware and accepted load targets remain pending. |
 
 ## R2 — pharmacy and financial efficiency
 
@@ -98,5 +94,5 @@ Full disconnected stock/payment operations require a separate allocation/conflic
 
 - No whole release is complete until all its required acceptance criteria are met.
 - Technical test success does not substitute for live-provider commissioning or clinical acceptance.
-- The proposed two-second search, one-minute returning check-in and 30% click reduction remain unmeasured targets.
+- The two-second search target has local synthetic evidence only; production search latency, one-minute returning check-in and 30% click reduction require pilot measurement.
 - Every subsequent delivery updates this tracker, records evidence and keeps unfinished scope visible.

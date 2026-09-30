@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Lab &amp; imaging queue{% endblock %}
-{% block content %}
+{% block content %}{% if context_patient %}{% include 'operations/patient_banner.html' with patient=context_patient %}{% endif %}
 <h2 style="margin-top:0;">Pending orders</h2>
 <p class="muted">Oldest first. Enter a result narrative (optional) and submit to mark the order complete.</p>
 

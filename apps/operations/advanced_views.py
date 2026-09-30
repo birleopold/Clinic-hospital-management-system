@@ -324,6 +324,10 @@ def specialty_detail(request, slug, pk):
     if model not in SPECIALTIES + CARE_RECORDS:
         raise Http404
     record = get_object_or_404(scoped(model, request.user, scope), pk=pk)
+    patient=None
+    if scope and 'patient__' in scope:
+        patient=record
+        for part in scope.rsplit('__facility_id',1)[0].split('__'):patient=getattr(patient,part)
     details = []
     for field in model._meta.fields:
         if field.name == "id":
@@ -337,6 +341,8 @@ def specialty_detail(request, slug, pk):
         "operations/specialty_detail.html",
         {
             "record": record,
+            "patient": patient,
+            "row": {"obj":record,"state":getattr(record,"status","")},
             "offline_receipt": OfflineReceipt.objects.filter(
                 model_label=model._meta.label_lower, record_id=record.pk
             ).first(),

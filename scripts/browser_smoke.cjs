@@ -25,7 +25,7 @@ const assert = require('node:assert/strict');
         '/suite/vaccination-corrections/', '/suite/storage-protocols/', '/suite/cold-chain/',
         '/suite/perioperative/', '/suite/instrument-counts/', '/suite/deliveries/',
         '/suite/newborns/', '/suite/labour-observations/', '/suite/rehab-outcomes/',
-        '/suite/vaccine-adverse-events/', '/suite/find-patient/', ...(process.env.CLINIC_TEST_PATIENT_ID ? ['/suite/patient/'+process.env.CLINIC_TEST_PATIENT_ID+'/'] : [])]) {
+        '/suite/vaccine-adverse-events/', '/suite/tasks/', '/suite/tasks/new/', '/suite/department-board/', '/suite/department-board/?board=lab', '/suite/department-board/?board=ward', '/suite/department-board/?board=theatre', '/suite/note-templates/', '/suite/find-patient/', ...(process.env.CLINIC_TEST_PATIENT_ID ? ['/suite/patient/'+process.env.CLINIC_TEST_PATIENT_ID+'/', '/suite/patient/'+process.env.CLINIC_TEST_PATIENT_ID+'/task/', '/suite/patient/'+process.env.CLINIC_TEST_PATIENT_ID+'/document/'] : [])]) {
         const response = await page.goto(base + path);
         assert.equal(response.status(), 200, path);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, path);
@@ -65,6 +65,20 @@ const assert = require('node:assert/strict');
     const matches=await page.locator('#workspace-links .module-link:visible').allTextContents();
     assert(matches.length>0 && matches.every(text=>text.toLowerCase().includes('vaccination')));
     if (process.env.CLINIC_TEST_PATIENT_ID) {
+      await page.goto(`${base}/suite/patient/${process.env.CLINIC_TEST_PATIENT_ID}/task/`);
+      await page.locator('#id_audience').selectOption('lab');
+      await page.locator('#id_title').fill('Synthetic browser handoff '+Date.now());
+      await page.locator('#id_instruction').fill('Synthetic review only');
+      await page.locator('#id_due_at').fill('2026-10-01T12:00');
+      await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Save',exact:true}).click()]);
+      await page.locator('#id_status').selectOption('completed');
+      await page.locator('#id_resolution').fill('Synthetic task completed');
+      await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Update task',exact:true}).click()]);
+      assert.equal(await page.getByRole('button',{name:'Update task',exact:true}).count(),0);
+      await page.goto(`${base}/suite/clinical/`);
+      await page.locator('#id_patient-search').fill('Synthetic');
+      await page.waitForFunction(()=>Array.from(document.querySelectorAll('p.helptext')).some(p=>p.textContent.includes('matches.')));
+      assert((await page.locator('#id_patient option').count())>1);
       // Opt-in write scenario. Use only a synthetic patient on a disposable instance.
       await page.goto(`${base}/suite/vaccinations/`);
       const name = 'Browser test vaccine ' + Date.now();

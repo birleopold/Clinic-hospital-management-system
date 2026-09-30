@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Prescription #{{ rx.id }}{% endblock %}
-{% block content %}
+{% block content %}{% include 'operations/patient_banner.html' with patient=rx.patient %}
 <a href="{% if rx.encounter_id %}/ehr/encounter/{{ rx.encounter_id }}{% else %}/pharmacy{% endif %}" class="muted">← Back</a>
 
 <div class="card">

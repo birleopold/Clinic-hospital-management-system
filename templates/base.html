@@ -5,201 +5,23 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}UG HMS{% endblock %}</title>
-  <style>
-    body { font-family: system-ui, Arial, sans-serif; margin: 0; padding: 0; background:#f6f7fb; }
-    header { background:#0f766e; color:#fff; padding:12px 16px; }
-    header a { color:#fff; text-decoration:none; margin-right:12px; }
-    main { padding:16px; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:left; }
-    .chips { display:flex; gap:8px; flex-wrap:wrap; }
-    .chip { background:#e5e7eb; border-radius:999px; padding:4px 10px; font-size:12px; }
-    .card { background:#fff; border-radius:8px; box-shadow:0 1px 2px rgba(0,0,0,0.06); padding:16px; margin-bottom:16px; }
-    .btn { display:inline-block; background:#0f766e; color:#fff; padding:8px 12px; border-radius:6px; text-decoration:none; }
-    .btn-secondary { background:#334155; }
-    .muted { color:#64748b; }
-    nav a { margin-right: 8px; }
-    .dropdown { position: relative; display: inline-block; }
-    .dropbtn { color:#fff; text-decoration:none; margin-right:8px; display:inline-block; padding:0; }
-    .dropdown-content { display:none; position:absolute; background:#fff; color:#1f2937; min-width:200px; box-shadow:0 6px 20px rgba(0,0,0,0.12); border-radius:8px; overflow:hidden; z-index:1000; }
-    .dropdown-content a { color:#1f2937; padding:8px 12px; display:block; text-decoration:none; margin:0; }
-    .dropdown-content a:hover { background:#f1f5f9; }
-    .dropdown.open .dropdown-content { display:block; }
-    /* Toasts */
-    #toast-container { position: fixed; top: 12px; right: 12px; z-index: 9999; display:flex; flex-direction:column; gap:8px; }
-    .toast { background:#0f766e; color:#fff; padding:10px 12px; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.1); opacity:0.97; }
-    .toast.error { background:#b91c1c; }
-    /* Autocomplete */
-    .autocomplete { position: relative; }
-    .autocomplete-list { position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #cbd5e1; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.08); max-height:240px; overflow:auto; display:none; z-index: 50; }
-    .autocomplete-item { padding:8px 10px; cursor:pointer; }
-    .autocomplete-item:hover { background:#f1f5f9; }
-  </style>
+  <link rel="stylesheet" href="{% static 'css/legacy-shell.css' %}">
   <script src="{% static 'vendor/htmx.min.js' %}"></script>
-  <script>
-    (function() {
-      function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-          const cookies = document.cookie.split(';');
-          for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-              cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-              break;
-            }
-          }
-        }
-        return cookieValue;
-      }
-      document.addEventListener('htmx:configRequest', function(evt) {
-        evt.detail.headers['X-CSRFToken'] = getCookie('csrftoken');
-      });
-    })();
-  </script>
-  <script>
-    (function(){
-      const containerId = 'toast-container';
-      function ensureContainer(){
-        let c = document.getElementById(containerId);
-        if(!c){
-          c = document.createElement('div');
-          c.id = containerId;
-          document.body.appendChild(c);
-        }
-        return c;
-      }
-      window.showToast = function(message, type){
-        const c = ensureContainer();
-        const el = document.createElement('div');
-        el.className = 'toast' + (type === 'error' ? ' error' : '');
-        el.textContent = message || 'Done';
-        c.appendChild(el);
-        setTimeout(()=>{
-          el.style.opacity = '0';
-          el.style.transition = 'opacity 200ms';
-          setTimeout(()=> el.remove(), 220);
-        }, 1600);
-      }
 
-      // Global HTMX handler
-      document.addEventListener('htmx:afterRequest', function(event){
-        try{
-          const xhr = event.detail && event.detail.xhr;
-          const elt = event.detail && event.detail.elt;
-          const ok = xhr && xhr.status >= 200 && xhr.status < 300;
-          if(ok){
-            const msg = (elt && elt.dataset && elt.dataset.successMessage) || 'Success';
-            window.showToast(msg);
-            if(elt && elt.dataset && elt.dataset.reloadAfter === 'true'){
-              setTimeout(()=> location.reload(), 600);
-            }
-          } else if(xhr) {
-            let msg = 'Request failed';
-            try{
-              const ct = xhr.getResponseHeader && xhr.getResponseHeader('Content-Type');
-              if(ct && ct.indexOf('application/json') !== -1){
-                const data = JSON.parse(xhr.responseText || '{}');
-                msg = (data.detail || data.error || JSON.stringify(data)).slice(0, 180);
-              } else if(xhr.responseText){
-                msg = xhr.responseText.slice(0, 180);
-              }
-            }catch(e){}
-            window.showToast(msg, 'error');
-          }
-        }catch(e){}
-      });
 
-      // Patient autocomplete
-      function attachPatientAutocomplete(input){
-        const wrap = input.closest('.autocomplete') || input.parentElement;
-        let list = wrap.querySelector('.autocomplete-list');
-        if(!list){
-          list = document.createElement('div');
-          list.className = 'autocomplete-list';
-          wrap.appendChild(list);
-        }
-        const targetId = input.dataset.targetInputId;
-        const target = targetId ? document.getElementById(targetId) : null;
-        const selectedHint = document.getElementById(input.dataset.selectedHintId || 'patient-selected');
-        let lastTerm = '';
-        let timer = null;
-        let ctrl = null;
-        function clear(){ list.innerHTML = ''; list.style.display = 'none'; }
-        function pick(p){
-          if(target) target.value = p.id;
-          const name = `${p.first_name || ''} ${p.last_name || ''}`.trim();
-          input.value = name || `#${p.id}`;
-          if(selectedHint){ selectedHint.textContent = `Selected: ${name} ${p.phone ? '('+p.phone+')' : ''} #${p.id}`.trim(); }
-          clear();
-        }
-        async function query(term){
-          try{
-            if(ctrl) ctrl.abort();
-            ctrl = new AbortController();
-            const resp = await fetch(`/api/patients/?q=${encodeURIComponent(term)}`, { signal: ctrl.signal, headers: { 'Accept': 'application/json' } });
-            if(!resp.ok){ clear(); return; }
-            const data = await resp.json();
-            const items = Array.isArray(data) ? data : (data.results || []);
-            list.innerHTML = '';
-            items.slice(0, 8).forEach(p => {
-              const row = document.createElement('div');
-              row.className = 'autocomplete-item';
-              const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unnamed';
-              const phone = p.phone ? ` (${p.phone})` : '';
-              row.textContent = `${name}${phone} — #${p.id}`;
-              row.addEventListener('click', ()=> pick(p));
-              list.appendChild(row);
-            });
-            list.style.display = items.length ? 'block' : 'none';
-          }catch(e){ clear(); }
-        }
-        input.addEventListener('input', function(){
-          const term = input.value.trim();
-          if(target) target.value = '';
-          if(term === lastTerm) return;
-          lastTerm = term;
-          if(timer) clearTimeout(timer);
-          if(term.length < 2){ clear(); return; }
-          timer = setTimeout(()=> query(term), 250);
-        });
-        input.addEventListener('keydown', function(e){ if(e.key === 'Escape') clear(); });
-        document.addEventListener('click', function(e){ if(!wrap.contains(e.target)) clear(); });
-      }
-      document.addEventListener('DOMContentLoaded', function(){
-        document.querySelectorAll('[data-autocomplete="patient"]').forEach(attachPatientAutocomplete);
-        // Dropdown click toggles
-        function closeAllDropdowns(except){
-          document.querySelectorAll('.dropdown.open').forEach(function(d){ if(d!==except) d.classList.remove('open'); });
-        }
-        document.querySelectorAll('.dropdown > .dropbtn').forEach(function(btn){
-          btn.addEventListener('click', function(e){
-            e.preventDefault();
-            const dd = btn.parentElement;
-            const willOpen = !dd.classList.contains('open');
-            closeAllDropdowns(dd);
-            if(willOpen) dd.classList.add('open'); else dd.classList.remove('open');
-          });
-        });
-        document.addEventListener('click', function(e){
-          const any = e.target.closest && e.target.closest('.dropdown');
-          if(!any) closeAllDropdowns(null);
-        });
-      });
-    })();
-  </script>
   <link rel="stylesheet" href="{% static 'css/suite.css' %}">
   {% block head %}{% endblock %}
+<script src="{% static 'js/legacy-shell.js' %}" defer></script>
 </head>
 <body {% if user.is_authenticated %}class="workspace-shell"{% endif %}>
   <a class="skip-link" href="#main-content">Skip to content</a>
   {% if user.is_authenticated %}<div class="workspace-topbar no-print"><button id="navigation-toggle" aria-controls="workspace-navigation" aria-expanded="true" type="button">Menu</button><span class="facility-context">{% if user.is_superuser %}All facilities{% else %}{{ user.staff_profile.facility|default:'Facility not assigned' }}{% endif %}</span>
-  {% if user.is_superuser or user.role == 'admin' or user.role == 'clinician' or user.role == 'nurse' or user.role == 'pharmacy' or user.role == 'lab' %}<form action="{% url 'suite-patient-search' %}" method="get" class="global-patient-search"><label class="visually-hidden" for="global-patient-query">Find patient by name, phone or MRN</label><input id="global-patient-query" name="q" type="search" placeholder="Find patient · name, phone, MRN" minlength="2" maxlength="120" required><button>Find patient</button></form>{% endif %}</div>{% endif %}
+  {% if user.is_superuser or user.role == 'admin' or user.role == 'clinician' or user.role == 'nurse' or user.role == 'pharmacy' or user.role == 'lab' or user.role == 'reception' or user.role == 'cashier' or user.role == 'manager' %}<form action="{% url 'suite-patient-search' %}" method="get" class="global-patient-search"><label class="visually-hidden" for="global-patient-query">Find patient by name, phone or MRN</label><input id="global-patient-query" name="q" type="search" placeholder="Find patient · name, phone, MRN" minlength="2" maxlength="120" required><button>Find patient</button></form>{% endif %}</div>{% endif %}
   <header id="workspace-navigation" {% if user.is_authenticated %}class="workspace-sidebar"{% endif %}>
     <nav aria-label="Main navigation">
       <a class="branding" href="/suite/">Clinic Suite</a><a href="/">Overview</a>
       {% if user.is_authenticated %}
-        <a href="/queues">Queues</a>
+        <a href="/suite/tasks/">Task inbox</a><a href="/suite/department-board/">Department board</a><a href="/queues">Queues</a>
         {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' or user.role == 'clinician' %}
           <a href="/patients">Patients</a>
           <a href="/appointments/schedule">Appointments</a>
@@ -268,7 +90,7 @@
     </nav>
   </header>
   <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
-  <main id="main-content">
+  <main id="main-content">{% if user.is_authenticated %}<nav class="breadcrumbs no-print" aria-label="Breadcrumb"><a href="/suite/">Workspace</a><span aria-hidden="true"> / </span><span>{{ page_breadcrumb }}</span></nav>{% endif %}
     {% if messages %}
     <div style="margin-bottom:12px;">
       {% for message in messages %}
@@ -279,5 +101,6 @@
     {% block content %}{% endblock %}
   </main>
 <script src="{% static 'js/shell.js' %}" defer></script>
+<script src="{% static 'js/selectors.js' %}" defer></script>
 </body>
 </html>

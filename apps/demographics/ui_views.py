@@ -121,7 +121,7 @@ def patient_create_view(request):
             })
         assign_facility_for_patient(user, p)
         p.save()
-        return redirect('patients-list')
+        return redirect('suite-patient',pk=p.pk)
     return render(request, 'demographics/patient_form.html', {'patient': None, 'mode': 'create'})
 
 

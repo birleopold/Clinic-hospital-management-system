@@ -288,3 +288,4 @@ from .specialty_models import (TheatreCase, Pregnancy, MaternityVisit, Vaccinati
 from .care_models import (VaccinationCorrection, StorageProtocol, ColdChainReading, PerioperativeEntry, InstrumentCount, Delivery, Newborn, LabourObservation, RehabilitationOutcome)  # noqa: E402,F401
 from .care_models import VaccinationAdverseEvent  # noqa: E402,F401
 from .offline_models import OfflineDevice, OfflineReceipt  # noqa: E402,F401
+from .workflow_models import WorkTask, NoteTemplate, ConsultationNote, PatientDocument

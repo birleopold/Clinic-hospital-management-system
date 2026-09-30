@@ -23,6 +23,7 @@ def ehr_board_view(request):
     if not (user.is_superuser or user.role in ('admin', 'nurse', 'clinician')):
         return HttpResponseForbidden('Not allowed')
     base = _encounters_for_user(user).select_related('patient', 'clinician')
+    if request.GET.get('patient','').isdigit():base=base.filter(patient_id=int(request.GET['patient']))
     open_encounters = (
         base.filter(status=Encounter.OPEN)
         .order_by('-started_at')[:100]

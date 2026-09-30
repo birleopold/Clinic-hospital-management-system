@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}EHR Board{% endblock %}
-{% block content %}
+{% block content %}{% if context_patient %}{% include 'operations/patient_banner.html' with patient=context_patient %}{% endif %}
 <div class="card">
   <h2 style="margin:0 0 12px;">Start Encounter</h2>
   {% if error %}
@@ -10,9 +10,9 @@
     {% csrf_token %}
     <div class="autocomplete" style="min-width:280px;">
       <label for="patient_search">Patient</label><br/>
-      <input id="patient_search" name="patient_search" type="text" placeholder="Search patient by name or phone" data-autocomplete="patient" data-target-input-id="patient_id" data-selected-hint-id="patient-selected" />
+      <input id="patient_search" name="patient_search" value="{{ context_patient|default:'' }}" type="text" placeholder="Search patient by name or phone" data-autocomplete="patient" data-target-input-id="patient_id" data-selected-hint-id="patient-selected" />
       <div id="patient-selected" class="muted" style="margin-top:6px; font-size:12px;"></div>
-      <input type="hidden" id="patient_id" name="patient_id" />
+      <input type="hidden" id="patient_id" name="patient_id" value="{{ context_patient.pk|default:'' }}" />
     </div>
     <div style="min-width:240px;">
       <label for="chief_complaint">Chief complaint <span class="muted">(optional)</span></label><br/>

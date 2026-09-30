@@ -137,7 +137,10 @@ def test_cross_facility_admission_and_occupied_bed_rejected(suite):
 def test_reception_denied_clinical_history(suite):
     suite.u.role='reception';suite.u.save()
     assert suite.client.get('/suite/clinical/').status_code==403
-    assert suite.client.get(reverse('suite-patient',args=[suite.p.pk])).status_code==403
+    assert suite.client.get(reverse('suite-patient',args=[suite.p.pk]),{'section':'notes'}).status_code==403
+    response=suite.client.get(reverse('suite-patient',args=[suite.p.pk]))
+    assert response.status_code==200
+    assert set(key for key,label in response.context['sections'])=={'appointments'}
 
 def test_cross_facility_writable_relation_rejected(suite):
     other=Patient.objects.create(first_name='Other',last_name='Patient',gender='F',facility=Facility.objects.create(name='Elsewhere'))

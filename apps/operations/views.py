@@ -158,12 +158,26 @@ def collection_form(request, model, fields):
                 field.queryset = field.queryset.filter(discharged_at__isnull=True)
             if related is Order:
                 field.queryset = field.queryset.exclude(status='cancelled')
-    if request.method == 'GET' and request.GET.get('patient') and 'patient' in form.fields:
-        try:
-            selected = form.fields['patient'].queryset.get(pk=request.GET['patient'])
-        except (ValueError, Patient.DoesNotExist):
-            raise Http404
-        form.initial['patient'] = selected.pk
+    if request.method == 'GET':
+        for name, field in form.fields.items():
+            if isinstance(field, forms.ModelChoiceField) and request.GET.get(name):
+                try: selected = field.queryset.get(pk=request.GET[name])
+                except (ValueError, field.queryset.model.DoesNotExist): raise Http404
+                form.initial[name] = selected.pk
+    # Limit HTML option payloads without weakening the complete validation queryset.
+    slug = request.resolver_match.kwargs.get('slug') if request.resolver_match else None
+    if slug and not request.path.startswith(('/offline/','/suite/lookup/')):
+        for name, field in form.fields.items():
+            if isinstance(field, forms.ModelChoiceField):
+                selected = form.data.get(name) if form.is_bound else form.initial.get(name)
+                initial_options = list(field.queryset.order_by('-pk')[:30])
+                if selected:
+                    try:
+                        obj = field.queryset.filter(pk=selected).first()
+                        if obj and all(x.pk != obj.pk for x in initial_options): initial_options.insert(0,obj)
+                    except (ValueError, TypeError): pass
+                field.widget.choices = [('', 'Choose an option')] + [(o.pk,field.label_from_instance(o)) for o in initial_options]
+                field.widget.attrs['data-lookup'] = reverse('suite-lookup',args=[slug,name])
     return form
 
 
@@ -228,13 +242,19 @@ def collection(request, slug):
     form = collection_form(request, model, fields)
     if request.method == 'POST' and form.is_valid():
         try:
-            save_collection_form(form, request.user)
+            saved=save_collection_form(form, request.user)
             messages.success(request,'Record saved.')
-            return redirect('suite-collection',slug=slug)
+            from urllib.parse import urlencode
+            context={name:form.cleaned_data[name].pk for name in ('patient','order','admission','pregnancy','vaccination','plan') if form.cleaned_data.get(name) is not None}
+            return redirect(reverse('suite-collection',args=[slug])+('?' + urlencode(context) if context else ''))
         except (ValidationError,IntegrityError) as exc:
             form.add_error(None,'; '.join(exc.messages) if isinstance(exc,ValidationError) else 'A conflicting record already exists. Refresh and try again.')
     from django.core.paginator import Paginator
     records = scoped(model,request.user,scope).order_by('-pk')
+    if request.GET.get('record','').isdigit():records=records.filter(pk=int(request.GET['record']))
+    for name, field in form.fields.items():
+        if isinstance(field,forms.ModelChoiceField) and request.GET.get(name) and name in form.initial:
+            records=records.filter(**{name+'_id':form.initial[name]})
     query=request.GET.get('q','').strip()
     if query:
         filters=Q()
@@ -252,7 +272,7 @@ def collection(request, slug):
             if isinstance(field,(model._meta.get_field('id').__class__,)) and query.isdigit(): filters |= Q(pk=int(query))
             if field.get_internal_type() in ('CharField','TextField'): filters |= Q(**{field.name+'__icontains':query})
         records=records.filter(filters)
-    if model in (TheatreCase, Pregnancy, Vaccination, RehabilitationPlan):
+    if any(f.name=='status' and f.choices for f in model._meta.fields):
         status = request.GET.get('status', '')
         if status in dict(model._meta.get_field('status').choices):
             records = records.filter(status=status)
@@ -276,7 +296,7 @@ def collection(request, slug):
             value=getattr(obj,field)
             values.append(display_value(value)[:180])
         rows.append({'obj':obj,'values':values,'state':state,'offline_at':offline_times.get(obj.pk)})
-    return render(request,'operations/collection.html',{'specialty':model in SPECIALTIES + CARE_RECORDS,'page':page,'query':query,'title':title,'slug':slug,'form':form,'rows':rows,'available_beds':scoped(Bed,request.user,'facility_id').filter(active=True).exclude(admission__discharged_at__isnull=True,admission__isnull=False) if slug=='admissions' else [],'status_choices':model._meta.get_field('status').choices if model in (TheatreCase,Pregnancy,Vaccination,RehabilitationPlan) else [],'selected_status':request.GET.get('status',''),'headers':[model._meta.get_field(f).verbose_name for f in fields if f!='attachment']})
+    return render(request,'operations/collection.html',{'specialty':model in SPECIALTIES + CARE_RECORDS,'page':page,'query':query,'title':title,'slug':slug,'form':form,'rows':rows,'available_beds':scoped(Bed,request.user,'facility_id').filter(active=True).exclude(admission__discharged_at__isnull=True,admission__isnull=False) if slug=='admissions' else [],'status_choices':model._meta.get_field('status').choices if any(f.name=='status' and f.choices for f in model._meta.fields) else [],'selected_status':request.GET.get('status',''),'headers':[model._meta.get_field(f).verbose_name for f in fields if f!='attachment']})
 
 @login_required
 @require_POST
@@ -381,6 +401,8 @@ def action(request,slug,pk,operation):
         messages.error(request, 'A conflicting update occurred. Refresh and review the record.')
     except ValidationError as exc:
         messages.error(request,'; '.join(exc.messages))
+    if request.POST.get('return_to_record')=='1' and model in SPECIALTIES+CARE_RECORDS:
+        return redirect('suite-specialty-detail',slug=slug,pk=pk)
     return redirect('suite-collection',slug=slug)
 
 @login_required

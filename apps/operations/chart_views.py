@@ -11,14 +11,15 @@ from apps.demographics.models import Patient
 from apps.encounters.models import Encounter, Vital
 from apps.pharmacy.models import Prescription
 from apps.orders.models import OrderResult
-from .models import ClinicalEntry, Referral, OfflineReceipt
+from .models import ClinicalEntry, Referral, OfflineReceipt, ConsultationNote, PatientDocument, CarePlan, TheatreCase, Pregnancy, Vaccination, RehabilitationPlan
+from apps.billing.models import Invoice
 
 
 @login_required
 @never_cache
 def patient_chart(request, pk):
     user = request.user
-    if not user.is_active or not (user.is_superuser or user.role in ('admin','clinician','nurse','pharmacy','lab')):
+    if not user.is_active or not (user.is_superuser or user.role in ('admin','clinician','nurse','pharmacy','lab','reception','cashier','manager')):
         raise PermissionDenied
     patient = get_object_or_404(filter_by_facility(Patient.objects.all(), user), pk=pk)
     if patient.merged_into_id:
@@ -27,7 +28,18 @@ def patient_chart(request, pk):
     laboratory = user.is_superuser or user.role in ('admin','lab')
     # Limited roles get only their work-relevant sections, including on direct URLs.
     sources = {}
+    financial=user.is_superuser or user.role in ('admin','cashier','manager')
+    if financial:sources['billing']=(Invoice.objects.filter(patient=patient),'created_at','Billing')
+    if user.role=='reception' and not user.is_superuser:
+        from apps.appointments.models import Appointment
+        sources['appointments']=(Appointment.objects.filter(patient=patient),'scheduled_for','Appointments')
+
     if clinical:
+        sources['consultations']=(ConsultationNote.objects.filter(patient=patient),'created_at','Consultation notes')
+        sources['documents']=(PatientDocument.objects.filter(patient=patient),'created_at','Documents')
+        sources['careplans']=(CarePlan.objects.filter(admission__patient=patient),'created_at','Care plans')
+        for key,model,label in [('theatre',TheatreCase,'Theatre'),('maternity',Pregnancy,'Maternity'),('vaccinations',Vaccination,'Vaccinations'),('rehabilitation',RehabilitationPlan,'Rehabilitation')]:
+            sources[key]=(model.objects.filter(patient=patient),'created_at',label)
         sources['visits'] = (Encounter.objects.filter(patient=patient), 'started_at', 'Visits')
         sources['notes'] = (ClinicalEntry.objects.filter(patient=patient), 'created_at', 'Clinical notes')
         sources['vitals'] = (Vital.objects.filter(encounter__patient=patient), 'taken_at', 'Vitals')
@@ -55,7 +67,7 @@ def patient_chart(request, pk):
         if section != 'timeline' and key != section:
             continue
         if visit:
-            relation = {'visits':'pk','vitals':'encounter_id','medicines':'encounter_id','results':'order__encounter_id'}.get(key)
+            relation = {'visits':'pk','vitals':'encounter_id','medicines':'encounter_id','results':'order__encounter_id','consultations':'encounter_id','documents':'encounter_id'}.get(key)
             qs = qs.filter(**{relation:visit.pk}) if relation else qs.none()
         selected[key] = (qs, date_field, label)
     queries = [qs.order_by().annotate(event_kind=Value(key,output_field=CharField()),event_time=F(date)).values('event_kind','pk','event_time') for key,(qs,date,_) in selected.items()]
@@ -67,7 +79,7 @@ def patient_chart(request, pk):
         ids = [row['pk'] for row in metadata if row['event_kind']==key]
         if key == 'visits': qs=qs.select_related('clinician').prefetch_related('diagnoses')
         elif key == 'results': qs=qs.select_related('order','recorded_by','approved_by')
-        elif key in ('notes','allergies','referrals'): qs=qs.select_related('created_by')
+        elif key in ('notes','allergies','referrals','consultations','documents','careplans','theatre','maternity','vaccinations','rehabilitation'): qs=qs.select_related('created_by')
         elif key == 'medicines': qs=qs.select_related('clinician').prefetch_related('items')
         objects[key] = {obj.pk:obj for obj in qs.filter(pk__in=ids)}
     events=[]
@@ -83,6 +95,15 @@ def patient_chart(request, pk):
             if user.is_superuser or user.role in ('admin','pharmacy','clinician'):event['url']=reverse('rx-detail',args=[obj.pk])
         elif key=='results':
             event.update(title=f'{obj.order.code} · {obj.analyte or "Result"}',text=obj.result_text,author=obj.recorded_by)
+        elif key=='consultations':
+            event.update(title=f'Consultation note #{obj.pk}',text=obj.body,url=reverse('suite-consultation-note',args=[obj.encounter_id])+f'?copy={obj.pk}')
+        elif key=='documents':event.update(title=obj.title,text='',url=reverse('suite-document-download',args=[obj.pk]))
+        elif key=='careplans':event.update(title=obj.problem,text=f'Goal: {obj.goal}\nIntervention: {obj.intervention}\nOutcome: {obj.outcome}',url=f'/suite/care-plans/?admission={obj.admission_id}')
+        elif key=='billing':event.update(title=f'Invoice #{obj.pk} · {obj.get_status_display()}',text=f'Billed: {obj.total_amount} · Paid: {obj.paid_amount}',url=f'/cashier?patient={patient.pk}' if user.role!='manager' else '/reports')
+        elif key=='appointments':event.update(title=f'Appointment · {obj.get_status_display()}',text=obj.reason_for_visit,url=f'/appointments/schedule?patient={patient.pk}')
+        elif key in ('theatre','maternity','vaccinations','rehabilitation'):
+            slug={'maternity':'pregnancies'}.get(key,key)
+            event.update(title=f'{sources[key][2]} #{obj.pk}',text=str(obj),url=reverse('suite-specialty-detail',args=[slug,obj.pk]))
         elif key=='vitals':event.update(title='Recorded observations',text='')
         else:event.update(title=f'Referral · {obj.destination}',text=obj.reason)
         events.append(event)
@@ -93,14 +114,17 @@ def patient_chart(request, pk):
             model=group[0]['obj']._meta.label_lower
             receipts=dict(OfflineReceipt.objects.filter(model_label=model,record_id__in=[e['obj'].pk for e in group]).values_list('record_id','client_created_at'))
             for e in group:e['offline_time']=receipts.get(e['obj'].pk)
-    return render(request,'operations/chart.html',{'patient':patient,'events':events,'page':page,'section':section,'sections':[(k,v[2]) for k,v in sources.items()],'clinical':clinical,'laboratory':laboratory,'selected_visit':visit,'chart_visits':Encounter.objects.filter(patient=patient).order_by('-started_at')[:100] if clinical else [],'active_visits':Encounter.objects.filter(patient=patient,status='open').order_by('-started_at')[:5] if clinical else []})
+    overview=[]
+    if clinical:
+        overview=[{'label':label,'count':qs.count(),'key':key} for key,(qs,_,label) in sources.items() if key in ('visits','documents','careplans','consultations')]
+    return render(request,'operations/chart.html',{'overview':overview,'patient':patient,'financial':financial,'events':events,'page':page,'section':section,'sections':[(k,v[2]) for k,v in sources.items()],'clinical':clinical,'laboratory':laboratory,'selected_visit':visit,'chart_visits':Encounter.objects.filter(patient=patient).order_by('-started_at')[:100] if clinical else [],'active_visits':Encounter.objects.filter(patient=patient,status='open').order_by('-started_at')[:5] if clinical else []})
 
 
 @login_required
 @never_cache
 def patient_search(request):
     user=request.user
-    if not user.is_active or not (user.is_superuser or user.role in ('admin','clinician','nurse','pharmacy','lab')):
+    if not user.is_active or not (user.is_superuser or user.role in ('admin','clinician','nurse','pharmacy','lab','reception','cashier','manager')):
         raise PermissionDenied
     from django.db.models import Q
     import uuid

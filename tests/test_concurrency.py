@@ -173,3 +173,35 @@ def test_postgres_offline_retry_creates_one_record():
         responses = [pool.submit(submit) for _ in range(2)]
         assert sorted(f.result(timeout=30) for f in responses) == [200, 201]
     assert ClinicalEntry.objects.count() == 1 and OfflineReceipt.objects.count() == 1
+
+
+def test_postgres_merge_blocks_late_bulk_patient_write():
+    if connection.vendor!='postgresql':pytest.skip('Requires PostgreSQL row locks')
+    from threading import Event
+    from concurrent.futures import TimeoutError
+    from django.db import transaction, IntegrityError
+    from apps.operations.models import ClinicalEntry, DuplicateReview
+    from apps.operations.advanced_services import merge_patients
+    f=Facility.objects.create(name='Identity contention')
+    u=User.objects.create_user(username='merge-concurrency',role='admin',is_superuser=True)
+    source=Patient.objects.create(first_name='Source',last_name='Synthetic',gender='F',facility=f)
+    target=Patient.objects.create(first_name='Target',last_name='Synthetic',gender='F',facility=f)
+    review=DuplicateReview.objects.create(patient=target,candidate=source,status='confirmed',created_by=u)
+    entered=Event()
+    def write():
+        close_old_connections()
+        try:
+            entered.set()
+            ClinicalEntry.objects.bulk_create([ClinicalEntry(patient_id=source.pk,created_by_id=u.pk,kind='note',text='Late write')])
+            return 'created'
+        except IntegrityError:return 'rejected'
+        finally:close_old_connections()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with transaction.atomic():
+            Patient.objects.select_for_update().get(pk=source.pk)
+            future=pool.submit(write)
+            assert entered.wait(timeout=5)
+            with pytest.raises(TimeoutError):future.result(timeout=.2)
+            merge_patients(review.pk,u,'Verified synthetic identity')
+        assert future.result(timeout=10)=='rejected'
+    assert not ClinicalEntry.objects.filter(patient=source).exists()

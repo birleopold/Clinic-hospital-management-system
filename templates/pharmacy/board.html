@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Pharmacy{% endblock %}
-{% block content %}
+{% block content %}{% if context_patient %}{% include 'operations/patient_banner.html' with patient=context_patient %}{% endif %}
 <div class="card">
   <h2 style="margin:0 0 12px;">Pending Prescriptions</h2>
   <div style="overflow:auto;">

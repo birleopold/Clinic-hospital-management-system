@@ -1,6 +1,18 @@
 from django.urls import path
-from . import views, advanced_views, offline_views, chart_views
+from . import views, advanced_views, offline_views, chart_views, workflow_views
 urlpatterns = [
+    path('suite/visit/<int:pk>/claim/', workflow_views.claim_visit, name='suite-claim-visit'),
+    path('suite/department-board/', workflow_views.department_board, name='suite-department-board'),
+    path('suite/patient/<int:pk>/handoff/', workflow_views.handoff, name='suite-handoff'),
+    path('suite/tasks/new/', workflow_views.task_create, name='suite-task-new'),
+    path('suite/tasks/', workflow_views.tasks, name='suite-tasks'),
+    path('suite/tasks/<int:pk>/', workflow_views.task_detail, name='suite-task-detail'),
+    path('suite/patient/<int:pk>/task/', workflow_views.task_create, name='suite-task-create'),
+    path('suite/visit/<int:pk>/note/', workflow_views.note, name='suite-consultation-note'),
+    path('suite/note-templates/', workflow_views.templates, name='suite-note-templates'),
+    path('suite/patient/<int:pk>/document/', workflow_views.document, name='suite-document-create'),
+    path('suite/documents/<int:pk>/download/', workflow_views.document_download, name='suite-document-download'),
+    path('suite/lookup/<slug:slug>/<str:field>/', workflow_views.lookup, name='suite-lookup'),
     path('offline/', offline_views.shell, name='suite-offline'),
     path('offline/sw.js', offline_views.service_worker),
     path('offline/api/session/', offline_views.session),

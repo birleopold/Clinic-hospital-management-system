@@ -13,6 +13,11 @@ class AccessSafeguardsMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
+    def process_exception(self, request, exception):
+        from django.db import IntegrityError
+        if isinstance(exception, IntegrityError) and 'Patient identity was merged' in str(exception):
+            return JsonResponse({'detail':'Patient identity changed during this action. Reload its canonical record before retrying.'},status=409)
+
     def __call__(self, request):
         if (
             request.path.startswith("/admin/")

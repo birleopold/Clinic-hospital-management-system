@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Cashier{% endblock %}
-{% block content %}
+{% block content %}{% if context_patient %}{% include 'operations/patient_banner.html' with patient=context_patient %}{% endif %}
 <div class="card">
   <h2>Cash Session</h2>
   <div class="chips" style="margin-bottom:8px">

@@ -26,7 +26,7 @@ def test_chart_merges_sources_and_visit_filter(suite):
     url=reverse('suite-patient',args=[suite.p.pk])
     response=suite.client.get(url)
     assert response.status_code==200
-    assert response.context['page'].paginator.count==6
+    assert response.context['page'].paginator.count==7
     assert b'Confidential note sentinel' in response.content
     assert b'no-store' in response.headers['Cache-Control'].encode()
     response=suite.client.get(url,{'visit':visit.pk})
@@ -42,13 +42,13 @@ def test_chart_role_boundaries(suite,role):
     records(suite)
     suite.u.role=role;suite.u.save()
     response=suite.client.get(reverse('suite-patient',args=[suite.p.pk]))
-    if role in ('cashier','reception','manager','store'):
+    if role == 'store':
         assert response.status_code==403
         return
     assert response.status_code==200
     assert (b'Confidential note sentinel' in response.content)==(role in ('clinician','nurse'))
     assert (b'Draft result sentinel' in response.content)==(role=='lab')
-    if role in ('pharmacy','lab'):
+    if role in ('pharmacy','lab','cashier','reception','manager'):
         assert suite.client.get(reverse('suite-patient',args=[suite.p.pk]),{'section':'notes'}).status_code==403
         assert suite.client.get(reverse('suite-patient-history',args=[suite.p.pk])).status_code==403
 

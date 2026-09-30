@@ -174,3 +174,5 @@ The [disconnected-device workspace](docs/OFFLINE_DRAFTS.md) adds encrypted clini
 See the [September 2026 competitive research and implementation plan](docs/COMPETITIVE_RESEARCH_AND_PLAN_2026-09.md) for a comparison of 14 systems, UI priorities, feature gaps and staged acceptance criteria. Proposed features are not yet implemented.
 
 Track delivery against the full plan in [IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md). The first workflow delivery adds role workspaces, responsive navigation and a permission-scoped patient timeline; the tracker explicitly lists remaining work.
+
+The [Phase 1 workflow release](docs/PHASE_ONE_RELEASE.md) completes the daily-workflow software scope: connected department worklists, expanded patient chart, owned tasks, versioned notes, private documents and scoped selectors. Manual staff acceptance and production performance gates remain explicit in the tracker.

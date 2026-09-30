@@ -2,20 +2,10 @@
 {% block title %}Clinic workspace{% endblock %}
 {% block content %}
 <div class="page-heading"><div><div class="eyebrow">{{ role_title }} workspace</div><h1>Your work today</h1><p class="muted">Start a task, continue a visit or resolve an outstanding item.</p></div></div>
-<div class="role-actions">{% for action in role_actions %}<a class="btn" href="{{ action.url }}">{{ action.label }}</a>{% endfor %}</div>
+<p><a class="btn" href="/suite/department-board/">Open my department worklist</a> <a class="btn btn-secondary" href="/suite/tasks/">Task inbox</a></p><section class="card"><h2>Assigned to me</h2>{% for task in assigned_tasks %}<p><a href="{% url 'suite-task-detail' task.pk %}">{{ task.title }}</a> · Due {{ task.due_at }}</p>{% empty %}<p class="muted">No outstanding assigned tasks.</p>{% endfor %}</section><div class="role-actions">{% for action in role_actions %}<a class="btn" href="{{ action.url }}">{{ action.label }}</a>{% endfor %}</div>
 <div class="metrics">{% for card in attention_cards %}<a class="metric attention-card" href="{{ card.url }}"><span>{{ card.label }}</span><strong>{{ card.count }}</strong><span>Open workspace →</span></a>{% endfor %}</div>
 <div class="card"><div class="page-heading"><div><h2>Workspaces</h2><span class="muted">Tools available for your role</span></div><a href="/queues">Patient queues →</a></div><label for="workspace-search">Find a workspace</label><input id="workspace-search" type="search" placeholder="For example: maternity or stock" aria-controls="workspace-links"><p id="workspace-count" class="muted" aria-live="polite"></p><div class="module-grid" id="workspace-links">{% if user.is_superuser or user.role == 'admin' or user.role == 'nurse' or user.role == 'clinician' %}<a class="module-link" href="{% url 'suite-offline' %}">Offline clinical drafts ↗</a><a class="module-link" href="{% url 'suite-specialty-follow-up' %}">Specialty follow-up ↗</a><a class="module-link" href="{% url 'suite-medication-round' %}">Medication round ↗</a>{% endif %}{% if user.is_superuser or user.role == 'admin' or user.role == 'store' or user.role == 'manager' or user.role == 'pharmacy' %}<a class="module-link" href="{% url 'suite-reorder' %}">Reorder suggestions ↗</a>{% endif %}{% if user.is_superuser or user.role == "admin" or user.role == "store" or user.role == "manager" or user.role == "pharmacy" %}<a class="module-link" href="{% url 'suite-stock' %}">Stock control ↗</a>{% endif %}{% for module in modules %}<a class="module-link" href="{% url 'suite-collection' module.slug %}">{{ module.label }} <span aria-hidden="true">↗</span></a>{% empty %}<p>No workspaces assigned. Contact your administrator.</p>{% endfor %}</div></div>
 {% if show_visits %}<div class="card"><h2>{% if role_title == 'Clinician' %}My active visits{% else %}Active visits{% endif %}</h2><div class="table-wrap" tabindex="0" role="region" aria-label="Records table"><table><thead><tr><th>Patient</th><th>Clinician</th><th>Arrival</th><th>Complaint</th><th>Record</th></tr></thead><tbody>{% for visit in visits %}<tr><td>{{ visit.patient }}</td><td>{{ visit.clinician|default:'Unassigned' }}</td><td>{{ visit.started_at|date:'d M, H:i' }}</td><td>{{ visit.chief_complaint|default:'—' }}</td><td><a href="{% url 'suite-patient' visit.patient_id %}">Patient summary</a> · <a href="{% url 'ehr-encounter-detail' visit.pk %}">Encounter</a></td></tr>{% empty %}<tr><td colspan="5" class="empty">No active visits in your facility.</td></tr>{% endfor %}</tbody></table></div></div>
 {% endif %}
-<script>
-(function(){
- const input=document.getElementById('workspace-search');
- const links=Array.from(document.querySelectorAll('#workspace-links .module-link'));
- input.addEventListener('input',function(){
-  const query=input.value.trim().toLocaleLowerCase();
-  links.forEach(link=>{link.hidden=!link.textContent.toLocaleLowerCase().includes(query);});
-  document.getElementById('workspace-count').textContent=links.filter(link=>!link.hidden).length+' workspaces shown';
- });
-})();
-</script>
+{% load static %}<script src="{% static 'js/workspace-home.js' %}" defer></script>
 {% endblock %}

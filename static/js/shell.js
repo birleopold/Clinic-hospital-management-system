@@ -12,3 +12,15 @@ document.addEventListener('DOMContentLoaded',()=>{
  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&media.matches){document.body.classList.remove('navigation-open');button.setAttribute('aria-expanded','false');button.focus();}});
  document.querySelectorAll('#workspace-navigation a').forEach(link=>{if(link.pathname===location.pathname)link.setAttribute('aria-current','page');});
 });
+document.addEventListener('DOMContentLoaded',()=>{
+ const groups={'/queues':'Patient flow','/ehr':'Care delivery','/pharmacy':'Operations'};
+ for(const [path,title] of Object.entries(groups)){
+  const link=document.querySelector('#workspace-navigation a[href="'+path+'"]');
+  if(link){const heading=document.createElement('span');heading.className='navigation-group';heading.textContent=title;const target=link.closest('.dropdown')||link;target.before(heading);}
+ }
+ document.addEventListener('submit',event=>{
+  const form=event.target,button=event.submitter;
+  if(form.hasAttribute('onsubmit')||!button)return;
+  if(/^(Cancel|Merge|Approve.*refund|Dispose)/i.test(button.textContent.trim())&&!confirm(button.textContent.trim()+'? Review the selected record and entered reason before continuing.'))event.preventDefault();
+ });
+});

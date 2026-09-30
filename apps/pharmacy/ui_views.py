@@ -38,12 +38,14 @@ def pharmacy_board_view(request):
         return HttpResponseForbidden('Not allowed')
     prescriptions = (
         filter_by_patient_facility(Prescription.objects.all(), user)
+        .filter(**({'patient_id': int(request.GET['patient'])} if request.GET.get('patient','').isdigit() else {}))
         .select_related('patient','clinician')
         .prefetch_related('items')
         .order_by('-id')[:30]
     )
     recent_dispenses = (
         filter_by_patient_facility(Dispense.objects.all(), user)
+        .filter(**({'patient_id': int(request.GET['patient'])} if request.GET.get('patient','').isdigit() else {}))
         .select_related('patient')
         .order_by('-dispensed_at')[:30]
     )
@@ -205,7 +207,7 @@ def dispense_create_view(request):
         notes=(request.POST.get('notes') or ''),
     )
 
-    return redirect('pharmacy-board')
+    return redirect(f'/pharmacy?patient={patient.pk}')
 
 
 @login_required

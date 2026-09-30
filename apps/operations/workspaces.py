@@ -42,4 +42,6 @@ def workspace_context(user):
         card('Expired stock on hand',filter_by_facility(Batch.objects.filter(expiry__lt=timezone.localdate(),quantity_on_hand__gt=0),user,field='location__facility_id'),'/suite/stock/')
     if role in ('admin','cashier','manager'):
         card('Invoices awaiting payment',filter_by_patient_facility(Invoice.objects.filter(status='ready_to_pay'),user),'/cashier' if role!='manager' else '/reports')
-    return {'role_title':role.title(),'role_actions':[{'label':a,'url':b} for a,b in ROLE_ACTIONS.get(role,[])],'attention_cards':cards,'visits':visits.select_related('patient','clinician').order_by('started_at')[:50] if clinical else [],'show_visits':clinical}
+    from .workflow_views import task_scope
+    assigned=task_scope(user).filter(owner=user,status__in=['open','in_progress']).select_related('patient').order_by('due_at')[:10]
+    return {'assigned_tasks':assigned,'role_title':role.title(),'role_actions':[{'label':a,'url':b} for a,b in ROLE_ACTIONS.get(role,[])],'attention_cards':cards,'visits':visits.select_related('patient','clinician').order_by('started_at')[:50] if clinical else [],'show_visits':clinical}
