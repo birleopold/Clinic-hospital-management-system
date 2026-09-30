@@ -285,3 +285,5 @@ class LoginThrottle(models.Model):
 
 # Registered here so Django discovers specialty tables in the operations app.
 from .specialty_models import (TheatreCase, Pregnancy, MaternityVisit, Vaccination, RehabilitationPlan, RehabilitationSession)  # noqa: E402,F401
+from .care_models import (VaccinationCorrection, StorageProtocol, ColdChainReading, PerioperativeEntry, InstrumentCount, Delivery, Newborn, LabourObservation, RehabilitationOutcome)  # noqa: E402,F401
+from .care_models import VaccinationAdverseEvent  # noqa: E402,F401

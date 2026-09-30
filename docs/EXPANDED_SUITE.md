@@ -47,6 +47,8 @@ Live provider transactions, official HL7 validation against the facility's chose
 
 ## Remaining work and decisions
 
+See [CARE_AND_RECOVERY_RELEASE.md](CARE_AND_RECOVERY_RELEASE.md) for the latest delivered controls, verification and remaining scope.
+
 - Facility staff must approve clinical catalogs, reference ranges, coverage contracts, identifiers, permissions and workflow acceptance scenarios.
 - HMIS indicator mappings and national submission formats require approved current specifications and comparison with facility registers. Readiness checks do not certify those indicators.
 - Insurer-specific electronic claim transport, automated original-provider refunds and additional payment providers remain separate integrations.

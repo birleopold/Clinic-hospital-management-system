@@ -21,7 +21,11 @@ const assert = require('node:assert/strict');
       for (const path of ['/suite/', '/suite/results/', '/suite/insurance/prepare/',
         '/suite/stock/', '/suite/medication-round/', '/suite/theatre/',
         '/suite/pregnancies/', '/suite/maternity-visits/', '/suite/vaccinations/',
-        '/suite/rehabilitation/', '/suite/rehab-sessions/', '/suite/specialty-follow-up/']) {
+        '/suite/rehabilitation/', '/suite/rehab-sessions/', '/suite/specialty-follow-up/',
+        '/suite/vaccination-corrections/', '/suite/storage-protocols/', '/suite/cold-chain/',
+        '/suite/perioperative/', '/suite/instrument-counts/', '/suite/deliveries/',
+        '/suite/newborns/', '/suite/labour-observations/', '/suite/rehab-outcomes/',
+        '/suite/vaccine-adverse-events/']) {
         const response = await page.goto(base + path);
         assert.equal(response.status(), 200, path);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, path);
@@ -47,7 +51,8 @@ const assert = require('node:assert/strict');
     }
     await page.goto(`${base}/suite/`);
     await page.locator('#workspace-search').fill('vaccination');
-    assert.equal(await page.locator('#workspace-links .module-link:visible').count(), 1);
+    const matches=await page.locator('#workspace-links .module-link:visible').allTextContents();
+    assert(matches.length>0 && matches.every(text=>text.toLowerCase().includes('vaccination')));
     if (process.env.CLINIC_TEST_PATIENT_ID) {
       // Opt-in write scenario. Use only a synthetic patient on a disposable instance.
       await page.goto(`${base}/suite/vaccinations/`);
@@ -62,7 +67,7 @@ const assert = require('node:assert/strict');
       const form = row.locator('form[action$="/given/"]');
       await form.locator('[name=administered_at]').fill(new Date(Date.now()-3600000).toISOString().slice(0,16));
       await form.locator('[name=expires_on]').fill(new Date(Date.now()+86400000).toISOString().slice(0,10));
-      for (const [key,value] of Object.entries({manufacturer:'Synthetic maker',lot_number:'TEST-LOT',dose:'Test dose',route:'Test route',site:'Test site',consent_reference:'Synthetic consent'})) {
+      for (const [key,value] of Object.entries({source_reference:'Synthetic external provider',manufacturer:'Synthetic maker',lot_number:'TEST-LOT',dose:'Test dose',route:'Test route',site:'Test site',consent_reference:'Synthetic consent'})) {
         await form.locator(`[name=${key}]`).fill(value);
       }
       await Promise.all([page.waitForNavigation(), form.getByRole('button',{name:'Record given dose'}).click()]);

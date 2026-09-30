@@ -345,7 +345,7 @@ def backorder_fulfill_view(request, bo_id: int):
         return HttpResponseForbidden('Not allowed')
     if request.method != 'POST':
         return HttpResponseForbidden('Invalid method')
-    bo = get_object_or_404(filter_by_patient_facility(Backorder.objects.select_for_update(), user).select_related('patient','prescription_item'), pk=bo_id)
+    bo = get_object_or_404(filter_by_patient_facility(Backorder.objects.select_for_update(of=("self",)), user).select_related('patient','prescription_item'), pk=bo_id)
     try:
         qty = Decimal(request.POST.get('quantity') or '0')
     except Exception:

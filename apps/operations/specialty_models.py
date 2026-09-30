@@ -122,6 +122,30 @@ class MaternityVisit(Record):
 
 
 class Vaccination(PatientRecord):
+    stock_source = models.CharField(
+        max_length=16,
+        default="external",
+        choices=[
+            ("external", "External / previously issued"),
+            ("clinic", "Consume clinic stock"),
+        ],
+    )
+    source_reference = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="External provider or existing dispense/stock movement reference. Never deduct the same dose twice.",
+    )
+    stock_batch = models.ForeignKey(
+        "inventory.Batch", null=True, blank=True, on_delete=models.PROTECT
+    )
+    stock_quantity = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Base inventory units consumed, not the administered volume. Verify against the selected item.",
+    )
+
     vaccine = models.CharField(max_length=160)
     dose_label = models.CharField(
         max_length=80,
@@ -134,6 +158,7 @@ class Vaccination(PatientRecord):
         choices=[
             ("scheduled", "Scheduled"),
             ("given", "Given"),
+            ("entered_error", "Entered in error"),
             ("deferred", "Deferred"),
             ("cancelled", "Cancelled"),
         ],

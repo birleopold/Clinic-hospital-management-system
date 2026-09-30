@@ -25,15 +25,27 @@ from .models import PatientMerge, LabPanel, LabAnalyte, InpatientOrder, CarePlan
 from apps.inventory.models import InventoryItem, Supplier, PurchaseOrder
 from .advanced_services import merge_patients, prepare_claim, post_remittance, scheduled_doses
 from .specialty_services import SPECIALTIES, create_specialty, transition_specialty
+from .care_services import CARE_RECORDS, create_care_record, review_care_record
+from .models import VaccinationAdverseEvent, VaccinationCorrection, StorageProtocol, ColdChainReading, PerioperativeEntry, InstrumentCount, Delivery, Newborn, LabourObservation, RehabilitationOutcome
 from .models import TheatreCase, Pregnancy, MaternityVisit, Vaccination, RehabilitationPlan, RehabilitationSession
 from .services import post_count, approve_refund, transfer_stock, approve_credit
 
 # Every collection and writable relation has an explicit scope and role policy.
 MODULES = {
+ 'vaccine-adverse-events': (VaccinationAdverseEvent, 'Suspected vaccine adverse events', ['vaccination','occurred_at','description','seriousness','action_taken','follow_up_on','reporting_reference'], 'vaccination__patient__facility_id', ['clinician','nurse']),
+ 'vaccination-corrections': (VaccinationCorrection, 'Vaccination corrections', ['vaccination','field_name','corrected_value','reason'], 'vaccination__patient__facility_id', ['clinician','nurse']),
+ 'storage-protocols': (StorageProtocol, 'Storage protocols', ['facility','name','lower_c','upper_c','source_reference'], 'facility_id', ['store','manager']),
+ 'cold-chain': (ColdChainReading, 'Cold-chain readings', ['batch','protocol','measured_at','temperature_c','device_reference','note'], 'batch__location__facility_id', ['store','manager','nurse','pharmacy']),
+ 'perioperative': (PerioperativeEntry, 'Anesthesia & theatre observations', ['case','occurred_at','kind','findings','intervention','plan','supersedes','amendment_reason'], 'case__patient__facility_id', ['clinician','nurse']),
+ 'instrument-counts': (InstrumentCount, 'Theatre instrument counts', ['case','phase','item_group','expected','counted','discrepancy_note'], 'case__patient__facility_id', ['clinician','nurse']),
+ 'deliveries': (Delivery, 'Delivery records', ['pregnancy','occurred_at','mode','maternal_condition','complications','care_provided','follow_up_plan'], 'pregnancy__patient__facility_id', ['clinician','nurse']),
+ 'newborns': (Newborn, 'Newborn records', ['delivery','patient','birth_order','outcome','birth_weight_kg','apgar_1_min','apgar_5_min','notes'], 'delivery__pregnancy__patient__facility_id', ['clinician','nurse']),
+ 'labour-observations': (LabourObservation, 'Labour observations', ['pregnancy','observed_at','fetal_heart_rate','cervical_dilation_cm','contractions_per_10_min','maternal_pulse','systolic','diastolic','temperature_c','findings','plan','supersedes','amendment_reason'], 'pregnancy__patient__facility_id', ['clinician','nurse']),
+ 'rehab-outcomes': (RehabilitationOutcome, 'Rehabilitation outcomes', ['plan','measured_at','instrument_name','instrument_version','source_reference','score','units','interpretation'], 'plan__patient__facility_id', ['clinician','nurse']),
  'theatre': (TheatreCase, 'Theatre scheduling', ['patient','room','surgeon','procedure','indication','starts_at','ends_at'], 'patient__facility_id', ['clinician','nurse']),
  'pregnancies': (Pregnancy, 'Maternity episodes', ['patient','gravida','parity','last_menstrual_period','estimated_due_date','assessment'], 'patient__facility_id', ['clinician','nurse']),
  'maternity-visits': (MaternityVisit, 'Maternity visits & amendments', ['pregnancy','occurred_at','visit_type','findings','care_provided','plan','follow_up_on','supersedes','amendment_reason'], 'pregnancy__patient__facility_id', ['clinician','nurse']),
- 'vaccinations': (Vaccination, 'Vaccination visits', ['patient','vaccine','dose_label','due_on'], 'patient__facility_id', ['clinician','nurse']),
+ 'vaccinations': (Vaccination, 'Vaccination visits', ['patient','vaccine','dose_label','due_on','stock_source','source_reference','stock_batch','stock_quantity'], 'patient__facility_id', ['clinician','nurse']),
  'rehabilitation': (RehabilitationPlan, 'Rehabilitation care plans', ['patient','clinician','problem','baseline','goals','intervention_plan','review_on'], 'patient__facility_id', ['clinician','nurse']),
  'rehab-sessions': (RehabilitationSession, 'Rehabilitation sessions', ['plan','occurred_at','intervention','response','progress','next_visit_on','supersedes','amendment_reason'], 'plan__patient__facility_id', ['clinician','nurse']),
  'lab-panels': (LabPanel, 'Laboratory panels', ['facility','code','name','specimen_type','active'], 'facility_id', ['lab','manager']),
@@ -66,6 +78,8 @@ MODULES = {
  'claims': (Claim, 'Insurance claims', ['invoice','payer','membership_number','authorization_reference','amount'], 'invoice__patient__facility_id', ['cashier','manager']),
 }
 RELATIONS = {
+ Vaccination:'patient__facility_id', StorageProtocol:'facility_id', TheatreCase:'patient__facility_id',
+ PerioperativeEntry:'case__patient__facility_id', Delivery:'pregnancy__patient__facility_id', LabourObservation:'pregnancy__patient__facility_id',
  Pregnancy:'patient__facility_id', MaternityVisit:'pregnancy__patient__facility_id',
  RehabilitationPlan:'patient__facility_id', RehabilitationSession:'plan__patient__facility_id',
  LabPanel:'facility_id', LabAnalyte:'panel__facility_id', Specimen:'order__patient__facility_id',
@@ -198,7 +212,9 @@ def collection(request, slug):
                         raise ValidationError('Choose a payer in the same facility and a valid invoice amount.')
                 from .advanced_validation import validate_new_record
                 validate_new_record(obj,request.user)
-                if isinstance(obj, SPECIALTIES):
+                if isinstance(obj, CARE_RECORDS):
+                    create_care_record(obj, request.user)
+                elif isinstance(obj, SPECIALTIES):
                     create_specialty(obj, request.user)
                 else:
                     obj.save()
@@ -237,6 +253,10 @@ def collection(request, slug):
     rows=[]
     for obj in records:
         state = getattr(obj,'status','')
+        if isinstance(obj,VaccinationCorrection): state = 'Applied' if obj.applied_at else 'Awaiting review'
+        if isinstance(obj,StorageProtocol): state = 'Approved' if obj.approved_at else 'Awaiting approval'
+        if isinstance(obj,InstrumentCount): state = 'Verified' if obj.verified_at else 'Awaiting second count review'
+        if isinstance(obj,ColdChainReading): state = 'Excursion / quarantine' if obj.excursion else 'Within recorded limits'
         if isinstance(obj,OrderResult): state = 'Released' if obj.approved_at else 'Awaiting review'
         if isinstance(obj,Admission): state = 'Discharged' if obj.discharged_at else 'Admitted'
         values=[]
@@ -246,7 +266,7 @@ def collection(request, slug):
             value=getattr(obj,field)
             values.append(display_value(value)[:180])
         rows.append({'obj':obj,'values':values,'state':state})
-    return render(request,'operations/collection.html',{'specialty':model in SPECIALTIES,'page':page,'query':query,'title':title,'slug':slug,'form':form,'rows':rows,'available_beds':scoped(Bed,request.user,'facility_id').filter(active=True).exclude(admission__discharged_at__isnull=True,admission__isnull=False) if slug=='admissions' else [],'status_choices':model._meta.get_field('status').choices if model in (TheatreCase,Pregnancy,Vaccination,RehabilitationPlan) else [],'selected_status':request.GET.get('status',''),'headers':[model._meta.get_field(f).verbose_name for f in fields if f!='attachment']})
+    return render(request,'operations/collection.html',{'specialty':model in SPECIALTIES + CARE_RECORDS,'page':page,'query':query,'title':title,'slug':slug,'form':form,'rows':rows,'available_beds':scoped(Bed,request.user,'facility_id').filter(active=True).exclude(admission__discharged_at__isnull=True,admission__isnull=False) if slug=='admissions' else [],'status_choices':model._meta.get_field('status').choices if model in (TheatreCase,Pregnancy,Vaccination,RehabilitationPlan) else [],'selected_status':request.GET.get('status',''),'headers':[model._meta.get_field(f).verbose_name for f in fields if f!='attachment']})
 
 @login_required
 @require_POST
@@ -255,7 +275,9 @@ def action(request,slug,pk,operation):
     try:
         with transaction.atomic():
             obj=get_object_or_404(scoped(model,request.user,scope).select_for_update(),pk=pk)
-            if model in SPECIALTIES:
+            if model in CARE_RECORDS:
+                review_care_record(model,obj.pk,operation,request.POST,request.user)
+            elif model in SPECIALTIES:
                 transition_specialty(model, obj.pk, operation, request.POST, request.user)
             elif slug == 'duplicates' and operation == 'merge':
                 merge_patients(obj.pk,request.user,request.POST.get('reason',''))

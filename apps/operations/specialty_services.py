@@ -223,6 +223,10 @@ def transition_specialty(model, pk, operation, data, actor):
             obj.outcome_note = required(data, "note")
             obj.recovery_at = now
         elif operation == "completed":
+            if obj.instrument_counts.filter(verified_at__isnull=True).exists():
+                raise ValidationError(
+                    "All recorded instrument counts require second-person verification before completion."
+                )
             obj.outcome_note += "\nRecovery handoff: " + required(data, "note")
             obj.completed_at = now
         else:
@@ -279,6 +283,12 @@ def transition_specialty(model, pk, operation, data, actor):
                 raise ValidationError(
                     "Administration cannot precede the patient birth date."
                 )
+            obj.source_reference = data.get(
+                "source_reference", obj.source_reference
+            ).strip()
+            from .care_services import consume_vaccine_stock
+
+            consume_vaccine_stock(obj)
             obj.administered_by = actor
             obj.note = data.get("note", "").strip()
         else:

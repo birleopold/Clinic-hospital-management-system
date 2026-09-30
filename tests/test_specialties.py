@@ -215,6 +215,7 @@ def vaccine_data():
     return dict(
         administered_at=(timezone.now() - timedelta(minutes=5)).isoformat(),
         manufacturer="Test manufacturer",
+        source_reference="Synthetic external provider",
         lot_number="LOT1",
         expires_on=str(timezone.localdate() + timedelta(days=30)),
         dose="Recorded dose",
@@ -350,6 +351,8 @@ def test_specialty_forms_save_valid_records_and_display_errors(suite):
         {
             "patient": suite.p.pk,
             "vaccine": "Synthetic vaccine",
+            "stock_source": "external",
+            "source_reference": "Synthetic external provider",
             "dose_label": "Dose 1",
             "due_on": str(timezone.localdate()),
         },

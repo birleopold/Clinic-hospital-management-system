@@ -12,6 +12,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python: ['3.11', '3.12']
         database: [sqlite, postgres]
@@ -24,7 +25,7 @@ jobs:
           POSTGRES_DB: hms
         ports: ['5432:5432']
         options: >-
-          --health-cmd pg_isready --health-interval 10s
+          --health-cmd "pg_isready -U hms -d hms" --health-interval 10s
           --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
@@ -46,3 +47,12 @@ jobs:
         run: |
           python manage.py migrate --noinput
           python manage.py collectstatic --noinput
+
+      - name: PostgreSQL restore drill
+        if: matrix.database == 'postgres'
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+          TEST_DATABASE_URL: postgres://hms:hms-test-only@localhost:5432/hms
+        run: |
+          python manage.py migrate --noinput
+          python scripts/postgres_restore_drill.py

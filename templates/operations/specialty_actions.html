@@ -21,6 +21,7 @@
 {% if row.state == 'scheduled' or row.state == 'deferred' %}
 <details><summary>Document administration</summary><form method="post" action="{% url 'suite-action' slug row.obj.pk 'given' %}">{% csrf_token %}
 <p><label>Administration time<input name="administered_at" type="datetime-local" required></label></p>
+<p><label>External provider / previous issue reference<input name="source_reference" maxlength="200" value="{{ row.obj.source_reference }}"></label></p>
 <p><label>Manufacturer<input name="manufacturer" maxlength="120" required></label></p>
 <p><label>Lot number<input name="lot_number" maxlength="100" required></label></p>
 <p><label>Lot expiry<input name="expires_on" type="date" required></label></p>
@@ -34,3 +35,10 @@
 <form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'cancelled' %}">{% csrf_token %}<input name="note" required aria-label="Vaccination cancellation reason" placeholder="Cancellation reason"><button>Cancel visit</button></form>
 {% elif row.state == 'given' %}<p>{{ row.obj.administered_at }} · {{ row.obj.administered_by }}</p><p>{{ row.obj.manufacturer }} · Lot {{ row.obj.lot_number }} · {{ row.obj.dose }} · {{ row.obj.route }} · {{ row.obj.site }}</p>{% endif %}<p class="record-note">{{ row.obj.note }}</p>
 {% endif %}
+
+{% if slug == 'vaccination-corrections' and not row.obj.applied_at %}<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'approve' %}">{% csrf_token %}<button>Review and apply correction</button></form>{% endif %}
+{% if slug == 'storage-protocols' and not row.obj.approved_at %}<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'approve' %}">{% csrf_token %}<button>Approve storage protocol</button></form>{% endif %}
+{% if slug == 'instrument-counts' and not row.obj.verified_at %}<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'approve' %}">{% csrf_token %}<textarea name="resolution" aria-label="Discrepancy resolution" placeholder="Document discrepancy resolution, if required"></textarea><button>Verify count as second reviewer</button></form>{% endif %}
+{% if slug == 'cold-chain' and row.obj.excursion %}<strong>Excursion: batch quarantined</strong>{% endif %}
+
+{% if slug == 'vaccine-adverse-events' %}{% if row.state == 'open' %}<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'approve' %}">{% csrf_token %}<textarea name="assessment" required aria-label="Clinical assessment" placeholder="Clinical assessment and follow-up plan"></textarea><button>Record clinical review</button></form>{% elif row.state == 'reviewed' %}<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'close' %}">{% csrf_token %}<textarea name="assessment" required aria-label="Follow-up outcome" placeholder="Follow-up outcome"></textarea><button>Close follow-up</button></form>{% endif %}<p class="record-note">{{ row.obj.assessment }}</p>{% endif %}

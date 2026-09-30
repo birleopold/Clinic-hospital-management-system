@@ -166,3 +166,5 @@ No project license has been selected in this repository. Confirm ownership and c
 See [expanded workflows and deployment checks](docs/EXPANDED_SUITE.md) for patient merging, laboratory catalogs, inpatient rounds, coverage/co-pay, provider integrations, UI improvements and explicit remaining work.
 
 The [specialty workflow release](docs/SPECIALTY_WORKFLOWS.md) adds theatre scheduling, maternity visits, vaccination administration records, rehabilitation and a follow-up dashboard.
+
+The [care and recovery release](docs/CARE_AND_RECOVERY_RELEASE.md) adds vaccine stock/corrections, cold-chain quarantine, delivery/newborn records, theatre count verification, and isolated backup/restore checks. It also fixes the PostgreSQL backorder locking failure found by CI.

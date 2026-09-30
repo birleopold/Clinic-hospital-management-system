@@ -34,7 +34,11 @@ Local result: **124 passed, 3 PostgreSQL-only tests skipped**. Django system che
 
 The browser smoke script checks all six specialty workspaces and the follow-up dashboard at desktop/mobile widths. It also checks workspace search. Set `CLINIC_TEST_PATIENT_ID` only on a disposable instance with a synthetic patient to exercise creation and administration through the browser; this optional test writes a vaccination record. Other required environment variables are documented at the top of `scripts/browser_smoke.cjs`. Automated accessibility checks supplement, but do not replace, staff and assistive-technology acceptance testing.
 
-## Explicit remaining depth
+## Subsequent care release
+
+[CARE_AND_RECOVERY_RELEASE.md](CARE_AND_RECOVERY_RELEASE.md) adds vaccine stock posting, reviewed corrections, adverse-event follow-up, approved cold-chain protocols, theatre entries/counts, delivery/newborn records, labour observations and recorded rehabilitation scores. Its scope and limitations supersede the original gap list below.
+
+## Original release gaps (historical)
 
 - Theatre: anesthesia charts, intraoperative observations, instrument counts, multi-team resource planning and structured surgical complications are not modeled. Readiness stores references to the facility's approved documents.
 - Maternity: partographs, individual newborn records linked to a delivery, structured obstetric outcomes and national maternity registers require a further clinically reviewed specification. The delivery visit currently records findings, care and plan as signed documentation.

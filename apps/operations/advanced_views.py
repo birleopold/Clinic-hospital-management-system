@@ -316,10 +316,11 @@ def specialty_follow_up(request):
 def specialty_detail(request, slug, pk):
     from .views import config, display_value
     from .specialty_services import SPECIALTIES
+    from .care_services import CARE_RECORDS
     from django.http import Http404
 
     model, title, fields, scope, roles = config(request, slug)
-    if model not in SPECIALTIES:
+    if model not in SPECIALTIES + CARE_RECORDS:
         raise Http404
     record = get_object_or_404(scoped(model, request.user, scope), pk=pk)
     details = []
