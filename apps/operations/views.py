@@ -136,9 +136,7 @@ def workspace(request):
         'visits':encounters.select_related('patient','clinician').order_by('started_at')[:50] if show_clinical else [],
     })
 
-@login_required
-def collection(request, slug):
-    model,title,fields,scope,roles = config(request,slug)
+def collection_form(request, model, fields):
     Form = forms.modelform_factory(model,fields=fields)
     form = Form(request.POST or None,request.FILES or None)
     for name,field in form.fields.items():
@@ -168,59 +166,71 @@ def collection(request, slug):
                 field.queryset = field.queryset.filter(discharged_at__isnull=True)
             if related is Order:
                 field.queryset = field.queryset.exclude(status='cancelled')
+    return form
+
+
+@transaction.atomic
+def save_collection_form(form, user):
+    obj = form.save(commit=False)
+    if hasattr(obj,'created_by_id'):
+        obj.created_by = user
+    if isinstance(obj,Reminder) and (not obj.consent_confirmed or not obj.patient.phone):
+        raise ValidationError('Record consent and a patient phone number before scheduling a reminder.')
+    if isinstance(obj,DuplicateReview) and (obj.patient_id==obj.candidate_id or obj.patient.facility_id!=obj.candidate.facility_id):
+        raise ValidationError('Choose two different patient records in the same facility.')
+    if isinstance(obj,ClinicalEntry) and obj.supersedes_id and obj.supersedes.patient_id != obj.patient_id:
+        raise ValidationError('Amendments must belong to the same patient.')
+    if isinstance(obj,OrderResult):
+        obj.recorded_by=user
+        if obj.supersedes_id and (obj.supersedes.order_id!=obj.order_id or not obj.supersedes.approved_at):
+            raise ValidationError('Amendments must reference a released result for the same order.')
+    if isinstance(obj,StockCount):
+        obj.batch = Batch.objects.select_for_update().get(pk=obj.batch_id)
+        obj.expected = obj.batch.quantity_on_hand
+        if obj.counted < 0:
+            raise ValidationError('Count cannot be negative.')
+    if isinstance(obj,InvoiceCredit) and (obj.amount<=0 or obj.amount>obj.invoice.total_amount):
+        raise ValidationError('Enter a positive credit within the invoice total.')
+    if isinstance(obj,Refund) and (obj.amount <= 0 or obj.amount > obj.payment.amount):
+        raise ValidationError('Enter a positive amount within the original payment.')
+    if isinstance(obj,Admission):
+        obj.bed = Bed.objects.select_for_update().get(pk=obj.bed_id)
+        if obj.bed.facility_id != obj.patient.facility_id or not obj.bed.active:
+            raise ValidationError('Choose an active bed in the patient facility.')
+        if Admission.objects.filter(Q(bed=obj.bed)|Q(patient=obj.patient),discharged_at__isnull=True).exists():
+            raise ValidationError('The bed or patient already has an active admission.')
+    if isinstance(obj,(MedicationAdministration,NursingObservation)):
+        admission=Admission.objects.select_for_update().get(pk=obj.admission_id)
+        if admission.discharged_at: raise ValidationError('This admission is already discharged.')
+    if isinstance(obj,MedicationAdministration):
+        if obj.admission.patient_id != obj.prescription_item.prescription.patient_id:
+            raise ValidationError('Prescription and admission must belong to the same patient.')
+        if obj.scheduled_for > timezone.now() and obj.outcome == 'given':
+            raise ValidationError('Cannot record a future dose as given.')
+    if isinstance(obj,Claim):
+        if obj.payer.facility_id != obj.invoice.patient.facility_id or obj.amount <= 0 or obj.amount > obj.invoice.total_amount:
+            raise ValidationError('Choose a payer in the same facility and a valid invoice amount.')
+    from .advanced_validation import validate_new_record
+    validate_new_record(obj,user)
+    if isinstance(obj, CARE_RECORDS):
+        create_care_record(obj, user)
+    elif isinstance(obj, SPECIALTIES):
+        create_specialty(obj, user)
+    else:
+        obj.save()
+    if isinstance(obj,Remittance): post_remittance(obj)
+    if isinstance(obj,ClinicalEntry) and obj.kind == 'allergy':
+        Patient.objects.filter(pk=obj.patient_id).update(allergy_status='recorded')
+    return obj
+
+
+@login_required
+def collection(request, slug):
+    model,title,fields,scope,roles = config(request,slug)
+    form = collection_form(request, model, fields)
     if request.method == 'POST' and form.is_valid():
         try:
-            with transaction.atomic():
-                obj = form.save(commit=False)
-                if hasattr(obj,'created_by_id'):
-                    obj.created_by = request.user
-                if isinstance(obj,Reminder) and (not obj.consent_confirmed or not obj.patient.phone):
-                    raise ValidationError('Record consent and a patient phone number before scheduling a reminder.')
-                if isinstance(obj,DuplicateReview) and (obj.patient_id==obj.candidate_id or obj.patient.facility_id!=obj.candidate.facility_id):
-                    raise ValidationError('Choose two different patient records in the same facility.')
-                if isinstance(obj,ClinicalEntry) and obj.supersedes_id and obj.supersedes.patient_id != obj.patient_id:
-                    raise ValidationError('Amendments must belong to the same patient.')
-                if isinstance(obj,OrderResult):
-                    obj.recorded_by=request.user
-                    if obj.supersedes_id and (obj.supersedes.order_id!=obj.order_id or not obj.supersedes.approved_at):
-                        raise ValidationError('Amendments must reference a released result for the same order.')
-                if isinstance(obj,StockCount):
-                    obj.batch = Batch.objects.select_for_update().get(pk=obj.batch_id)
-                    obj.expected = obj.batch.quantity_on_hand
-                    if obj.counted < 0:
-                        raise ValidationError('Count cannot be negative.')
-                if isinstance(obj,InvoiceCredit) and (obj.amount<=0 or obj.amount>obj.invoice.total_amount):
-                    raise ValidationError('Enter a positive credit within the invoice total.')
-                if isinstance(obj,Refund) and (obj.amount <= 0 or obj.amount > obj.payment.amount):
-                    raise ValidationError('Enter a positive amount within the original payment.')
-                if isinstance(obj,Admission):
-                    obj.bed = Bed.objects.select_for_update().get(pk=obj.bed_id)
-                    if obj.bed.facility_id != obj.patient.facility_id or not obj.bed.active:
-                        raise ValidationError('Choose an active bed in the patient facility.')
-                    if Admission.objects.filter(Q(bed=obj.bed)|Q(patient=obj.patient),discharged_at__isnull=True).exists():
-                        raise ValidationError('The bed or patient already has an active admission.')
-                if isinstance(obj,(MedicationAdministration,NursingObservation)):
-                    admission=Admission.objects.select_for_update().get(pk=obj.admission_id)
-                    if admission.discharged_at: raise ValidationError('This admission is already discharged.')
-                if isinstance(obj,MedicationAdministration):
-                    if obj.admission.patient_id != obj.prescription_item.prescription.patient_id:
-                        raise ValidationError('Prescription and admission must belong to the same patient.')
-                    if obj.scheduled_for > timezone.now() and obj.outcome == 'given':
-                        raise ValidationError('Cannot record a future dose as given.')
-                if isinstance(obj,Claim):
-                    if obj.payer.facility_id != obj.invoice.patient.facility_id or obj.amount <= 0 or obj.amount > obj.invoice.total_amount:
-                        raise ValidationError('Choose a payer in the same facility and a valid invoice amount.')
-                from .advanced_validation import validate_new_record
-                validate_new_record(obj,request.user)
-                if isinstance(obj, CARE_RECORDS):
-                    create_care_record(obj, request.user)
-                elif isinstance(obj, SPECIALTIES):
-                    create_specialty(obj, request.user)
-                else:
-                    obj.save()
-                if isinstance(obj,Remittance): post_remittance(obj)
-                if isinstance(obj,ClinicalEntry) and obj.kind == 'allergy':
-                    Patient.objects.filter(pk=obj.patient_id).update(allergy_status='recorded')
+            save_collection_form(form, request.user)
             messages.success(request,'Record saved.')
             return redirect('suite-collection',slug=slug)
         except (ValidationError,IntegrityError) as exc:
@@ -250,6 +260,8 @@ def collection(request, slug):
             records = records.filter(status=status)
     page=Paginator(records,25).get_page(request.GET.get('page'))
     records=page.object_list
+    from .models import OfflineReceipt
+    offline_times=dict(OfflineReceipt.objects.filter(model_label=model._meta.label_lower,record_id__in=[obj.pk for obj in records]).values_list('record_id','client_created_at'))
     rows=[]
     for obj in records:
         state = getattr(obj,'status','')
@@ -265,7 +277,7 @@ def collection(request, slug):
                 continue
             value=getattr(obj,field)
             values.append(display_value(value)[:180])
-        rows.append({'obj':obj,'values':values,'state':state})
+        rows.append({'obj':obj,'values':values,'state':state,'offline_at':offline_times.get(obj.pk)})
     return render(request,'operations/collection.html',{'specialty':model in SPECIALTIES + CARE_RECORDS,'page':page,'query':query,'title':title,'slug':slug,'form':form,'rows':rows,'available_beds':scoped(Bed,request.user,'facility_id').filter(active=True).exclude(admission__discharged_at__isnull=True,admission__isnull=False) if slug=='admissions' else [],'status_choices':model._meta.get_field('status').choices if model in (TheatreCase,Pregnancy,Vaccination,RehabilitationPlan) else [],'selected_status':request.GET.get('status',''),'headers':[model._meta.get_field(f).verbose_name for f in fields if f!='attachment']})
 
 @login_required

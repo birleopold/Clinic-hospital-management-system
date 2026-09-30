@@ -106,3 +106,70 @@ def test_postgres_theatre_room_is_not_double_booked():
     )
     assert sorted(outcomes) == ["created", "rejected"]
     assert TheatreCase.objects.count() == 1
+
+
+def test_postgres_offline_retry_creates_one_record():
+    if connection.vendor != "postgresql":
+        pytest.skip("Requires PostgreSQL row locks")
+    import uuid
+    import json
+    from django.test import Client
+    from apps.accounts.models import StaffProfile
+    from apps.operations.models import ClinicalEntry, OfflineReceipt
+
+    facility = Facility.objects.create(name="Offline contention")
+    actor = User.objects.create_user(username="offline-clinician", role="clinician")
+    StaffProfile.objects.update_or_create(user=actor, defaults={"facility": facility})
+    patient = Patient.objects.create(
+        first_name="Synthetic", last_name="Offline", gender="O", facility=facility
+    )
+    client = Client()
+    client.force_login(actor)
+
+    def post(c, path, data):
+        return c.post(
+            "/offline/api/" + path,
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+    device = post(client, "devices/", {"label": "Concurrency device"}).json()[
+        "device_id"
+    ]
+    pack = post(
+        client, "prepare/", {"device_id": device, "patient_ids": [patient.pk]}
+    ).json()
+    schema = next(s for s in pack["schemas"] if s["slug"] == "clinical")
+    proof = next(f for f in schema["fields"] if f["name"] == "patient")["choices"][0][
+        "proof"
+    ]
+    payload = {
+        "device_id": device,
+        "client_id": str(uuid.uuid4()),
+        "client_created_at": timezone.now().isoformat(),
+        "slug": "clinical",
+        "grant": pack["grant"],
+        "values": {
+            "patient": str(patient.pk),
+            "kind": "note",
+            "text": "Concurrent draft",
+            "supersedes": "",
+        },
+        "proofs": {"patient": proof},
+    }
+    barrier = Barrier(2)
+
+    def submit():
+        close_old_connections()
+        try:
+            c = Client()
+            c.force_login(actor)
+            barrier.wait(timeout=10)
+            return post(c, "sync/", payload).status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = [pool.submit(submit) for _ in range(2)]
+        assert sorted(f.result(timeout=30) for f in responses) == [200, 201]
+    assert ClinicalEntry.objects.count() == 1 and OfflineReceipt.objects.count() == 1

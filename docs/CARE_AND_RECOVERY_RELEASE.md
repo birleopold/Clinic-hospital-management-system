@@ -49,13 +49,13 @@ The PostgreSQL CI drill is `scripts/postgres_restore_drill.py`. It refuses a non
 
 Local regression result: **136 passed, 3 PostgreSQL-only tests skipped**. Django checks, migration drift and API schema validation pass. Browser checks cover 22 workspace pages, the full-record page, search and a synthetic vaccine administration at desktop/mobile widths, with automated accessibility and JavaScript checks. A real local SQLite bundle restored successfully into a separate directory; tests also cover media restoration, tampering and malicious archive paths.
 
-The prior GitHub PostgreSQL run identified the backorder join-lock failure described above. The fix and new PostgreSQL restore drill are included in this release; remote CI status is recorded after execution in the delivery summary. A CI restore drill complements, but does not replace, a facility's production recovery rehearsal.
+The prior GitHub PostgreSQL run identified the backorder join-lock failure described above. The fix and new PostgreSQL restore drill passed all four Python 3.11/3.12 × SQLite/PostgreSQL jobs in [run 36684075334](https://github.com/birleopold/Clinic-hospital-management-system/actions/runs/36684075334). A CI restore drill complements, but does not replace, a facility's production recovery rehearsal.
 
 ## Remaining scope and external acceptance
 
 This release closes specific gaps in [SPECIALTY_WORKFLOWS.md](SPECIALTY_WORKFLOWS.md). The following are still distinct workstreams, not completed features:
 
-- Cross-device offline synchronization and conflict resolution. The current application works on the clinic LAN while internet is unavailable, but needs its application server.
+- Full offline transactional operations. The subsequent [disconnected-device release](OFFLINE_DRAFTS.md) implements encrypted clinical drafts with synchronization and conflict detection; financial, stock and release operations still require the application server.
 - Governed drug-interaction/dose decision support and automatic vaccination eligibility. These require an approved clinical knowledge source, licensing where applicable, and clinical validation.
 - Full multi-team theatre resource optimization, a validated graphical partograph, and specialty-specific licensed scoring engines. The records above support staff documentation without implementing these engines.
 - National HMIS mappings/submission certification and insurer-specific electronic submission. Approved forms, code mappings, contracts and test endpoints are required.

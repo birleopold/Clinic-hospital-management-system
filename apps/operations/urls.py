@@ -1,6 +1,13 @@
 from django.urls import path
-from . import views, advanced_views
+from . import views, advanced_views, offline_views
 urlpatterns = [
+    path('offline/', offline_views.shell, name='suite-offline'),
+    path('offline/sw.js', offline_views.service_worker),
+    path('offline/api/session/', offline_views.session),
+    path('offline/api/patients/', offline_views.patients),
+    path('offline/api/devices/', offline_views.devices),
+    path('offline/api/prepare/', offline_views.prepare),
+    path('offline/api/sync/', offline_views.sync),
     path('suite/specialties/<slug:slug>/<int:pk>/', advanced_views.specialty_detail, name='suite-specialty-detail'),
     path('suite/specialty-follow-up/', advanced_views.specialty_follow_up, name='suite-specialty-follow-up'),
     path('suite/cards/<int:pk>/', advanced_views.identity_card, name='suite-card'),

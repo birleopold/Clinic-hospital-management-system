@@ -168,3 +168,5 @@ See [expanded workflows and deployment checks](docs/EXPANDED_SUITE.md) for patie
 The [specialty workflow release](docs/SPECIALTY_WORKFLOWS.md) adds theatre scheduling, maternity visits, vaccination administration records, rehabilitation and a follow-up dashboard.
 
 The [care and recovery release](docs/CARE_AND_RECOVERY_RELEASE.md) adds vaccine stock/corrections, cold-chain quarantine, delivery/newborn records, theatre count verification, and isolated backup/restore checks. It also fixes the PostgreSQL backorder locking failure found by CI.
+
+The [disconnected-device workspace](docs/OFFLINE_DRAFTS.md) adds encrypted clinical drafts, explicit synchronization, conflict detection and device revocation. Financial, stock and release workflows remain connected-only.

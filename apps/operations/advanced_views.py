@@ -317,6 +317,7 @@ def specialty_detail(request, slug, pk):
     from .views import config, display_value
     from .specialty_services import SPECIALTIES
     from .care_services import CARE_RECORDS
+    from .models import OfflineReceipt
     from django.http import Http404
 
     model, title, fields, scope, roles = config(request, slug)
@@ -336,6 +337,9 @@ def specialty_detail(request, slug, pk):
         "operations/specialty_detail.html",
         {
             "record": record,
+            "offline_receipt": OfflineReceipt.objects.filter(
+                model_label=model._meta.label_lower, record_id=record.pk
+            ).first(),
             "slug": slug,
             "title": title,
             "details": details,
