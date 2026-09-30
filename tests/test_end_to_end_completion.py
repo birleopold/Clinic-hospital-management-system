@@ -208,6 +208,7 @@ def test_missing_clock_out_independent_correction(team,client):
     client.force_login(t.doctor);assert client.get('/suite/workforce/timesheets/').status_code==200
 
 
+@pytest.mark.django_db(transaction=True)
 def test_logo_validation_print_brand_and_selected_scope(client,team,settings):
     settings.MEDIA_ROOT=str(__import__('tempfile').mkdtemp())
     t=team;t.manager.role='admin';t.manager.save()
@@ -217,7 +218,11 @@ def test_logo_validation_print_brand_and_selected_scope(client,team,settings):
     data={'facility':t.f.pk,'service_type':'custom','display_name':'Scoped facility','enabled_services':['patients','billing'],'revision':1,'receipt_paper':'80mm','print_footer':'Thank you','logo':SimpleUploadedFile('incorrect.jpg',image.getvalue(),content_type='image/png')}
     assert client.post('/accounts/setup/',data).status_code==302
     conf.refresh_from_db();assert conf.receipt_paper=='80mm' and conf.logo.name.endswith('.png')
-    response=client.get(f'/accounts/branding/{t.f.pk}/logo/');assert response.status_code==200 and response['Content-Type']=='image/png';response.close()
+    response=client.get(f'/accounts/branding/{t.f.pk}/logo/');assert response.status_code==200 and response['Content-Type']=='image/png'
+    assert b''.join(response.streaming_content)==image.getvalue()
+    # Closing a real stream emits request_finished and closes its DB connection.
+    # Use committed fixtures rather than retaining pytest's enclosing transaction.
+    response.close()
     from apps.billing.models import Invoice
     patient=Patient.objects.create(facility=t.f,first_name='Synthetic',last_name='Invoice',gender='F')
     invoice=Invoice.objects.create(patient=patient)
