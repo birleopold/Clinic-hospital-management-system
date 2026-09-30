@@ -170,3 +170,5 @@ The [specialty workflow release](docs/SPECIALTY_WORKFLOWS.md) adds theatre sched
 The [care and recovery release](docs/CARE_AND_RECOVERY_RELEASE.md) adds vaccine stock/corrections, cold-chain quarantine, delivery/newborn records, theatre count verification, and isolated backup/restore checks. It also fixes the PostgreSQL backorder locking failure found by CI.
 
 The [disconnected-device workspace](docs/OFFLINE_DRAFTS.md) adds encrypted clinical drafts, explicit synchronization, conflict detection and device revocation. Financial, stock and release workflows remain connected-only.
+
+See the [September 2026 competitive research and implementation plan](docs/COMPETITIVE_RESEARCH_AND_PLAN_2026-09.md) for a comparison of 14 systems, UI priorities, feature gaps and staged acceptance criteria. Proposed features are not yet implemented.
