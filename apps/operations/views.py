@@ -117,14 +117,26 @@ def config(request, slug):
 def scoped(model, user, field):
     if field is None:
         return model.objects.all() if allowed(user,['store','manager','pharmacy']) else model.objects.none()
-    return filter_by_facility(model.objects.all(), user, field=field)
+    qs=filter_by_facility(model.objects.all(), user, field=field)
+    if model in (Order,OrderResult):
+        from common.service_policy import enabled
+        prefix='order__' if model is OrderResult else ''
+        if not enabled(user,'lab'):qs=qs.exclude(**{prefix+'order_type':'lab'})
+        if not enabled(user,'imaging'):qs=qs.exclude(**{prefix+'order_type':'imaging'})
+        if not enabled(user,'clinical'):qs=qs.exclude(**{prefix+'order_type':'procedure'})
+    return qs
 
 @login_required
 def workspace(request):
-    links = [{'slug':key,'label':conf[1]} for key,conf in MODULES.items() if allowed(request.user,conf[4])]
+    from common.service_policy import enabled, SLUG_SERVICES, service_for_url, navigation, can_open
+    links = [{'slug':key,'label':conf[1]} for key,conf in MODULES.items() if allowed(request.user,conf[4]) and enabled(request.user,SLUG_SERVICES.get(key))]
     from .workspaces import workspace_context
     context = workspace_context(request.user)
     context['modules'] = links
+    context['role_actions']=[a for a in context['role_actions'] if can_open(request.user,a['url'])]
+    context['attention_cards']=[a for a in context['attention_cards'] if can_open(request.user,a['url'])]
+    context['show_visits']=context['show_visits'] and enabled(request.user,'clinical')
+    context['service_workspaces']=navigation(request.user)
     return render(request,'operations/home.html',context)
 
 
@@ -420,13 +432,15 @@ def patient_summary(request,pk):
     specialty_records = []
     if allowed(request.user, ['clinician','nurse']):
         for model, slug, label in [(TheatreCase,'theatre','Theatre'),(Pregnancy,'pregnancies','Maternity'),(Vaccination,'vaccinations','Vaccination'),(RehabilitationPlan,'rehabilitation','Rehabilitation')]:
+            from common.service_policy import enabled, SLUG_SERVICES
+            if not enabled(request.user,SLUG_SERVICES[slug]):continue
             specialty_records.append({'label':label,'slug':slug,'records':model.objects.filter(patient=patient).order_by('-pk')[:10]})
     return render(request,'operations/patient.html',{'specialty_records':specialty_records,'patient':patient,'entries':ClinicalEntry.objects.filter(patient=patient).select_related('created_by').order_by('-created_at'),'referrals':Referral.objects.filter(patient=patient).order_by('-created_at'),'grants':PortalGrant.objects.filter(patient=patient).order_by('-created_at')})
 
 @login_required
 def result_download(request,pk):
     if not allowed(request.user,['clinician','nurse','lab']): raise PermissionDenied
-    result=get_object_or_404(filter_by_patient_facility(OrderResult.objects.all(),request.user,prefix='order__patient__'),pk=pk)
+    result=get_object_or_404(scoped(OrderResult,request.user,'order__patient__facility_id'),pk=pk)
     if not result.attachment: raise Http404
     response=FileResponse(result.attachment.open('rb'),as_attachment=True,filename=result.attachment.name.rsplit('/',1)[-1])
     response['Cache-Control']='private, no-store'

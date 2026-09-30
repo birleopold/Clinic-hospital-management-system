@@ -1,3 +1,4 @@
+{% load service_access %}
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
@@ -14,83 +15,26 @@
 <script src="{% static 'js/legacy-shell.js' %}" defer></script>
 </head>
 <body {% if user.is_authenticated %}class="workspace-shell"{% endif %}>
-  <a class="skip-link" href="#main-content">Skip to content</a>
-  {% if user.is_authenticated %}<div class="workspace-topbar no-print"><button id="navigation-toggle" aria-controls="workspace-navigation" aria-expanded="true" type="button">Menu</button><span class="facility-context">{% if user.is_superuser %}All facilities{% else %}{{ user.staff_profile.facility|default:'Facility not assigned' }}{% endif %}</span>
-  {% if user.is_superuser or user.role == 'admin' or user.role == 'clinician' or user.role == 'nurse' or user.role == 'pharmacy' or user.role == 'lab' or user.role == 'reception' or user.role == 'cashier' or user.role == 'manager' %}<form action="{% url 'suite-patient-search' %}" method="get" class="global-patient-search"><label class="visually-hidden" for="global-patient-query">Find patient by name, phone or MRN</label><input id="global-patient-query" name="q" type="search" placeholder="Find patient · name, phone, MRN" minlength="2" maxlength="120" required><button>Find patient</button></form>{% endif %}</div>{% endif %}
+  {% accessible_link %}<a class="skip-link" href="#main-content">Skip to content</a>{% endaccessible_link %}
+  {% if user.is_authenticated %}<div class="workspace-topbar no-print"><button id="navigation-toggle" aria-controls="workspace-navigation" aria-expanded="true" type="button">Menu</button>{% accessible_link %}<a href="{% url 'facility-select' %}" class="facility-context">{% if selected_facility %}{{ selected_facility }}{% elif user.is_superuser %}All facilities{% else %}{{ user.staff_profile.facility|default:'Facility not assigned' }}{% endif %}</a>{% endaccessible_link %}
+  {% if show_global_search %}<form action="{% url 'suite-patient-search' %}" method="get" class="global-patient-search"><label class="visually-hidden" for="global-patient-query">Find patient by name, phone or MRN</label><input id="global-patient-query" name="q" type="search" placeholder="Find patient · name, phone, MRN" minlength="2" maxlength="120" required><button>Find patient</button></form>{% endif %}</div>{% endif %}
   <header id="workspace-navigation" {% if user.is_authenticated %}class="workspace-sidebar"{% endif %}>
     <nav aria-label="Main navigation">
-      <a class="branding" href="/suite/">Clinic Suite</a><a href="/">Overview</a>
+      {% accessible_link %}<a class="branding" href="/suite/">{{ facility_brand.display_name|default:'Clinic Suite' }}</a>{% endaccessible_link %}
       {% if user.is_authenticated %}
-        <a href="/suite/tasks/">Task inbox</a><a href="/suite/department-board/">Department board</a><a href="/queues">Queues</a>
-        {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' or user.role == 'clinician' %}
-          <a href="/patients">Patients</a>
-          <a href="/appointments/schedule">Appointments</a>
-        {% endif %}
-        {% if user.is_superuser or user.role == 'admin' or user.role == 'nurse' or user.role == 'clinician' %}
-          <a href="/ehr">EHR</a>
-        {% endif %}
-
-        {% if user.is_superuser or user.role == 'admin' or user.role == 'lab' or user.role == 'clinician' %}
-          <a href="/labs">Labs</a>
-        {% endif %}
-
-        {% if user.is_superuser or user.role == 'admin' or user.role == 'pharmacy' %}
-          <div class="dropdown">
-            <a href="/pharmacy" class="dropbtn">Pharmacy</a>
-            <div class="dropdown-content">
-              <a href="/pharmacy">Board</a>
-              <a href="/pharmacy/backorders">Backorders</a>
-            </div>
-          </div>
-        {% endif %}
-
-        {% if user.is_superuser or user.role == 'admin' or user.role == 'pharmacy' or user.role == 'manager' or user.role == 'store' %}
-          <div class="dropdown">
-            <a href="/inventory/stock" class="dropbtn">Inventory</a>
-            <div class="dropdown-content">
-              <a href="/inventory/stock">Stock</a>
-              {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' or user.role == 'store' %}
-                <a href="/inventory/items/new">New Item</a>
-                <a href="/inventory/suppliers">Suppliers</a>
-                <a href="/inventory/po">Purchase Orders</a>
-                <a href="/inventory/grn">GRNs</a>
-                <a href="/inventory/import">Import</a>
-              {% endif %}
-            </div>
-          </div>
-        {% endif %}
-
-        <div class="dropdown">
-          {% if user.is_superuser or user.role == 'admin' or user.role == 'cashier' or user.role == 'manager' %}
-            <a href="{% if user.is_superuser or user.role == 'admin' or user.role == 'cashier' %}/cashier{% else %}/reports{% endif %}" class="dropbtn">Finance</a>
-            <div class="dropdown-content">
-              {% if user.is_superuser or user.role == 'admin' or user.role == 'cashier' %}<a href="/cashier">Cashier</a>{% endif %}
-              {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' or user.role == 'cashier' %}<a href="/reports">Reports</a>{% endif %}
-            </div>
-          {% endif %}
-        </div>
-
-        <div class="dropdown">
-          {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' or user.is_superuser %}
-            <a href="{% if user.is_superuser %}/admin/{% else %}/billing/settings{% endif %}" class="dropbtn">Setup</a>
-            <div class="dropdown-content">
-              {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' %}<a href="/billing/settings">Settings</a>{% endif %}
-              {% if user.is_superuser %}<a href="/admin/">Django Admin</a>{% endif %}
-            </div>
-          {% endif %}
-        </div>
-
+        {% for entry in workspace_navigation %}{% accessible_link %}<a href="{{ entry.url }}">{{ entry.label }}</a>{% endaccessible_link %}{% endfor %}
+        {% if user.is_superuser %}{% accessible_link %}<a href="/accounts/control/">Owner control dashboard</a>{% endaccessible_link %} {% accessible_link %}<a href="/admin/">System administration</a>{% endaccessible_link %}{% endif %}
         <span class="chip" style="background:#075985; color:#fff">{{ user.role|default:"user" }}</span>
         <form method="post" action="{% url 'logout' %}" style="display:inline">
           {% csrf_token %}<button type="submit">Logout</button>
         </form>
       {% else %}
-        <a href="/accounts/login/">Login</a>
+        {% accessible_link %}<a href="/accounts/login/">Login</a>{% endaccessible_link %}
       {% endif %}
     </nav>
   </header>
   <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
-  <main id="main-content">{% if user.is_authenticated %}<nav class="breadcrumbs no-print" aria-label="Breadcrumb"><a href="/suite/">Workspace</a><span aria-hidden="true"> / </span><span>{{ page_breadcrumb }}</span></nav>{% endif %}
+  <main id="main-content">{% if user.is_authenticated %}<nav class="breadcrumbs no-print" aria-label="Breadcrumb">{% accessible_link %}<a href="/suite/">Workspace</a>{% endaccessible_link %}<span aria-hidden="true"> / </span><span>{{ page_breadcrumb }}</span></nav>{% endif %}
     {% if messages %}
     <div style="margin-bottom:12px;">
       {% for message in messages %}

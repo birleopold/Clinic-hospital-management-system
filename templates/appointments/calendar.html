@@ -1,17 +1,17 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Appointments{% endblock %}
 {% block content %}
 <div class="card">
   <h2>Schedule</h2>
   <div style="display:flex; gap:8px; align-items:center; margin:8px 0 12px;">
     <div class="chips">
-      <a class="chip" href="?mode=day&date={{ date }}&clinician={{ selected_clinician }}">Day</a>
-      <a class="chip" href="?mode=week&date={{ date }}&clinician={{ selected_clinician }}">Week</a>
-      <a class="chip" href="?mode=month&date={{ date }}&clinician={{ selected_clinician }}">Month</a>
+      {% accessible_link %}<a class="chip" href="?mode=day&date={{ date }}&clinician={{ selected_clinician }}">Day</a>{% endaccessible_link %}
+      {% accessible_link %}<a class="chip" href="?mode=week&date={{ date }}&clinician={{ selected_clinician }}">Week</a>{% endaccessible_link %}
+      {% accessible_link %}<a class="chip" href="?mode=month&date={{ date }}&clinician={{ selected_clinician }}">Month</a>{% endaccessible_link %}
     </div>
     <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
-      <a class="btn btn-secondary" href="?mode={{ mode }}&date={{ prev_date }}&clinician={{ selected_clinician }}">◀ Prev</a>
-      <a class="btn btn-secondary" href="?mode={{ mode }}&date={{ next_date }}&clinician={{ selected_clinician }}">Next ▶</a>
+      {% accessible_link %}<a class="btn btn-secondary" href="?mode={{ mode }}&date={{ prev_date }}&clinician={{ selected_clinician }}">◀ Prev</a>{% endaccessible_link %}
+      {% accessible_link %}<a class="btn btn-secondary" href="?mode={{ mode }}&date={{ next_date }}&clinician={{ selected_clinician }}">Next ▶</a>{% endaccessible_link %}
     </div>
   </div>
   <div id="filters" style="display:flex; gap:12px; align-items:end; flex-wrap:wrap; margin-bottom:12px">
@@ -68,7 +68,7 @@
           </div>
           {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' %}
           <div>
-            <a class="btn btn-secondary" href="{% url 'patients-create' %}" target="_blank">New Patient</a>
+            {% accessible_link %}<a class="btn btn-secondary" href="{% url 'patients-create' %}" target="_blank">New Patient</a>{% endaccessible_link %}
           </div>
           {% endif %}
           <div>
@@ -131,7 +131,7 @@
           <div class="card" style="margin:0;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
               <strong>{{ col.label }}</strong>
-              <a class="btn btn-secondary" href="?mode=day&date={{ col.date }}&clinician={{ selected_clinician }}">Open day</a>
+              {% accessible_link %}<a class="btn btn-secondary" href="?mode=day&date={{ col.date }}&clinician={{ selected_clinician }}">Open day</a>{% endaccessible_link %}
             </div>
             <div>
               {% for ap in col.appts %}
@@ -152,12 +152,12 @@
       <div style="display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap:8px;">
         {% for week in month_weeks %}
           {% for d in week %}
-            <a href="?mode=day&date={{ d.date }}&clinician={{ selected_clinician }}" class="card" style="margin:0; text-decoration:none; color:inherit;">
+            {% accessible_link %}<a href="?mode=day&date={{ d.date }}&clinician={{ selected_clinician }}" class="card" style="margin:0; text-decoration:none; color:inherit;">
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <strong>{{ d.day }}</strong>
                 {% if d.count %}<span class="chip">{{ d.count }}</span>{% endif %}
               </div>
-            </a>
+            </a>{% endaccessible_link %}
           {% endfor %}
         {% endfor %}
       </div>

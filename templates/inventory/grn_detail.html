@@ -1,7 +1,7 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}GRN #{{ grn.id }}{% endblock %}
 {% block content %}
-<a href="{% url 'inventory-grn-list' %}" class="muted">← Back to GRNs</a>
+{% accessible_link %}<a href="{% url 'inventory-grn-list' %}" class="muted">← Back to GRNs</a>{% endaccessible_link %}
 <div class="card">
   <h2 style="margin:0 0 12px;">Goods Receipt #{{ grn.id }}</h2>
   <div class="muted" style="margin-bottom:8px;">
@@ -44,7 +44,7 @@
     {% if not grn.posted %}
       <form method="post" action="{% url 'inventory-grn-post' grn.id %}" style="display:inline">{% csrf_token %}<label for="receiving-location">Receiving location</label><select id="receiving-location" name="location" required>{% for location in locations %}<option value="{{ location.pk }}">{{ location }}</option>{% endfor %}</select><button type="submit" class="btn">Post to stock</button></form>
     {% endif %}
-    <a class="btn btn-secondary" href="{% url 'inventory-grn-list' %}">Done</a>
+    {% accessible_link %}<a class="btn btn-secondary" href="{% url 'inventory-grn-list' %}">Done</a>{% endaccessible_link %}
   </div>
 </div>
 {% endblock %}

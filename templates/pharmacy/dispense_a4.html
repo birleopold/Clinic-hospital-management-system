@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Dispense #{{ dispense.id }}{% endblock %}
 {% block content %}
 <div class="card" style="max-width: 840px; margin: 0 auto;">
@@ -9,7 +9,7 @@
     </div>
     <div>
       <button class="btn btn-secondary" onclick="window.print()">Print</button>
-      <a class="btn" href="?format=pdf">Download PDF</a>
+      {% accessible_link %}<a class="btn" href="?format=pdf">Download PDF</a>{% endaccessible_link %}
     </div>
   </div>
   <hr/>

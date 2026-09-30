@@ -97,10 +97,10 @@ See [Phases 3–5 delivery and exact remaining gates](PHASE_THREE_FIVE_DELIVERY.
 | LIS-01 | Specimen chain of custody/aliquots/referrals and reagent lots | Implemented core custody sequence, aliquot accessions, referral/return evidence and independently released reagent lots. Volume balances, reagent consumption and external referral commissioning remain partial. |
 | LIS-02 | Laboratory QC and equipment service/calibration | Partial: manual SOP-referenced QC, independent review, failed-lot quarantine and attached worksheet run/release checks implemented. Mandatory QC policy, remediation, device-specific limits and lab-owner validation remain. |
 | LIS-03 | One analyzer/LIS integration | Needs actual device/protocol, approved mappings and test messages. |
-| SEC-01 | Admin MFA, granular permissions and sensitive-view/export audit review | Pending; existing role/audit/throttle controls retained. |
-| BRANCH-01 | Authorized facility switching and consolidated reports | Pending; preserve explicit facility scope and distinguish single organization from SaaS tenancy. |
-| SETUP-01 | Guided configuration, enabled modules, forms/prices/approval rules | Pending; retain current setup screens. |
-| IMPORT-01 | Validated migrations, preview/errors/reconciliation and staff guides | Pending expansion beyond existing inventory import. |
+| SEC-01 | Admin MFA, granular permissions and sensitive-view/export audit review | Partial: administrator/opt-in staff TOTP MFA, browser and JWT enforcement, replay/throttle controls, device revocation and audited server recovery implemented. Granular permission matrix and sensitive-view/export audit review remain. |
+| BRANCH-01 | Authorized facility switching and consolidated reports | Implemented core: expiring/revocable administrative branch grants, browser selection, validated JWT facility header and selected/all-facility report scope. Clinical cross-branch credentialing and per-branch comparison exports remain; deployment is a single organization, not SaaS tenancy. |
+| SETUP-01 | Guided configuration, enabled modules, forms/prices/approval rules | Partial: pharmacy/clinic/hospital/custom presets, selected services with dependencies, first-run gate, service/role menus, route guards, business naming, staff recruitment/access and readiness dashboard implemented. Fine-grained approval matrix, price/form wizard and full branding remain. |
+| IMPORT-01 | Validated migrations, preview/errors/reconciliation and staff guides | Partial: reviewed patient demographics CSV preview, row errors, source identity reconciliation, independent atomic commit and migration guide implemented alongside inventory import. Historical clinical/balance imports remain. |
 | OPS-02 | Observability, incident handling, update/rollback and recovery targets | Partial: health checks/restore drills exist; deployment load tests and facility recovery rehearsal pending. |
 | BIZ-01 | Distribution license, hosting model, support/update ownership and service targets | Needs owner decisions; no assumed licensing or uptime guarantees. |
 
@@ -110,9 +110,23 @@ See [Phases 3–5 delivery and exact remaining gates](PHASE_THREE_FIVE_DELIVERY.
 | --- | --- | --- |
 | CLIN-01 | HIV/TB/NCD/ANC programs and cohort workflows | Partial: versioned independently published definitions, snapshot enrollments, cohort status, append-only reviews/amendments and closure implemented. Approved disease-specific content, eligibility and cohort indicators still require clinical owners and validation. |
 | CLIN-02 | Drug-interaction/dose and vaccination eligibility rules | Needs approved/licensed knowledge, terminology, source/version provenance and clinical validation. |
-| SPECIALTY-01 | Validated graphical labour chart, specialty scales and multi-team theatre resources | Pending reviewed specification; existing documentation/count controls retained. |
+| SPECIALTY-01 | Validated graphical labour chart, specialty scales and multi-team theatre resources | Partial: source-linked labour observation plots, exact-value table, missing-value handling and amendment selection implemented. Validated partograph rules, specialty scales and multi-team theatre resources still require reviewed specifications. |
 | IMAGE-01 | Imaging worklists, study IDs, PACS viewer and report review | Partial: imaging operator role/worklist, scheduling, versioned worksheets, independent review and released patient reports implemented. Study UIDs and allowlisted external viewer references now implemented; image storage/PACS authorization and actual device integration remain. |
 | TELE-01 | Teleconsultation when pilot demand justifies it | Pending requirements and selected provider. |
+
+See [enterprise access/import and observation-display release](ENTERPRISE_ACCESS_AND_IMPORT_RELEASE.md) for this delivery, upgrade instructions and explicit limits.
+
+## Modular installations and independent tenant ownership — added 30 September 2026
+
+See [service setup and role workspaces](SERVICE_SETUP_AND_ROLE_WORKSPACES.md). This requirement expands the earlier single-organization branch design; it does not silently redefine facility scope as tenant isolation.
+
+| ID | Requirement | Status / next evidence |
+| --- | --- | --- |
+| MOD-01 | Pharmacy/clinic/hospital presets and selectable service modules | Implemented core setup, dependency validation, first-run gates, filtered menus/cards/chart sections and browser/JWT service enforcement. Facility acceptance and exhaustive cross-module action review remain. |
+| ROLE-UX-01 | Roles see only permitted work, without dead-end menu links | Implemented shared role/service navigation and template link filtering; dedicated role-link regression. Action-specific ownership/approval controls need continued review. |
+| TENANT-01 | Independent tenant data and configuration ownership | Pending: shared catalogues/suppliers/prices must gain organization ownership, enforced in all paths. Independent tenant onboarding remains disabled. |
+| TENANT-02 | Tenant setup, branding and recruitment/role administration | Partial: facility-scoped setup, naming, invoice-header branding, recruitment and guarded role changes implemented. Organization tenancy, logos/full print themes and extended delegation remain. |
+| OWNER-ACCESS-01 | Owner overview and audited support access across tenants | Partial: site overview, selected-site support and audited access changes implemented for current deployment. Tenant provisioning/suspension and cross-organization support boundaries remain. |
 
 ## Additional patient/staff/operator/owner requirements
 

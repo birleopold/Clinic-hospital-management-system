@@ -1,7 +1,7 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}{% if mode == 'edit' %}Edit Item{% else %}New Item{% endif %}{% endblock %}
 {% block content %}
-<a href="{% url 'inventory-stock' %}" class="muted">← Back to Inventory</a>
+{% accessible_link %}<a href="{% url 'inventory-stock' %}" class="muted">← Back to Inventory</a>{% endaccessible_link %}
 <div class="card">
   <h2 style="margin:0 0 12px;">{% if mode == 'edit' %}Edit Item{% else %}New Item{% endif %}</h2>
   {% if error %}
@@ -28,7 +28,7 @@
       </div>
       <div style="grid-column: 1 / -1; display:flex; gap:8px;">
         <button class="btn" type="submit">Save</button>
-        <a class="btn btn-secondary" href="{% url 'inventory-stock' %}">Cancel</a>
+        {% accessible_link %}<a class="btn btn-secondary" href="{% url 'inventory-stock' %}">Cancel</a>{% endaccessible_link %}
       </div>
     </div>
   </form>

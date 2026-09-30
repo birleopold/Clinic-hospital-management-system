@@ -17,6 +17,10 @@ def diagnostic_role(actor):
 def order_scope(actor):
     diagnostic_role(actor)
     qs=filter_by_patient_facility(Order.objects.all(),actor)
+    from common.service_policy import enabled
+    if not enabled(actor,'lab'):qs=qs.exclude(order_type='lab')
+    if not enabled(actor,'imaging'):qs=qs.exclude(order_type='imaging')
+    if not enabled(actor,'clinical'):qs=qs.exclude(order_type='procedure')
     return qs.filter(order_type='imaging') if actor.role=='radiology' and not actor.is_superuser else qs
 
 

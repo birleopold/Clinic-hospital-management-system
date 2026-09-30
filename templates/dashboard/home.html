@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% load queue_extras %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
@@ -9,16 +9,16 @@
       <div class="muted">Revenue (UGX)</div>
       <div style="font-size:28px; font-weight:700">{{ revenue_total }}</div>
       <div style="margin-top:8px">
-        <a class="btn btn-secondary" href="/api/reports/daily-revenue?export=csv">CSV</a>
-        <a class="btn btn-secondary" href="/api/reports/daily-revenue?export=xlsx">XLSX</a>
+        {% accessible_link %}<a class="btn btn-secondary" href="/api/reports/daily-revenue?export=csv">CSV</a>{% endaccessible_link %}
+        {% accessible_link %}<a class="btn btn-secondary" href="/api/reports/daily-revenue?export=xlsx">XLSX</a>{% endaccessible_link %}
       </div>
     </div>
     <div class="card" style="min-width:220px">
       <div class="muted">New Patients</div>
       <div style="font-size:28px; font-weight:700">{{ new_patients }}</div>
       <div style="margin-top:8px">
-        <a class="btn btn-secondary" href="/api/reports/patient-volumes?export=csv">CSV</a>
-        <a class="btn btn-secondary" href="/api/reports/patient-volumes?export=xlsx">XLSX</a>
+        {% accessible_link %}<a class="btn btn-secondary" href="/api/reports/patient-volumes?export=csv">CSV</a>{% endaccessible_link %}
+        {% accessible_link %}<a class="btn btn-secondary" href="/api/reports/patient-volumes?export=xlsx">XLSX</a>{% endaccessible_link %}
       </div>
     </div>
   </div>
@@ -36,7 +36,7 @@
           {% endfor %}
         </div>
         <div style="margin-top:8px">
-          <a class="btn" href="/queues/{{ code }}">Open {{ label }} Queue</a>
+          {% accessible_link %}<a class="btn" href="/queues/{{ code }}">Open {{ label }} Queue</a>{% endaccessible_link %}
         </div>
       </div>
     {% endfor %}
@@ -72,13 +72,13 @@
   <div class="chips">
     <div class="card" style="min-width:220px">
       <h3 style="margin-top:0">Invoices</h3>
-      <a class="btn btn-secondary" href="/api/reports/raw-invoices?export=csv">CSV</a>
-      <a class="btn btn-secondary" href="/api/reports/raw-invoices?export=xlsx">XLSX</a>
+      {% accessible_link %}<a class="btn btn-secondary" href="/api/reports/raw-invoices?export=csv">CSV</a>{% endaccessible_link %}
+      {% accessible_link %}<a class="btn btn-secondary" href="/api/reports/raw-invoices?export=xlsx">XLSX</a>{% endaccessible_link %}
     </div>
     <div class="card" style="min-width:220px">
       <h3 style="margin-top:0">Payments</h3>
-      <a class="btn btn-secondary" href="/api/reports/raw-payments?export=csv">CSV</a>
-      <a class="btn btn-secondary" href="/api/reports/raw-payments?export=xlsx">XLSX</a>
+      {% accessible_link %}<a class="btn btn-secondary" href="/api/reports/raw-payments?export=csv">CSV</a>{% endaccessible_link %}
+      {% accessible_link %}<a class="btn btn-secondary" href="/api/reports/raw-payments?export=xlsx">XLSX</a>{% endaccessible_link %}
     </div>
   </div>
 </div>

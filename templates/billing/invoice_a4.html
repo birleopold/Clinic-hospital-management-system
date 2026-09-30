@@ -24,7 +24,7 @@
 <body>
   <div class="header">
     <div>
-      <div class="clinic">{{ config.clinic_name|default:"Clinic" }}</div>
+      <div class="clinic">{{ facility_brand.display_name|default:config.clinic_name|default:"Clinic" }}</div>
       <div class="muted">Invoice #: {{ invoice.id }}</div>
       <div class="muted">Date: {{ invoice.created_at|date:"Y-m-d H:i" }}</div>
     </div>

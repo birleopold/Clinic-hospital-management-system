@@ -15,6 +15,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'guardian',
+    'django_otp',
+    'django_otp.plugins.otp_totp',
     'rest_framework',
     'drf_spectacular',
     'django_filters',
@@ -41,6 +43,10 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'common.access_middleware.AccessSafeguardsMiddleware',
+    'django_otp.middleware.OTPMiddleware',
+    'common.mfa.MFAGateMiddleware',
+    'common.branch_access.BranchScopeMiddleware',
+    'common.service_policy.ServiceGateMiddleware',
     'common.visiting_access.VisitingAccessMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -143,3 +149,9 @@ INTEGRATIONS_MOMO_BACKEND = os.getenv(
 
 # Approved external imaging viewers only; no wildcard hosts or embedded access tokens.
 PACS_VIEWER_ALLOWED_HOSTS = [host.strip().lower() for host in os.getenv("PACS_VIEWER_ALLOWED_HOSTS", "").split(",") if host.strip()]
+
+REQUIRE_ADMIN_MFA = os.getenv("REQUIRE_ADMIN_MFA", "1") == "1"
+OTP_TOTP_ISSUER = "Clinic Staff"
+OTP_TOTP_THROTTLE_FACTOR = 2
+
+REQUIRE_SERVICE_SETUP = os.getenv("REQUIRE_SERVICE_SETUP", "1") == "1"

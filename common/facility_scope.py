@@ -16,12 +16,14 @@ if TYPE_CHECKING:
 
 
 def is_superuser(user: Optional['AbstractBaseUser']) -> bool:
-    return bool(user and user.is_authenticated and getattr(user, 'is_superuser', False))
+    return bool(user and user.is_authenticated and getattr(user, 'is_superuser', False) and not getattr(user, '_active_facility_id', None))
 
 
 def user_staff_facility_id(user: Optional['AbstractBaseUser']) -> Optional[int]:
     if not user or not user.is_authenticated:
         return None
+    if getattr(user, '_active_facility_id', None):
+        return user._active_facility_id
     profile = getattr(user, 'staff_profile', None)
     if profile and profile.facility_id:
         return int(profile.facility_id)

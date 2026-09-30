@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% load queue_extras %}
 {% block title %}Queues Summary{% endblock %}
 {% block content %}
@@ -14,7 +14,7 @@
           {% endfor %}
         </div>
         <div style="margin-top:8px">
-          <a class="btn" href="/queues/{{ code }}">Open {{ label }} Queue</a>
+          {% accessible_link %}<a class="btn" href="/queues/{{ code }}">Open {{ label }} Queue</a>{% endaccessible_link %}
         </div>
       </div>
     {% endfor %}

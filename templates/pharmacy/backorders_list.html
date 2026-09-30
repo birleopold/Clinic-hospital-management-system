@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Backorders{% endblock %}
 {% block content %}
 <div class="card">
@@ -44,7 +44,7 @@
           <td class="right">{{ bo.quantity }}</td>
           <td class="right">{{ bo.fulfilled_quantity }}</td>
           <td>{{ bo.status }}</td>
-          <td><a class="btn btn-secondary" href="{% url 'pharmacy-backorder-detail' bo.id %}">Open</a></td>
+          <td>{% accessible_link %}<a class="btn btn-secondary" href="{% url 'pharmacy-backorder-detail' bo.id %}">Open</a>{% endaccessible_link %}</td>
         </tr>
         {% empty %}
         <tr><td colspan="8" class="muted">No backorders.</td></tr>

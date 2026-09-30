@@ -30,6 +30,8 @@ class AccessSafeguardsMiddleware:
         if request.method == "POST" and request.path.rstrip("/") in (
             "/accounts/login",
             "/api/auth/token",
+            "/accounts/mfa",
+            "/accounts/mfa/enroll",
         ):
             username = request.POST.get("username", "")
             if request.content_type == "application/json":

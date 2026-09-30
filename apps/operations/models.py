@@ -295,3 +295,4 @@ from .management_models import ManagementCase, CorrectiveAction, FacilityAsset, 
 from .diagnostic_models import VisitingSpecialist, VisitingEngagement, VisitingCaseNote, DiagnosticTemplate, DiagnosticWorkItem, DiagnosticWorksheet
 from .engagement_models import PortalRecipient, AppointmentRequest, PatientRecall
 from .extension_models import ContactPreference, ReminderAttempt, RecallOutreach, SpecimenCustody, SpecimenAliquot, ReagentLot, LaboratoryQC, LabRunEvidence, ProgrammeDefinition, ProgrammeEnrollment, ProgrammeReview, ImagingStudy
+from .import_models import PatientImportBatch, PatientImportIdentity

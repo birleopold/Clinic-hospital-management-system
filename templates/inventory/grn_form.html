@@ -1,7 +1,7 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}New GRN{% endblock %}
 {% block content %}
-<a href="{% url 'inventory-grn-list' %}" class="muted">← Back to GRNs</a>
+{% accessible_link %}<a href="{% url 'inventory-grn-list' %}" class="muted">← Back to GRNs</a>{% endaccessible_link %}
 <div class="card">
   <h2 style="margin:0 0 12px;">New Goods Receipt</h2>
   <form method="post" action="" hx-post="{% url 'inventory-grn-create' %}" data-success-message="GRN created" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; align-items:end;">
@@ -53,7 +53,7 @@
     <p class="muted">Extra stock requires another approved purchase order.</p>
     <div style="grid-column: 1 / -1; display:flex; gap:8px;">
       <button class="btn" type="submit">Create</button>
-      <a class="btn btn-secondary" href="{% url 'inventory-grn-list' %}">Cancel</a>
+      {% accessible_link %}<a class="btn btn-secondary" href="{% url 'inventory-grn-list' %}">Cancel</a>{% endaccessible_link %}
     </div>
   </form>
 </div>

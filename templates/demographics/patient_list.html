@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Patients{% endblock %}
 {% block content %}
 <div class="card">
@@ -13,7 +13,7 @@
     </div>
     {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' %}
     <div style="margin-left:auto;">
-      <a class="btn" href="{% url 'patients-create' %}">New Patient</a>
+      {% accessible_link %}<a class="btn" href="{% url 'patients-create' %}">New Patient</a>{% endaccessible_link %}
     </div>
     {% endif %}
   </form>
@@ -40,7 +40,7 @@
           <td>{{ p.date_of_birth|date:"Y-m-d" }}</td>
           <td>{% if p.insurance_provider %}{{ p.insurance_provider }}{% if p.insurance_id %} ({{ p.insurance_id }}){% endif %}{% else %}—{% endif %}</td>
           {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' %}
-          <td><a class="btn btn-secondary" href="{% url 'patients-edit' p.id %}">Edit</a></td>
+          <td>{% accessible_link %}<a class="btn btn-secondary" href="{% url 'patients-edit' p.id %}">Edit</a>{% endaccessible_link %}</td>
           {% endif %}
         </tr>
         {% empty %}

@@ -1,7 +1,7 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Pharmacy{% endblock %}
 {% block content %}{% if context_patient %}{% include 'operations/patient_banner.html' with patient=context_patient %}{% endif %}
-<div class="card"><p><a href="{% url 'pharmacy-baskets' %}{% if context_patient %}?patient={{ context_patient.pk }}{% endif %}">Open dispensing baskets</a> · <a href="{% url 'pharmacy-catalog' %}">Medicine catalog</a> · <a href="/suite/returns/">Medicine returns</a></p>
+<div class="card"><p>{% accessible_link %}<a href="{% url 'pharmacy-baskets' %}{% if context_patient %}?patient={{ context_patient.pk }}{% endif %}">Open dispensing baskets</a>{% endaccessible_link %} · {% accessible_link %}<a href="{% url 'pharmacy-catalog' %}">Medicine catalog</a>{% endaccessible_link %} · {% accessible_link %}<a href="/suite/returns/">Medicine returns</a>{% endaccessible_link %}</p>
   <h2 style="margin:0 0 12px;">Pending Prescriptions</h2>
   <div style="overflow:auto;">
     <table>
@@ -110,7 +110,7 @@
           <td>{{ d.patient }}</td>
           <td>{{ d.item_code }} — {{ d.item_name }}</td>
           <td>{{ d.quantity }}</td>
-          <td><a class="btn btn-secondary" href="{% url 'pharmacy-dispense-print' d.id %}" target="_blank">Print</a></td>
+          <td>{% accessible_link %}<a class="btn btn-secondary" href="{% url 'pharmacy-dispense-print' d.id %}" target="_blank">Print</a>{% endaccessible_link %}</td>
         </tr>
         {% empty %}
         <tr><td colspan="6" class="muted">No recent dispenses.</td></tr>

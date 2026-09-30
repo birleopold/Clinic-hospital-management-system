@@ -3,7 +3,13 @@ from common.facility_scope import filter_by_facility
 def workspace_context(request):
     user=request.user
     if not user.is_authenticated:return {}
-    result={}
+    from common.mfa import required
+    if required(user) and not getattr(user,'otp_device',None):return {}
+    from apps.accounts.models import Facility
+    result={'selected_facility':Facility.objects.filter(pk=getattr(user,'_active_facility_id',None)).first()}
+    from common.service_policy import navigation, profile, enabled, SERVICES
+    conf=profile(user)
+    result.update(workspace_navigation=navigation(user),facility_brand=conf,services={key:enabled(user,key) for key in SERVICES},show_global_search=enabled(user,'patients') and (user.is_superuser or user.role in ('admin','clinician','nurse','pharmacy','lab','reception','cashier','manager')))
     # Query-selected identity is re-scoped. It never grants view or write permission.
     pk=request.GET.get('patient','')
     if pk.isdigit() and (user.is_superuser or user.role in ('admin','reception','nurse','clinician','pharmacy','lab','cashier','manager')):

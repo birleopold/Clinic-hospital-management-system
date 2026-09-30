@@ -239,6 +239,10 @@ def department_board(request):
     board=request.GET.get('board',{'admin':'reception','manager':'cashier','store':'pharmacy'}.get(role,role))
     allowed_boards={'reception':['reception'],'nurse':['nurse','ward'],'clinician':['clinician','theatre','ward'],'lab':['lab'],'pharmacy':['pharmacy'],'cashier':['cashier'],'manager':['cashier'],'store':['pharmacy']}.get(role,[])
     if request.user.is_superuser or role=='admin':allowed_boards=['reception','nurse','clinician','lab','pharmacy','cashier','ward','theatre']
+    from common.service_policy import enabled
+    board_services={'reception':'appointments','nurse':'clinical','clinician':'clinical','lab':'lab','pharmacy':'pharmacy','cashier':'billing','ward':'inpatient','theatre':'theatre'}
+    allowed_boards=[b for b in allowed_boards if enabled(request.user,board_services[b])]
+    if 'board' not in request.GET and allowed_boards and board not in allowed_boards:board=allowed_boards[0]
     if board not in allowed_boards:raise PermissionDenied
     status=request.GET.get('status','active');rows=[];beds=[];statuses=[('active','Active'),('all','All')]
     patient_id=request.GET.get('patient','')
@@ -298,8 +302,10 @@ def handoff(request,pk):
     require(request.user,['reception','nurse','clinician','lab','pharmacy','cashier'])
     from apps.appointments.models import QueueTicket
     patient=patient_for(request,pk)
+    from common.service_policy import enabled
+    mapping={'triage':'clinical','consult':'clinical','lab':'lab','pharmacy':'pharmacy','cashier':'billing'}
     class HandoffForm(forms.Form):
-        service=forms.ChoiceField(choices=QueueTicket.SERVICE_CHOICES)
+        service=forms.ChoiceField(choices=[(key,label) for key,label in QueueTicket.SERVICE_CHOICES if enabled(request.user,mapping[key])])
     form=HandoffForm(request.POST or None)
     if request.method=='POST' and form.is_valid():
         with transaction.atomic():

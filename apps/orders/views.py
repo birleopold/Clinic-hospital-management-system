@@ -22,7 +22,12 @@ class OrderViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        return filter_by_patient_facility(super().get_queryset(), self.request.user)
+        from common.service_policy import enabled
+        qs=filter_by_patient_facility(super().get_queryset(), self.request.user)
+        if not enabled(self.request.user,'lab'):qs=qs.exclude(order_type='lab')
+        if not enabled(self.request.user,'imaging'):qs=qs.exclude(order_type='imaging')
+        if not enabled(self.request.user,'clinical'):qs=qs.exclude(order_type='procedure')
+        return qs
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
@@ -51,8 +56,13 @@ class OrderResultViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        return filter_by_patient_facility(
+        qs=filter_by_patient_facility(
             super().get_queryset(),
             self.request.user,
             prefix='order__patient__',
         )
+        from common.service_policy import enabled
+        if not enabled(self.request.user,'lab'):qs=qs.exclude(order__order_type='lab')
+        if not enabled(self.request.user,'imaging'):qs=qs.exclude(order__order_type='imaging')
+        if not enabled(self.request.user,'clinical'):qs=qs.exclude(order__order_type='procedure')
+        return qs

@@ -1,7 +1,7 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}{% if mode == 'edit' %}Edit Supplier{% else %}New Supplier{% endif %}{% endblock %}
 {% block content %}
-<a href="{% url 'inventory-suppliers' %}" class="muted">← Back to Suppliers</a>
+{% accessible_link %}<a href="{% url 'inventory-suppliers' %}" class="muted">← Back to Suppliers</a>{% endaccessible_link %}
 <div class="card">
   <h2 style="margin:0 0 12px;">{% if mode == 'edit' %}Edit Supplier{% else %}New Supplier{% endif %}</h2>
   <form method="post" action="" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; align-items:end;">
@@ -14,7 +14,7 @@
     <div class="full"><label>Notes</label><br/><input type="text" name="notes" value="{{ supplier.notes|default:'' }}" /></div>
     <div style="grid-column: 1 / -1; display:flex; gap:8px;">
       <button class="btn" type="submit">Save</button>
-      <a class="btn btn-secondary" href="{% url 'inventory-suppliers' %}">Cancel</a>
+      {% accessible_link %}<a class="btn btn-secondary" href="{% url 'inventory-suppliers' %}">Cancel</a>{% endaccessible_link %}
     </div>
   </form>
 </div>

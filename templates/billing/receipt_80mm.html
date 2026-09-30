@@ -14,7 +14,7 @@
   </style>
 </head>
 <body>
-  <div class="center"><strong>{{ config.clinic_name|default:"Clinic" }}</strong></div>
+  <div class="center"><strong>{{ facility_brand.display_name|default:config.clinic_name|default:"Clinic" }}</strong></div>
   <div class="center muted">RECEIPT #{{ payment.id }}</div>
   <div class="center muted">{{ payment.paid_at|date:"Y-m-d H:i" }}</div>
   <div class="line"></div>

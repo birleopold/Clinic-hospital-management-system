@@ -1,10 +1,10 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}{{ service_label }} Queue{% endblock %}
 {% block content %}
 <div class="card">
   <h2>{{ service_label }} Queue</h2>
   <div class="chips" style="margin-bottom:12px">
-    <a class="btn btn-secondary" href="/queues">Back to Summary</a>
+    {% accessible_link %}<a class="btn btn-secondary" href="/queues">Back to Summary</a>{% endaccessible_link %}
   </div>
   {% if user.is_superuser or user.role == 'admin' or user.role == 'reception' %}
   <div class="card">

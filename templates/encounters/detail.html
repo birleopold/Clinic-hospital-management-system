@@ -1,9 +1,9 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Encounter #{{ encounter.id }}{% endblock %}
 {% block content %}{% include 'operations/patient_banner.html' with patient=encounter.patient %}{% if user.role == 'clinician' and encounter.clinician_id != user.pk %}<form method="post" action="{% url 'suite-claim-visit' encounter.pk %}">{% csrf_token %}<button>Accept this visit</button></form>{% endif %}
-<a href="{% url 'ehr-board' %}" class="muted">← Back to board</a>
+{% accessible_link %}<a href="{% url 'ehr-board' %}" class="muted">← Back to board</a>{% endaccessible_link %}
 
-<p><a class="btn" href="{% url 'suite-consultation-note' encounter.pk %}">Write consultation note</a> <a class="btn btn-secondary" href="{% url 'suite-handoff' encounter.patient_id %}">Next service</a> <a class="btn btn-secondary" href="{% url 'suite-patient' encounter.patient_id %}">Open full patient chart →</a></p>
+<p>{% accessible_link %}<a class="btn" href="{% url 'suite-consultation-note' encounter.pk %}">Write consultation note</a>{% endaccessible_link %} {% accessible_link %}<a class="btn btn-secondary" href="{% url 'suite-handoff' encounter.patient_id %}">Next service</a>{% endaccessible_link %} {% accessible_link %}<a class="btn btn-secondary" href="{% url 'suite-patient' encounter.patient_id %}">Open full patient chart →</a>{% endaccessible_link %}</p>
 <div class="card">
   <h2 style="margin:0 0 10px;">Encounter #{{ encounter.id }}</h2>
   <div class="chips">
@@ -101,7 +101,7 @@
           <td>#{{ rx.id }}</td>
           <td>{{ rx.created_at|date:"Y-m-d H:i" }}</td>
           <td>{{ rx.items.count }}</td>
-          <td><a class="btn btn-secondary" href="{% url 'rx-detail' rx.id %}">Open</a></td>
+          <td>{% accessible_link %}<a class="btn btn-secondary" href="{% url 'rx-detail' rx.id %}">Open</a>{% endaccessible_link %}</td>
         </tr>
         {% empty %}
         <tr><td colspan="4" class="muted">No prescriptions yet.</td></tr>
@@ -118,8 +118,8 @@
     {% csrf_token %}
     <div><label>Type</label><br/>
       <select name="order_type">
-        <option value="lab">Lab</option>
-        <option value="imaging">Imaging</option>
+        {% if services.lab %}<option value="lab">Lab</option>{% endif %}
+        {% if services.imaging %}<option value="imaging">Imaging</option>{% endif %}
         <option value="procedure">Procedure</option>
       </select>
     </div>
@@ -147,7 +147,7 @@
             {% if o.results.all %}
               <ul style="margin:0; padding-left:16px;">
                 {% for r in o.results.all %}
-                  <li>{{ r.recorded_at|date:"Y-m-d H:i" }} — {{ r.result_text|default:"(text)" }}{% if r.attachment %} — <a href="{% url 'suite-download' r.pk %}" target="_blank">Attachment</a>{% endif %}</li>
+                  <li>{{ r.recorded_at|date:"Y-m-d H:i" }} — {{ r.result_text|default:"(text)" }}{% if r.attachment %} — {% accessible_link %}<a href="{% url 'suite-download' r.pk %}" target="_blank">Attachment</a>{% endaccessible_link %}{% endif %}</li>
                 {% empty %}
                   <li class="muted">No results yet.</li>
                 {% endfor %}
@@ -157,11 +157,11 @@
             {% endif %}
           </td>
           <td>
-            <a class="muted" href="/api/orders/{{ o.id }}/" target="_blank">API</a>
+            {% accessible_link %}<a class="muted" href="/api/orders/{{ o.id }}/" target="_blank">API</a>{% endaccessible_link %}
             {% if o.invoice_id %}
               ·
               {% if user.is_superuser or user.role == 'admin' or user.role == 'cashier' %}
-                <a class="btn btn-secondary" href="{% url 'invoice-print' o.invoice_id %}" target="_blank">Invoice</a>
+                {% accessible_link %}<a class="btn btn-secondary" href="{% url 'invoice-print' o.invoice_id %}" target="_blank">Invoice</a>{% endaccessible_link %}
               {% else %}
                 <span class="chip">Invoice #{{ o.invoice_id }}</span>
               {% endif %}

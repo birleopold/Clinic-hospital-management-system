@@ -1,7 +1,7 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Prescription #{{ rx.id }}{% endblock %}
-{% block content %}{% if user.is_superuser or user.role == "admin" or user.role == "pharmacy" %}<p><a href="{% url 'pharmacy-baskets' %}?patient={{ rx.patient_id }}">Start a basket for this patient</a></p>{% endif %}{% include 'operations/patient_banner.html' with patient=rx.patient %}
-<a href="{% if rx.encounter_id %}/ehr/encounter/{{ rx.encounter_id }}{% else %}/pharmacy{% endif %}" class="muted">← Back</a>
+{% block content %}{% if user.is_superuser or user.role == "admin" or user.role == "pharmacy" %}<p>{% accessible_link %}<a href="{% url 'pharmacy-baskets' %}?patient={{ rx.patient_id }}">Start a basket for this patient</a>{% endaccessible_link %}</p>{% endif %}{% include 'operations/patient_banner.html' with patient=rx.patient %}
+{% accessible_link %}<a href="{% if rx.encounter_id %}/ehr/encounter/{{ rx.encounter_id }}{% else %}/pharmacy{% endif %}" class="muted">← Back</a>{% endaccessible_link %}
 
 <div class="card">
   <h2 style="margin:0 0 8px;">Prescription #{{ rx.id }}</h2>
@@ -58,7 +58,7 @@
 
 <div class="card">
   <div class="chips">
-    <a class="btn btn-secondary" href="/pharmacy">Open Pharmacy Board</a>
+    {% accessible_link %}<a class="btn btn-secondary" href="/pharmacy">Open Pharmacy Board</a>{% endaccessible_link %}
   </div>
 </div>
 {% endblock %}

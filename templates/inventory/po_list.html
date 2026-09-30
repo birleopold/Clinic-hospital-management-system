@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Purchase Orders{% endblock %}
 {% block content %}
 <div class="card">
@@ -19,7 +19,7 @@
     </div>
     {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' or user.role == 'store' %}
     <div style="margin-left:auto;">
-      <a class="btn" href="{% url 'inventory-po-create' %}">New PO</a>
+      {% accessible_link %}<a class="btn" href="{% url 'inventory-po-create' %}">New PO</a>{% endaccessible_link %}
     </div>
     {% endif %}
   </form>
@@ -47,13 +47,13 @@
           <td>{{ po.remarks }}</td>
           <td>
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <a class="btn btn-secondary" href="{% url 'inventory-po-edit' po.id %}">Open</a>
+              {% accessible_link %}<a class="btn btn-secondary" href="{% url 'inventory-po-edit' po.id %}">Open</a>{% endaccessible_link %}
               {% if po.status == 'draft' %}
                 <form method="post" action="{% url 'inventory-po-approve' po.id %}" style="display:inline">{% csrf_token %}<button type="submit" class="btn btn-secondary">Approve</button></form>
                 <form method="post" action="{% url 'inventory-po-cancel' po.id %}" style="display:inline">{% csrf_token %}<button type="submit" class="btn btn-secondary">Cancel</button></form>
               {% elif po.status == 'approved' %}
                 {% if po.recv_state != 'received' %}
-                  <a class="btn btn-secondary" href="{% url 'inventory-grn-create' %}">Receive</a>
+                  {% accessible_link %}<a class="btn btn-secondary" href="{% url 'inventory-grn-create' %}">Receive</a>{% endaccessible_link %}
                 {% endif %}
               {% endif %}
             </div>

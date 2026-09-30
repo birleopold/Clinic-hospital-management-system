@@ -24,11 +24,12 @@ def patient_chart(request, pk):
     patient = get_object_or_404(filter_by_facility(Patient.objects.all(), user), pk=pk)
     if patient.merged_into_id:
         return redirect('suite-patient', pk=patient.merged_into_id)
-    clinical = user.is_superuser or user.role in ('admin','clinician','nurse')
-    laboratory = user.is_superuser or user.role in ('admin','lab')
+    from common.service_policy import enabled
+    clinical = enabled(user,'clinical') and (user.is_superuser or user.role in ('admin','clinician','nurse'))
+    laboratory = enabled(user,'diagnostics') and (user.is_superuser or user.role in ('admin','lab'))
     # Limited roles get only their work-relevant sections, including on direct URLs.
     sources = {}
-    financial=user.is_superuser or user.role in ('admin','cashier','manager')
+    financial=enabled(user,'billing') and (user.is_superuser or user.role in ('admin','cashier','manager'))
     if financial:sources['billing']=(Invoice.objects.filter(patient=patient),'created_at','Billing')
     if user.role=='reception' and not user.is_superuser:
         from apps.appointments.models import Appointment
@@ -45,7 +46,7 @@ def patient_chart(request, pk):
         sources['notes'] = (ClinicalEntry.objects.filter(patient=patient), 'created_at', 'Clinical notes')
         sources['vitals'] = (Vital.objects.filter(encounter__patient=patient), 'taken_at', 'Vitals')
         sources['referrals'] = (Referral.objects.filter(patient=patient), 'created_at', 'Referrals')
-    if clinical or user.role == 'pharmacy':
+    if enabled(user,'prescribing') and (clinical or user.is_superuser or user.role in ('admin','pharmacy')):
         sources['medicines'] = (Prescription.objects.filter(patient=patient), 'created_at', 'Prescriptions')
         if not clinical:
             sources['allergies'] = (ClinicalEntry.objects.filter(patient=patient,kind='allergy'), 'created_at', 'Allergy history')
@@ -54,6 +55,13 @@ def patient_chart(request, pk):
         if not laboratory:
             results = results.filter(approved_at__isnull=False)
         sources['results'] = (results, 'recorded_at', 'Results')
+    services={'appointments':'appointments','visitingnotes':'theatre','careplans':'inpatient','theatre':'theatre','maternity':'maternity','vaccinations':'vaccination','rehabilitation':'rehabilitation','results':'diagnostics'}
+    sources={key:value for key,value in sources.items() if enabled(user,services.get(key))}
+    if 'results' in sources:
+        qs,field,label=sources['results']
+        if not enabled(user,'lab'):qs=qs.exclude(order__order_type='lab')
+        if not enabled(user,'imaging'):qs=qs.exclude(order__order_type='imaging')
+        sources['results']=(qs,field,label)
     section = request.GET.get('section', 'timeline')
     if section != 'timeline' and section not in sources:
         raise PermissionDenied
@@ -72,7 +80,7 @@ def patient_chart(request, pk):
             qs = qs.filter(**{relation:visit.pk}) if relation else qs.none()
         selected[key] = (qs, date_field, label)
     queries = [qs.order_by().annotate(event_kind=Value(key,output_field=CharField()),event_time=F(date)).values('event_kind','pk','event_time') for key,(qs,date,_) in selected.items()]
-    feed = queries[0].union(*queries[1:], all=True).order_by('-event_time','event_kind','-pk')
+    feed = queries[0].union(*queries[1:], all=True).order_by('-event_time','event_kind','-pk') if queries else []
     page = Paginator(feed, 25).get_page(request.GET.get('page'))
     metadata = list(page.object_list)
     objects = {}

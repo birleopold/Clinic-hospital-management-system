@@ -55,10 +55,13 @@ def invoice_print_view(request, invoice_id: int):
         pk=invoice_id,
     )
     cfg = ClinicConfig.get_solo()
+    from apps.accounts.models import FacilityConfiguration
+    brand=FacilityConfiguration.objects.filter(facility_id=invoice.patient.facility_id).first()
     template = 'billing/invoice_a4.html' if cfg.receipt_paper == ClinicConfig.A4 else 'billing/invoice_80mm.html'
     balance = (invoice.total_amount or Decimal('0')) - (invoice.paid_amount or Decimal('0'))
     ctx = {
         'config': cfg,
+        'facility_brand':brand,
         'invoice': invoice,
         'lines': invoice.lines.all(),
         'balance': balance,
@@ -80,9 +83,12 @@ def receipt_print_view(request, payment_id: int):
         pk=payment_id,
     )
     cfg = ClinicConfig.get_solo()
+    from apps.accounts.models import FacilityConfiguration
+    brand=FacilityConfiguration.objects.filter(facility_id=payment.invoice.patient.facility_id).first()
     template = 'billing/receipt_a4.html' if cfg.receipt_paper == ClinicConfig.A4 else 'billing/receipt_80mm.html'
     ctx = {
         'config': cfg,
+        'facility_brand':brand,
         'payment': payment,
         'invoice': payment.invoice,
         'lines': payment.invoice.lines.all(),

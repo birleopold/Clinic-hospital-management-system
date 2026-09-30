@@ -24,6 +24,18 @@ class StaffJWTAuthentication(JWTAuthentication):
     def authenticate(self,request):
         result=super().authenticate(request)
         if result and restricted(result[0]):raise AuthenticationFailed('Visiting specialist accounts cannot use the general staff API.')
+        if result:
+            from .mfa import required, device_valid
+            if (required(result[0]) or result[1].get('mfa_device_id')) and not device_valid(result[0],result[1].get('mfa_device_id')):
+                raise AuthenticationFailed('Sign in again with your authenticator.')
+        if result and request.headers.get('X-Clinic-Facility'):
+            from .branch_access import apply
+            from django.core.exceptions import PermissionDenied
+            try:apply(result[0],request.headers['X-Clinic-Facility'])
+            except PermissionDenied as exc:raise AuthenticationFailed(str(exc))
+        if result:
+            from .service_policy import enforce
+            enforce(result[0],request.path)
         return result
 
 

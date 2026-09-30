@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Cashbook{% endblock %}
 {% block content %}
 <div class="card">
@@ -16,8 +16,8 @@
       <button class="btn" type="submit">Filter</button>
     </div>
     <div style="margin-left:auto; display:flex; gap:8px;">
-      <a class="btn btn-secondary" href="?start={{ start }}&end={{ end }}&export=csv">Export CSV</a>
-      <a class="btn btn-secondary" href="?start={{ start }}&end={{ end }}&export=xlsx">Export XLSX</a>
+      {% accessible_link %}<a class="btn btn-secondary" href="?start={{ start }}&end={{ end }}&export=csv">Export CSV</a>{% endaccessible_link %}
+      {% accessible_link %}<a class="btn btn-secondary" href="?start={{ start }}&end={{ end }}&export=xlsx">Export XLSX</a>{% endaccessible_link %}
     </div>
   </form>
 </div>
@@ -45,7 +45,7 @@
         <tr>
           <td>{{ p.id }}</td>
           <td>{{ p.paid_at|date:"Y-m-d H:i" }}</td>
-          <td><a href="/cashier/invoice/{{ p.invoice_id }}/print" target="_blank">#{{ p.invoice_id }}</a></td>
+          <td>{% accessible_link %}<a href="/cashier/invoice/{{ p.invoice_id }}/print" target="_blank">#{{ p.invoice_id }}</a>{% endaccessible_link %}</td>
           <td>{{ p.invoice.patient }}</td>
           <td>{{ p.amount }}</td>
           <td>{% if p.cash_session_id %}{{ p.cash_session.opened_by }}{% endif %}</td>

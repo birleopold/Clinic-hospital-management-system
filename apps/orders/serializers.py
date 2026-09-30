@@ -15,6 +15,10 @@ class OrderResultSerializer(FacilityScopedSerializer):
         attrs = super().validate(attrs)
         if self.instance and hasattr(self.instance, "worksheet"):
             raise serializers.ValidationError("Structured worksheets are immutable. Withdraw a draft or add an amended worksheet.")
+        from common.service_policy import enabled
+        candidate_order=attrs.get('order',self.instance.order if self.instance else None)
+        if candidate_order and not enabled(self.context['request'].user,candidate_order.order_type if candidate_order.order_type!='procedure' else 'clinical'):
+            raise serializers.ValidationError('This order service is disabled.')
         prior = attrs.get("supersedes")
         order = attrs.get("order", self.instance.order if self.instance else None)
         if prior and (
@@ -60,6 +64,17 @@ class OrderResultSerializer(FacilityScopedSerializer):
 
 
 class OrderSerializer(FacilityScopedSerializer):
+    def validate(self,attrs):
+        attrs=super().validate(attrs)
+        from common.service_policy import enabled
+        kind=attrs.get('order_type',self.instance.order_type if self.instance else '')
+        service='clinical' if kind=='procedure' else kind
+        if not enabled(self.context['request'].user,service):raise serializers.ValidationError('This order service is disabled.')
+        if not enabled(self.context['request'].user,'billing'):
+            if attrs.get('billable') or (self.instance and self.instance.billable):raise serializers.ValidationError('Enable billing before creating or modifying a billable order.')
+            if not self.instance:attrs['billable']=False
+        return attrs
+
     quantity = serializers.DecimalField(
         max_digits=10, decimal_places=2, min_value=Decimal("0.01"), default=Decimal("1")
     )

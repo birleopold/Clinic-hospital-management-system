@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% load static %}
 {% block title %}Sign in{% endblock %}
 {% block head %}
@@ -124,7 +124,7 @@
           <span>Remember me</span>
         </label>
         <div style="margin-left:auto; display:flex; align-items:center; gap:12px;">
-          <a class="muted-link" href="/accounts/password_reset/">Forgot password?</a>
+          {% accessible_link %}<a class="muted-link" href="/accounts/password_reset/">Forgot password?</a>{% endaccessible_link %}
           <button class="btn-primary" type="submit">Sign In</button>
         </div>
       </div>

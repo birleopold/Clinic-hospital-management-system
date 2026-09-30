@@ -16,68 +16,8 @@ from common.facility_scope import filter_by_facility, filter_by_patient_facility
 
 @login_required
 def home_view(request):
-    from datetime import datetime
-    from django.utils.timezone import make_aware
-    from decimal import Decimal
-    from apps.billing.models import Payment, InvoiceLine
-    from apps.demographics.models import Patient
+    return redirect('suite-home')
 
-    user = request.user
-
-    # Today range
-    now = datetime.now()
-    start = make_aware(datetime(now.year, now.month, now.day, 0, 0, 0))
-    end = make_aware(datetime(now.year, now.month, now.day, 23, 59, 59))
-
-    # KPIs
-    from django.db.models import Sum
-    revenue_total = (
-        filter_by_patient_facility(Payment.objects.all(), user, prefix='invoice__patient__')
-        .filter(paid_at__range=(start, end))
-        .aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-    )
-    from apps.billing.reporting import refunded_between
-    revenue_total -= refunded_between(user,start,end)
-    new_patients = filter_by_facility(Patient.objects.all(), user).filter(created_at__range=(start, end)).count()
-
-    # Queue snapshot
-    qs = (
-        filter_by_patient_facility(QueueTicket.objects.all(), user)
-        .values('service', 'status')
-        .annotate(count=Count('id'))
-    )
-    services = [s for s, _ in QueueTicket.SERVICE_CHOICES]
-    statuses = [s for s, _ in QueueTicket.STATUS_CHOICES]
-    data = {svc: {st: 0 for st in statuses} for svc in services}
-    for row in qs:
-        data[row['service']][row['status']] = row['count']
-
-    # Service mix today (top 5)
-    mix = (
-        filter_by_patient_facility(InvoiceLine.objects.all(), user, prefix='invoice__patient__')
-        .filter(created_at__range=(start, end))
-        .values('code')
-        .annotate(total_amount=Sum('line_total'), total_qty=Sum('quantity'))
-        .order_by('-total_amount')[:5]
-    )
-    mix_rows = [
-        {
-            'code': r['code'],
-            'total_amount': r['total_amount'] or Decimal('0.00'),
-            'total_qty': r['total_qty'] or Decimal('0.00'),
-        }
-        for r in mix
-    ]
-
-    context = {
-        'revenue_total': revenue_total,
-        'new_patients': new_patients,
-        'services': QueueTicket.SERVICE_CHOICES,
-        'statuses': QueueTicket.STATUS_CHOICES,
-        'data': data,
-        'service_mix': mix_rows,
-    }
-    return render(request, 'dashboard/home.html', context)
 
 @login_required
 def queue_summary_view(request):

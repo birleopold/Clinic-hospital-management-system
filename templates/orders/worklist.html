@@ -1,7 +1,7 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Lab &amp; imaging queue{% endblock %}
 {% block content %}{% if context_patient %}{% include 'operations/patient_banner.html' with patient=context_patient %}{% endif %}
-<h2 style="margin-top:0;">Pending orders</h2><p><a href="/suite/diagnostics/">Diagnostic scheduling, worksheets and patient reports</a></p>
+<h2 style="margin-top:0;">Pending orders</h2><p>{% accessible_link %}<a href="/suite/diagnostics/">Diagnostic scheduling, worksheets and patient reports</a>{% endaccessible_link %}</p>
 <p class="muted">Oldest first. Enter a draft result narrative, then review and release it in Results.</p>
 
 <div class="card" style="overflow:auto;">
@@ -26,7 +26,7 @@
         <td>{{ o.patient }}</td>
         <td>
           {% if o.encounter_id %}
-            <a href="{% url 'ehr-encounter-detail' o.encounter_id %}">Encounter #{{ o.encounter_id }}</a>
+            {% accessible_link %}<a href="{% url 'ehr-encounter-detail' o.encounter_id %}">Encounter #{{ o.encounter_id }}</a>{% endaccessible_link %}
           {% else %}
             <span class="muted">—</span>
           {% endif %}

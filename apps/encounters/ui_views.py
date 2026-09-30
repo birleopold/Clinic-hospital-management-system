@@ -80,12 +80,16 @@ def encounter_detail_view(request, encounter_id: int):
         _encounters_for_user(user).select_related('patient', 'clinician'),
         pk=encounter_id,
     )
+    from common.service_policy import enabled
     rx_list = Prescription.objects.filter(encounter=enc).prefetch_related('items').order_by('-id')
     visit_orders = (
         Order.objects.filter(encounter=enc)
         .prefetch_related('results')
-        .order_by('-created_at', '-id')[:50]
+        .order_by('-created_at', '-id')
     )
+    if not enabled(user,'lab'):visit_orders=visit_orders.exclude(order_type='lab')
+    if not enabled(user,'imaging'):visit_orders=visit_orders.exclude(order_type='imaging')
+    visit_orders=visit_orders[:50]
     # Map each order to its invoice (if auto-billed)
     order_refs = [f"order:{o.id}" for o in visit_orders]
     lines = InvoiceLine.objects.filter(source_ref__in=order_refs).select_related('invoice')
@@ -212,6 +216,8 @@ def create_lab_order_view(request, encounter_id: int):
     order_type = (request.POST.get('order_type') or Order.LAB).strip()
     if order_type not in (Order.LAB, Order.IMAGING, Order.PROCEDURE):
         order_type = Order.LAB
+    from common.service_policy import enabled
+    if not enabled(user,'clinical' if order_type=='procedure' else order_type):return HttpResponseForbidden('This service is disabled.')
     qty_raw = (request.POST.get('quantity') or '1').strip()
     try:
         quantity = Decimal(qty_raw)
@@ -220,6 +226,7 @@ def create_lab_order_view(request, encounter_id: int):
     except (InvalidOperation, TypeError):
         quantity = Decimal('1')
     billable = (request.POST.get('billable') or '').strip().lower() not in ('0', 'false', 'off', 'no')
+    if not enabled(user,'billing'):billable=False
     Order.objects.create(
         patient=enc.patient,
         encounter=enc,

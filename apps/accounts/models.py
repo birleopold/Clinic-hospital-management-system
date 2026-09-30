@@ -27,6 +27,7 @@ class User(AbstractUser):
     ]
 
     role = models.CharField(max_length=32, choices=ROLE_CHOICES, default=RECEPTION)
+    mfa_required = models.BooleanField(default=False)
     mobile_number = models.CharField(max_length=64, blank=True)
 
 class Facility(models.Model):
@@ -56,3 +57,39 @@ class StaffProfile(models.Model):
 
     def __str__(self):
         return f"{self.user} @ {self.facility or 'Unassigned'}"
+
+
+class SecurityEvent(models.Model):
+    actor = models.ForeignKey(User,on_delete=models.PROTECT,related_name='+')
+    target = models.ForeignKey(User,on_delete=models.PROTECT,related_name='+')
+    event = models.CharField(max_length=60)
+    reason = models.CharField(max_length=250,blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class FacilityAccess(models.Model):
+    user = models.ForeignKey(User,on_delete=models.PROTECT,related_name='facility_access')
+    facility = models.ForeignKey(Facility,on_delete=models.PROTECT)
+    expires_at = models.DateTimeField()
+    reason = models.CharField(max_length=250)
+    granted_by = models.ForeignKey(User,on_delete=models.PROTECT,related_name='+')
+    revoked_at = models.DateTimeField(null=True,blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints=[models.UniqueConstraint(fields=['user','facility'],name='unique_staff_facility_access')]
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.user.role not in ('admin','manager','reception'):
+            raise ValidationError('Branch switching is limited to administration, management and reception. Clinical duty privileges require separate credentialing.')
+
+
+class FacilityConfiguration(models.Model):
+    facility=models.OneToOneField(Facility,on_delete=models.PROTECT,related_name='configuration')
+    service_type=models.CharField(max_length=20,choices=[('pharmacy','Pharmacy only'),('clinic','Clinic'),('hospital','Hospital'),('custom','Custom services')])
+    display_name=models.CharField(max_length=160)
+    tagline=models.CharField(max_length=250,blank=True)
+    contact_phone=models.CharField(max_length=40,blank=True)
+    enabled_services=models.JSONField(default=list)
+    configured_by=models.ForeignKey(User,on_delete=models.PROTECT,related_name='+')
+    updated_at=models.DateTimeField(auto_now=True)
+    revision=models.PositiveIntegerField(default=1)

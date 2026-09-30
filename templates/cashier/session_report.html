@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Session Report{% endblock %}
 {% block content %}
 <div class="card">
@@ -13,9 +13,9 @@
     {% if session.discrepancy %}<span class="chip">Discrepancy: {{ session.discrepancy }}</span>{% endif %}
   </div>
   <div class="chips" style="margin-bottom:12px">
-    <a class="btn btn-secondary" href="/cashier/session/{{ session.id }}/report?export=csv">CSV</a>
-    <a class="btn btn-secondary" href="/cashier/session/{{ session.id }}/report?export=xlsx">XLSX</a>
-    <a class="btn btn-secondary" href="/cashier/session/{{ session.id }}/report?format=pdf">PDF</a>
+    {% accessible_link %}<a class="btn btn-secondary" href="/cashier/session/{{ session.id }}/report?export=csv">CSV</a>{% endaccessible_link %}
+    {% accessible_link %}<a class="btn btn-secondary" href="/cashier/session/{{ session.id }}/report?export=xlsx">XLSX</a>{% endaccessible_link %}
+    {% accessible_link %}<a class="btn btn-secondary" href="/cashier/session/{{ session.id }}/report?format=pdf">PDF</a>{% endaccessible_link %}
   </div>
   <table>
     <thead>

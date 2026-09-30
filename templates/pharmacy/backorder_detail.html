@@ -1,7 +1,7 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Backorder #{{ bo.id }}{% endblock %}
 {% block content %}
-<a href="{% url 'pharmacy-backorders' %}" class="muted">← Back to Backorders</a>
+{% accessible_link %}<a href="{% url 'pharmacy-backorders' %}" class="muted">← Back to Backorders</a>{% endaccessible_link %}
 <div class="card">
   <h2 style="margin:0 0 12px;">Backorder #{{ bo.id }}</h2>
   <div class="muted" style="margin-bottom:10px;">

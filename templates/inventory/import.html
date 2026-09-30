@@ -1,12 +1,12 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Inventory Import{% endblock %}
 {% block content %}
-<a href="{% url 'inventory-stock' %}" class="muted">← Back to Inventory</a>
+{% accessible_link %}<a href="{% url 'inventory-stock' %}" class="muted">← Back to Inventory</a>{% endaccessible_link %}
 <div class="card">
   <h2 style="margin:0 0 12px;">Import Inventory</h2>
   <p class="muted" style="margin-top:0">Upload a CSV or XLSX exported from Excel, QuickBooks or Tally. Recognized columns: <code>code</code>, <code>name</code>, <code>uom</code>, <code>reorder_level</code>, <code>batch_no</code>, <code>expiry</code> (YYYY-MM-DD or common date formats), <code>quantity</code>, <code>unit_cost</code>.</p>
   <div style="margin-bottom:10px; display:flex; gap:10px; flex-wrap:wrap;">
-    <a class="btn btn-secondary" href="{% url 'inventory-import-sample' %}">Download sample CSV</a>
+    {% accessible_link %}<a class="btn btn-secondary" href="{% url 'inventory-import-sample' %}">Download sample CSV</a>{% endaccessible_link %}
   </div>
 
   <form method="post" action="" enctype="multipart/form-data"

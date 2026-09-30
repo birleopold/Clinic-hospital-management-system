@@ -1,7 +1,7 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}{% if mode == 'edit' %}Edit Patient{% else %}New Patient{% endif %}{% endblock %}
 {% block content %}
-<a href="{% url 'patients-list' %}" class="muted">← Back to Patients</a>
+{% accessible_link %}<a href="{% url 'patients-list' %}" class="muted">← Back to Patients</a>{% endaccessible_link %}
 <div class="card">
   <h2 style="margin:0 0 12px;">{% if mode == 'edit' %}Edit Patient{% else %}New Patient{% endif %}</h2>
   {% if error %}
@@ -36,7 +36,7 @@
               <td>#{{ d.id }}</td>
               <td>{{ d.first_name }} {{ d.last_name }}{% if d.other_names %} {{ d.other_names }}{% endif %}</td>
               <td>{{ d.phone }}</td>
-              <td><a class="btn btn-secondary" href="{% url 'patients-edit' d.id %}" target="_blank">Open</a></td>
+              <td>{% accessible_link %}<a class="btn btn-secondary" href="{% url 'patients-edit' d.id %}" target="_blank">Open</a>{% endaccessible_link %}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -87,7 +87,7 @@
     {% endif %}
     <div style="grid-column: 1 / -1; display:flex; gap:8px;">
       <button class="btn" type="submit">Save</button>
-      <a class="btn btn-secondary" href="{% url 'patients-list' %}">Cancel</a>
+      {% accessible_link %}<a class="btn btn-secondary" href="{% url 'patients-list' %}">Cancel</a>{% endaccessible_link %}
     </div>
   </form>
   {% if audit %}

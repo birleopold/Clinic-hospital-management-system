@@ -100,7 +100,8 @@ def register(request, kind):
     for obj in page:
         values = [(model._meta.get_field(name).verbose_name, getattr(obj, name)) for name in visible]
         rows.append((obj, values))
-    links = [(key, cfg[1]) for key,cfg in REGISTERS.items() if request.user.is_superuser or request.user.role in cfg[4]]
+    from common.service_policy import enabled,service_for_url
+    links = [(key, cfg[1]) for key,cfg in REGISTERS.items() if (request.user.is_superuser or request.user.role in cfg[4]) and enabled(request.user,service_for_url('/suite/clinical-operations/'+key+'/'))]
     return render(request, 'operations/extension_register.html', {'title':title,'kind':kind,'rows':rows,'page':page,'links':links,'status':request.GET.get('status',''),'can_review':request.user.is_superuser or request.user.role!='nurse','can_create':not(kind=='enrollments' and request.user.role=='nurse' and not request.user.is_superuser)})
 
 

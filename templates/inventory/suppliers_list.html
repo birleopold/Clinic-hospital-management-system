@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Suppliers{% endblock %}
 {% block content %}
 <div class="card">
@@ -13,7 +13,7 @@
     </div>
     {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' or user.role == 'store' %}
     <div style="margin-left:auto;">
-      <a class="btn" href="{% url 'inventory-supplier-create' %}">New Supplier</a>
+      {% accessible_link %}<a class="btn" href="{% url 'inventory-supplier-create' %}">New Supplier</a>{% endaccessible_link %}
     </div>
     {% endif %}
   </form>
@@ -37,7 +37,7 @@
           <td>{{ s.phone }}</td>
           <td>{{ s.email }}</td>
           <td>{{ s.contact_person }}</td>
-          <td><a class="btn btn-secondary" href="{% url 'inventory-supplier-edit' s.id %}">Edit</a></td>
+          <td>{% accessible_link %}<a class="btn btn-secondary" href="{% url 'inventory-supplier-edit' s.id %}">Edit</a>{% endaccessible_link %}</td>
         </tr>
         {% empty %}
         <tr><td colspan="6" class="muted">No suppliers found.</td></tr>

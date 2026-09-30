@@ -182,3 +182,11 @@ The [Phase 1 workflow release](docs/PHASE_ONE_RELEASE.md) completes the daily-wo
 ### Engagement, laboratory traceability and governed clinical programmes
 
 The [Phases 3–5 incremental delivery](docs/PHASE_THREE_FIVE_DELIVERY.md) adds verified contact preferences, recall queueing, delivery attempts, operational metrics, specimen custody/aliquots, reagent/QC evidence, versioned programme cohorts and imaging study references. Apply the new migrations and review the upgrade notes before enabling reminder dispatch. Phases 3–5 remain partial; the [tracker](docs/IMPLEMENTATION_TRACKER.md) separates unfinished engineering from provider/clinical commissioning.
+
+### Administrator MFA and enterprise workflows
+
+[Enterprise access/import release notes](docs/ENTERPRISE_ACCESS_AND_IMPORT_RELEASE.md) cover default administrator authenticator enrollment, device-bound API access, revocable branch grants, independently reviewed patient import previews, setup readiness and maternity observation trends. Install updated dependencies and apply migrations before upgrading; prepare trusted server-side MFA recovery. Full Phase 3–5 completion still follows the implementation tracker.
+
+### Select only the services your site offers
+
+Use [service setup](docs/SERVICE_SETUP_AND_ROLE_WORKSPACES.md) for pharmacy/clinic/hospital presets, configurable modules, business naming, staff recruitment and role-specific workspaces. First-run service setup is required by default. Independent SaaS tenant onboarding is not yet enabled: shared catalogue/pricing ownership still requires isolation work.

@@ -1,11 +1,11 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load service_access %}
 {% block title %}Cashier{% endblock %}
 {% block content %}{% if context_patient %}{% include 'operations/patient_banner.html' with patient=context_patient %}{% endif %}
 <div class="card">
-  <h2>Cash Session</h2><p><a href="/suite/finance/">Receivables and reconciliation</a></p>
+  <h2>Cash Session</h2><p>{% accessible_link %}<a href="/suite/finance/">Receivables and reconciliation</a>{% endaccessible_link %}</p>
   <div class="chips" style="margin-bottom:8px">
-    <a class="btn btn-secondary" href="/cashier/session/report">Session Report</a>
-    <a class="btn btn-secondary" href="/cashier/cashbook">Cashbook</a>
+    {% accessible_link %}<a class="btn btn-secondary" href="/cashier/session/report">Session Report</a>{% endaccessible_link %}
+    {% accessible_link %}<a class="btn btn-secondary" href="/cashier/cashbook">Cashbook</a>{% endaccessible_link %}
   </div>
   {% if session %}
     <div class="chips" style="margin-bottom:8px">
@@ -57,7 +57,7 @@
     <tbody>
       {% for inv in invoices %}
       <tr>
-        <td><a href="{% url 'suite-invoice-detail' inv.pk %}">{{ inv.id }}</a></td>
+        <td>{% accessible_link %}<a href="{% url 'suite-invoice-detail' inv.pk %}">{{ inv.id }}</a>{% endaccessible_link %}</td>
         <td>{{ inv.patient }}</td>
         <td>{{ inv.total_amount }}</td>
         <td>{{ inv.paid_amount }}</td>
@@ -69,8 +69,8 @@
             <input type="hidden" name="method" value="cash" />
             <input type="number" name="amount" step="0.01" min="0" max="{{ inv.balance }}" value="{{ inv.balance }}" style="width:120px; padding:6px; border:1px solid #cbd5e1; border-radius:6px;" />
             <button class="btn" type="submit">Receipt</button>
-            <a class="btn btn-secondary" href="/cashier/invoice/{{ inv.id }}/print" style="margin-left:6px">Print</a>
-            <a class="btn btn-secondary" href="/cashier/invoice/{{ inv.id }}/print?format=pdf" style="margin-left:6px">PDF</a>
+            {% accessible_link %}<a class="btn btn-secondary" href="/cashier/invoice/{{ inv.id }}/print" style="margin-left:6px">Print</a>{% endaccessible_link %}
+            {% accessible_link %}<a class="btn btn-secondary" href="/cashier/invoice/{{ inv.id }}/print?format=pdf" style="margin-left:6px">PDF</a>{% endaccessible_link %}
           </form>
         </td>
       </tr>
@@ -104,8 +104,8 @@
         <td>{{ p.amount }}</td>
         <td>{{ p.paid_at|date:"Y-m-d H:i" }}</td>
         <td>
-          <a class="btn btn-secondary" href="/cashier/receipt/{{ p.id }}/print">Print</a>
-          <a class="btn btn-secondary" href="/cashier/receipt/{{ p.id }}/print?format=pdf" style="margin-left:6px">PDF</a>
+          {% accessible_link %}<a class="btn btn-secondary" href="/cashier/receipt/{{ p.id }}/print">Print</a>{% endaccessible_link %}
+          {% accessible_link %}<a class="btn btn-secondary" href="/cashier/receipt/{{ p.id }}/print?format=pdf" style="margin-left:6px">PDF</a>{% endaccessible_link %}
         </td>
       </tr>
       {% endfor %}

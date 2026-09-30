@@ -211,7 +211,11 @@ def test_logout_uses_post(clinic, client):
 ])
 def test_core_screens_render_after_framework_upgrade(clinic, client, name):
     client.force_login(clinic.user)
-    assert client.get(reverse(name)).status_code == 200
+    response=client.get(reverse(name))
+    if name=='home':
+        assert response.status_code==302 and response.url==reverse('suite-home')
+        response=client.get(response.url)
+    assert response.status_code==200
 
 
 def test_procurement_requires_csrf_and_valid_post_succeeds(clinic):
