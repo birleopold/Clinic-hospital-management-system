@@ -3,6 +3,8 @@ from django.db import models
 from simple_history.models import HistoricalRecords
 
 class Patient(models.Model):
+    merged_into = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT, related_name="aliases")
+
     medical_record_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     guardian_name = models.CharField(max_length=160, blank=True)
     guardian_phone = models.CharField(max_length=32, blank=True)

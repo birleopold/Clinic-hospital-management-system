@@ -44,6 +44,9 @@ class Order(models.Model):
 
 
 class OrderResult(models.Model):
+    specimen = models.ForeignKey("operations.Specimen", null=True, blank=True, on_delete=models.PROTECT)
+    catalog_analyte = models.ForeignKey("operations.LabAnalyte", null=True, blank=True, on_delete=models.PROTECT)
+
     recorded_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.PROTECT, related_name="+")
     supersedes = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT)
     approved_at = models.DateTimeField(null=True, blank=True)

@@ -1,0 +1,9 @@
+[Unit]
+Description=Dispatch clinic reminders
+After=network.target
+[Service]
+Type=oneshot
+User=clinic
+WorkingDirectory=/opt/clinic
+EnvironmentFile=/etc/clinic.env
+ExecStart=/opt/clinic/venv/bin/python manage.py dispatch_reminders

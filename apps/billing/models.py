@@ -107,6 +107,8 @@ class Payment(models.Model):
     CASH = 'cash'
     METHOD_CHOICES = [
         (CASH, 'Cash'),
+        ('mobile_money', 'Mobile money'),
+        ('insurance', 'Insurance remittance'),
     ]
 
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='payments')

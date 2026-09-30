@@ -1,0 +1,11 @@
+[Unit]
+Description=Clinic encrypted-volume backup bundle
+After=network.target
+[Service]
+Type=oneshot
+User=clinic
+Group=clinic
+WorkingDirectory=/opt/clinic
+EnvironmentFile=/etc/clinic.env
+UMask=0077
+ExecStart=/bin/sh -c '/opt/clinic/venv/bin/python manage.py backup_bundle /var/backups/clinic/$(date -u +%%Y%%m%%dT%%H%%M%%SZ)'

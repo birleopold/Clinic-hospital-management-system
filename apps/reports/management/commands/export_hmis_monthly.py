@@ -1,4 +1,10 @@
 import csv
+from common.exports import spreadsheet_value
+
+class SafeDictWriter(csv.DictWriter):
+    def writerow(self,row):
+        return super().writerow({k:spreadsheet_value(v) for k,v in row.items()})
+
 from calendar import monthrange
 import datetime as dt
 from pathlib import Path
@@ -29,6 +35,7 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
+        parser.add_argument('--facility-id',type=int,required=True)
         parser.add_argument('--year', type=int, required=True)
         parser.add_argument('--month', type=int, required=True, choices=range(1, 13))
         parser.add_argument(
@@ -56,9 +63,9 @@ class Command(BaseCommand):
 
         # 01 — New patient registrations (demographics)
         p_path = out_root / f'01_new_patients_{sub}.csv'
-        new_patients = Patient.objects.filter(created_at__gte=start, created_at__lte=end).order_by('id')
+        new_patients = Patient.objects.filter(facility_id=options['facility_id'],merged_into__isnull=True,created_at__gte=start, created_at__lte=end).order_by('id')
         with p_path.open('w', newline='', encoding='utf-8') as f:
-            w = csv.DictWriter(
+            w = SafeDictWriter(
                 f,
                 fieldnames=[
                     'patient_id',
@@ -90,11 +97,11 @@ class Command(BaseCommand):
 
         # 02 — OPD-style visits (encounters started in month)
         e_path = out_root / f'02_opd_visits_{sub}.csv'
-        enc_qs = Encounter.objects.filter(started_at__gte=start, started_at__lte=end).select_related(
+        enc_qs = Encounter.objects.filter(facility_id=options['facility_id'],started_at__gte=start, started_at__lte=end).select_related(
             'patient', 'clinician', 'facility'
         )
         with e_path.open('w', newline='', encoding='utf-8') as f:
-            w = csv.DictWriter(
+            w = SafeDictWriter(
                 f,
                 fieldnames=[
                     'encounter_id',
@@ -127,12 +134,12 @@ class Command(BaseCommand):
         # 03 — Diagnoses linked to encounters in window
         d_path = out_root / f'03_diagnoses_{sub}.csv'
         dx_qs = (
-            Diagnosis.objects.filter(encounter__started_at__gte=start, encounter__started_at__lte=end)
+            Diagnosis.objects.filter(encounter__facility_id=options['facility_id'],encounter__started_at__gte=start, encounter__started_at__lte=end)
             .select_related('encounter')
             .order_by('id')
         )
         with d_path.open('w', newline='', encoding='utf-8') as f:
-            w = csv.DictWriter(
+            w = SafeDictWriter(
                 f,
                 fieldnames=[
                     'diagnosis_id',
@@ -165,13 +172,13 @@ class Command(BaseCommand):
         # 04 — Service revenue by invoice line code (invoice created in month)
         r_path = out_root / f'04_revenue_by_service_code_{sub}.csv'
         lines = (
-            InvoiceLine.objects.filter(invoice__created_at__gte=start, invoice__created_at__lte=end)
+            InvoiceLine.objects.filter(invoice__patient__facility_id=options['facility_id'],invoice__created_at__gte=start, invoice__created_at__lte=end)
             .values('code')
             .annotate(line_count=Count('id'), qty_sum=Sum('quantity'), amount_sum=Sum('line_total'))
             .order_by('-amount_sum')
         )
         with r_path.open('w', newline='', encoding='utf-8') as f:
-            w = csv.DictWriter(
+            w = SafeDictWriter(
                 f,
                 fieldnames=['service_code', 'line_count', 'quantity_sum', 'line_total_sum'],
             )
@@ -189,13 +196,13 @@ class Command(BaseCommand):
         # 05 — Diagnosis mix (counts by coding system + code)
         m_path = out_root / f'05_diagnosis_mix_{sub}.csv'
         mix = (
-            Diagnosis.objects.filter(encounter__started_at__gte=start, encounter__started_at__lte=end)
+            Diagnosis.objects.filter(encounter__facility_id=options['facility_id'],encounter__started_at__gte=start, encounter__started_at__lte=end)
             .values('coding_system', 'code')
             .annotate(dx_count=Count('id'))
             .order_by('-dx_count')
         )
         with m_path.open('w', newline='', encoding='utf-8') as f:
-            w = csv.DictWriter(f, fieldnames=['coding_system', 'code', 'diagnosis_count'])
+            w = SafeDictWriter(f, fieldnames=['coding_system', 'code', 'diagnosis_count'])
             w.writeheader()
             for row in mix:
                 w.writerow(

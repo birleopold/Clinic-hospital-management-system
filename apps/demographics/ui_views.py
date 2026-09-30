@@ -45,7 +45,7 @@ def patient_list_view(request):
     if not (user.is_superuser or user.role in ALLOWED_VIEW_ROLES):
         return HttpResponseForbidden('Not allowed')
     q = (request.GET.get('q') or '').strip()
-    qs = filter_by_facility(Patient.objects.all(), user).order_by('-id')
+    qs = filter_by_facility(Patient.objects.filter(merged_into__isnull=True), user).order_by('-id')
     if q:
         from django.db.models import Q
         try:
@@ -54,11 +54,11 @@ def patient_list_view(request):
             pid = None
         flt = (
             Q(first_name__icontains=q) | Q(last_name__icontains=q) |
-            Q(other_names__icontains=q) | Q(phone__icontains=q) | Q(medical_record_id__icontains=q)
+            Q(other_names__icontains=q) | Q(phone__icontains=q) | Q(medical_record_id__icontains=q) | Q(aliases__medical_record_id__icontains=q)
         )
         if pid is not None:
             flt = flt | Q(id=pid)
-        qs = qs.filter(flt)
+        qs = qs.filter(flt).distinct()
     context = {
         'patients': qs[:200],
         'q': q,

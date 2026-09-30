@@ -4,6 +4,8 @@ Research and repository review: **29 September 2026**. This is a prioritized pro
 
 ## Implementation status
 
+For the latest implementation matrix and remaining work, see [EXPANDED_SUITE.md](EXPANDED_SUITE.md).
+
 An integrated suite foundation is now implemented. See [SUITE_RELEASE.md](SUITE_RELEASE.md) for the exact available workflows, upgrade steps, validation and remaining work. The proposal below retains the original target scope and must not be read as a completion checklist.
 
 ## Recommendation

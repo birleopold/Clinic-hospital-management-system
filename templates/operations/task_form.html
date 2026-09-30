@@ -1,0 +1,1 @@
+{% extends 'base.html' %}{% block content %}<div class="page-heading"><div><div class="eyebrow">Clinic operations</div><h1>{{ title }}</h1></div><a href="{% url 'suite-home' %}">← Workspace</a></div><section class="card" style="max-width:700px"><form method="post">{% csrf_token %}{{ form.as_p }}<button>{{ button }}</button></form></section>{% endblock %}

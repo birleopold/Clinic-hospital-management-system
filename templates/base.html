@@ -251,12 +251,12 @@
             <a href="{% if user.is_superuser %}/admin/{% else %}/billing/settings{% endif %}" class="dropbtn">Setup</a>
             <div class="dropdown-content">
               {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' %}<a href="/billing/settings">Settings</a>{% endif %}
-              {% if user.is_superuser or user.role == 'admin' %}<a href="/admin/">Django Admin</a>{% endif %}
+              {% if user.is_superuser %}<a href="/admin/">Django Admin</a>{% endif %}
             </div>
           {% endif %}
         </div>
 
-        <span class="chip" style="background:#0ea5e9; color:#fff">{{ user.role|default:"user" }}</span>
+        <span class="chip" style="background:#075985; color:#fff">{{ user.role|default:"user" }}</span>
         <form method="post" action="{% url 'logout' %}" style="display:inline">
           {% csrf_token %}<button type="submit">Logout</button>
         </form>

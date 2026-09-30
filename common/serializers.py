@@ -12,6 +12,8 @@ class FacilityScopedSerializer(serializers.ModelSerializer):
         'encounters.encounter': 'facility_id',
         'appointments.appointment': 'patient__facility_id',
         'orders.orderresult': 'order__patient__facility_id',
+        'operations.specimen': 'order__patient__facility_id',
+        'operations.labanalyte': 'panel__facility_id',
         'operations.serviceroom': 'facility_id',
         'inventory.batch': 'location__facility_id',
         'orders.order': 'patient__facility_id',
@@ -41,6 +43,8 @@ class FacilityScopedSerializer(serializers.ModelSerializer):
             return attrs.get(name, getattr(self.instance, name, None))
 
         patient = value('patient')
+        if patient and patient.merged_into_id:
+            raise serializers.ValidationError({'patient': 'This patient was merged. Use the canonical patient record.'})
         for name in ('encounter', 'appointment'):
             related = value(name)
             if patient and related and related.patient_id != patient.pk:

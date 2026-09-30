@@ -21,7 +21,7 @@ def _patient_fhir(p: Patient) -> dict:
     r = {
         'resourceType': 'Patient',
         'id': f'patient-{p.pk}',
-        'identifier': [{'system': 'urn:ug-hms:patient-id', 'value': str(p.pk)}],
+        'identifier': [{'system': 'urn:ug-hms:patient-id', 'value': str(p.medical_record_id)}],
         'name': [
             {
                 'family': p.last_name,
@@ -62,6 +62,7 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
+        parser.add_argument('--facility-id',type=int,required=True)
         parser.add_argument('--from-date', required=True, help='Inclusive start date YYYY-MM-DD (local TZ).')
         parser.add_argument('--to-date', required=True, help='Inclusive end date YYYY-MM-DD (local TZ).')
         parser.add_argument('--output', '-o', required=True, help='NDJSON output file path.')
@@ -78,7 +79,7 @@ class Command(BaseCommand):
         start, _ = _local_day_bounds(d0)
         _, end = _local_day_bounds(d1)
 
-        enc_qs = Encounter.objects.filter(started_at__gte=start, started_at__lte=end).order_by('id')
+        enc_qs = Encounter.objects.filter(facility_id=options['facility_id'],started_at__gte=start, started_at__lte=end).order_by('id')
         patient_ids = set(enc_qs.values_list('patient_id', flat=True))
         patients = {p.id: p for p in Patient.objects.filter(id__in=patient_ids)}
 

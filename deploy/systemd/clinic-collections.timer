@@ -1,0 +1,7 @@
+[Unit]
+Description=Poll outstanding clinic collections
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1min
+[Install]
+WantedBy=timers.target

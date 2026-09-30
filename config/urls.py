@@ -5,7 +5,10 @@ from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+from apps.integrations.webhooks import sms_delivery
+
 urlpatterns = [
+    path('integrations/sms/delivery/', sms_delivery, name='sms-delivery'),
     path('admin/', admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),  # login/logout/password
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

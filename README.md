@@ -160,3 +160,7 @@ Create the `exports/` directory before writing individual output files. Use the 
 - [Earlier roadmap](docs/ROADMAP.md)
 
 No project license has been selected in this repository. Confirm ownership and choose a license before distributing or incorporating third-party code. The research document links reference projects; their source code has not been copied into this project.
+
+## Expanded suite
+
+See [expanded workflows and deployment checks](docs/EXPANDED_SUITE.md) for patient merging, laboratory catalogs, inpatient rounds, coverage/co-pay, provider integrations, UI improvements and explicit remaining work.

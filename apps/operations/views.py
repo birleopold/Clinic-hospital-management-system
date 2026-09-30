@@ -21,10 +21,23 @@ from apps.pharmacy.models import PrescriptionItem
 from apps.inventory.models import Batch
 from apps.billing.models import Payment, Invoice
 from .models import ClinicalEntry, Referral, Specimen, StockLocation, StockCount, Refund, Bed, Admission, NursingObservation, MedicationAdministration, Payer, Claim, PortalGrant, Reminder, DuplicateReview, ServiceRoom, InvoiceCredit
+from .models import PatientMerge, LabPanel, LabAnalyte, InpatientOrder, CarePlan, PackageUnit, SupplierCredit, CoveragePlan, Policy, Remittance, PaymentIntent
+from apps.inventory.models import InventoryItem, Supplier, PurchaseOrder
+from .advanced_services import merge_patients, prepare_claim, post_remittance, scheduled_doses
 from .services import post_count, approve_refund, transfer_stock, approve_credit
 
 # Every collection and writable relation has an explicit scope and role policy.
 MODULES = {
+ 'lab-panels': (LabPanel, 'Laboratory panels', ['facility','code','name','specimen_type','active'], 'facility_id', ['lab','manager']),
+ 'lab-analytes': (LabAnalyte, 'Analytes & approved ranges', ['panel','code','name','units','low','high','reference_note'], 'panel__facility_id', ['lab','manager']),
+ 'inpatient-orders': (InpatientOrder, 'Inpatient medication orders', ['admission','prescription_item','dose','route','interval_hours','starts_at','ends_at'], 'admission__patient__facility_id', ['clinician']),
+ 'care-plans': (CarePlan, 'Nursing care plans', ['admission','problem','goal','intervention','review_at'], 'admission__patient__facility_id', ['nurse','clinician']),
+ 'packages': (PackageUnit, 'Packaging & units', ['item','name','units_per_pack'], None, ['store','manager','pharmacy']),
+ 'supplier-credits': (SupplierCredit, 'Supplier credit reconciliation', ['facility','supplier','reference','amount','reason','applied_po'], 'facility_id', ['store','manager']),
+ 'coverage': (CoveragePlan, 'Coverage rules', ['payer','name','service_code','covered_percent','requires_authorization','valid_from','valid_until'], 'payer__facility_id', ['manager']),
+ 'policies': (Policy, 'Patient insurance eligibility', ['patient','payer','membership_number','valid_from','valid_until','verification_reference'], 'patient__facility_id', ['cashier','manager']),
+ 'remittances': (Remittance, 'Payer remittances', ['claim','reference','amount'], 'claim__invoice__patient__facility_id', ['cashier','manager']),
+ 'collections': (PaymentIntent, 'Mobile-money collections', ['invoice','amount','phone'], 'invoice__patient__facility_id', ['cashier','manager']),
  'credits': (InvoiceCredit, 'Invoice credits', ['invoice','amount','reason'], 'invoice__patient__facility_id', ['cashier','manager']),
  'rooms': (ServiceRoom, 'Service rooms', ['facility','name'], 'facility_id', ['manager','reception']),
  'bookings': (Appointment, 'Appointment bookings', ['patient','clinician','room','appointment_type','scheduled_for','duration_minutes','reason_for_visit'], 'patient__facility_id', ['reception','clinician']),
@@ -33,7 +46,7 @@ MODULES = {
  'clinical': (ClinicalEntry, 'Clinical history', ['patient','kind','text','supersedes'], 'patient__facility_id', ['clinician','nurse']),
  'referrals': (Referral, 'Referrals & follow-up', ['patient','destination','reason','due_date'], 'patient__facility_id', ['clinician','nurse']),
  'specimens': (Specimen, 'Specimen tracking', ['order','specimen_type'], 'order__patient__facility_id', ['lab','clinician']),
- 'results': (OrderResult, 'Results & approval', ['order','supersedes','analyte','value','units','reference_range','result_text','attachment','critical'], 'order__patient__facility_id', ['lab','clinician']),
+ 'results': (OrderResult, 'Results & approval', ['order','specimen','catalog_analyte','supersedes','analyte','value','units','reference_range','result_text','attachment','critical'], 'order__patient__facility_id', ['lab','clinician']),
  'locations': (StockLocation, 'Stock locations', ['facility','name'], 'facility_id', ['store','manager','pharmacy']),
  'counts': (StockCount, 'Stock counts', ['batch','counted','reason'], 'batch__location__facility_id', ['store','manager','pharmacy']),
  'refunds': (Refund, 'Refund requests', ['payment','amount','reason'], 'payment__invoice__patient__facility_id', ['cashier','manager']),
@@ -45,6 +58,9 @@ MODULES = {
  'claims': (Claim, 'Insurance claims', ['invoice','payer','membership_number','authorization_reference','amount'], 'invoice__patient__facility_id', ['cashier','manager']),
 }
 RELATIONS = {
+ LabPanel:'facility_id', LabAnalyte:'panel__facility_id', Specimen:'order__patient__facility_id',
+ Policy:'patient__facility_id', Claim:'invoice__patient__facility_id', PurchaseOrder:'facility_id',
+
  User: 'staff_profile__facility_id', ServiceRoom: 'facility_id',
  Patient: 'facility_id', Encounter: 'facility_id', Order: 'patient__facility_id',
  OrderResult: 'order__patient__facility_id', ClinicalEntry: 'patient__facility_id', Batch: 'location__facility_id',
@@ -65,6 +81,8 @@ def config(request, slug):
     return conf
 
 def scoped(model, user, field):
+    if field is None:
+        return model.objects.all() if allowed(user,['store','manager','pharmacy']) else model.objects.none()
     return filter_by_facility(model.objects.all(), user, field=field)
 
 @login_required
@@ -99,10 +117,15 @@ def collection(request, slug):
             related = field.queryset.model
             if related.__name__ == 'Facility':
                 field.queryset = filter_by_facility(field.queryset,request.user,field='pk')
+            elif related in (InventoryItem,Supplier):
+                field.queryset = field.queryset.all()
             elif related in RELATIONS:
                 field.queryset = scoped(related,request.user,RELATIONS[related])
             else:
                 field.queryset = field.queryset.none()
+            if related is Patient:
+                field.queryset = field.queryset.filter(merged_into__isnull=True)
+                field.label_from_instance = lambda p: f'{p} · {str(p.medical_record_id)[:8]}'
             if related is User:
                 field.queryset = field.queryset.filter(role='clinician',is_active=True)
             if related is Bed:
@@ -153,14 +176,27 @@ def collection(request, slug):
                 if isinstance(obj,Claim):
                     if obj.payer.facility_id != obj.invoice.patient.facility_id or obj.amount <= 0 or obj.amount > obj.invoice.total_amount:
                         raise ValidationError('Choose a payer in the same facility and a valid invoice amount.')
+                from .advanced_validation import validate_new_record
+                validate_new_record(obj,request.user)
                 obj.save()
+                if isinstance(obj,Remittance): post_remittance(obj)
                 if isinstance(obj,ClinicalEntry) and obj.kind == 'allergy':
                     Patient.objects.filter(pk=obj.patient_id).update(allergy_status='recorded')
             messages.success(request,'Record saved.')
             return redirect('suite-collection',slug=slug)
         except (ValidationError,IntegrityError) as exc:
             form.add_error(None,'; '.join(exc.messages) if isinstance(exc,ValidationError) else 'A conflicting record already exists. Refresh and try again.')
-    records = scoped(model,request.user,scope).order_by('-pk')[:100]
+    from django.core.paginator import Paginator
+    records = scoped(model,request.user,scope).order_by('-pk')
+    query=request.GET.get('q','').strip()
+    if query:
+        filters=Q()
+        for field in model._meta.fields:
+            if isinstance(field,(model._meta.get_field('id').__class__,)) and query.isdigit(): filters |= Q(pk=int(query))
+            if field.get_internal_type() in ('CharField','TextField'): filters |= Q(**{field.name+'__icontains':query})
+        records=records.filter(filters)
+    page=Paginator(records,25).get_page(request.GET.get('page'))
+    records=page.object_list
     rows=[]
     for obj in records:
         state = getattr(obj,'status','')
@@ -174,7 +210,7 @@ def collection(request, slug):
             if isinstance(value,bool): value='Yes' if value else 'No'
             values.append(str(value or '—')[:180])
         rows.append({'obj':obj,'values':values,'state':state})
-    return render(request,'operations/collection.html',{'title':title,'slug':slug,'form':form,'rows':rows,'available_beds':scoped(Bed,request.user,'facility_id').filter(active=True).exclude(admission__discharged_at__isnull=True,admission__isnull=False) if slug=='admissions' else [],'headers':[model._meta.get_field(f).verbose_name for f in fields if f!='attachment']})
+    return render(request,'operations/collection.html',{'page':page,'query':query,'title':title,'slug':slug,'form':form,'rows':rows,'available_beds':scoped(Bed,request.user,'facility_id').filter(active=True).exclude(admission__discharged_at__isnull=True,admission__isnull=False) if slug=='admissions' else [],'headers':[model._meta.get_field(f).verbose_name for f in fields if f!='attachment']})
 
 @login_required
 @require_POST
@@ -183,7 +219,26 @@ def action(request,slug,pk,operation):
     try:
         with transaction.atomic():
             obj=get_object_or_404(scoped(model,request.user,scope).select_for_update(),pk=pk)
-            if slug == 'bookings' and operation in ('confirmed','cancelled','no_show'):
+            if slug == 'duplicates' and operation == 'merge':
+                merge_patients(obj.pk,request.user,request.POST.get('reason',''))
+            elif slug == 'policies' and operation == 'verify':
+                if not obj.verification_reference.strip(): raise ValidationError('Record eligibility evidence.')
+                obj.verified_at=timezone.now();obj.save()
+            elif slug == 'supplier-credits' and operation == 'reconcile':
+                if not allowed(request.user,['manager']): raise PermissionDenied
+                if not obj.applied_po_id: raise ValidationError('Link the purchase order before reconciliation.')
+                if not obj.reconciled_at: obj.reconciled_at=timezone.now();obj.save()
+            elif slug == 'inpatient-orders' and operation == 'stop':
+                if not obj.stopped_at:
+                    obj.stop_reason=request.POST.get('reason','').strip()
+                    if not obj.stop_reason: raise ValidationError('A stop reason is required.')
+                    obj.stopped_at=timezone.now();obj.save()
+            elif slug == 'care-plans' and operation == 'complete':
+                if not obj.completed_at:
+                    obj.outcome=request.POST.get('reason','').strip()
+                    if not obj.outcome: raise ValidationError('Record the care-plan outcome.')
+                    obj.completed_at=timezone.now();obj.save()
+            elif slug == 'bookings' and operation in ('confirmed','cancelled','no_show'):
                 obj.status=operation;obj.save()
             elif slug == 'reminders' and operation == 'cancel':
                 if obj.status not in ('pending','failed'): raise ValidationError('Only pending or failed reminders can be cancelled.')
@@ -260,6 +315,7 @@ def action(request,slug,pk,operation):
 def patient_summary(request,pk):
     if not allowed(request.user,['clinician','nurse','pharmacy','lab']): raise PermissionDenied
     patient=get_object_or_404(filter_by_facility(Patient.objects.all(),request.user),pk=pk)
+    if patient.merged_into_id: return redirect('suite-patient',pk=patient.merged_into_id)
     return render(request,'operations/patient.html',{'patient':patient,'entries':ClinicalEntry.objects.filter(patient=patient).select_related('created_by').order_by('-created_at'),'referrals':Referral.objects.filter(patient=patient).order_by('-created_at'),'grants':PortalGrant.objects.filter(patient=patient).order_by('-created_at')})
 
 @login_required
@@ -292,6 +348,7 @@ def stock_workspace(request):
         batch=forms.ModelChoiceField(queryset=batches,required=False)
         item=forms.ModelChoiceField(queryset=InventoryItem.objects.all(),required=False)
         location=forms.ModelChoiceField(queryset=locations)
+        package=forms.ModelChoiceField(queryset=PackageUnit.objects.all(),required=False,help_text='If selected, quantity is in packs. Balances are stored in base units.')
         quantity=forms.DecimalField(max_digits=12,decimal_places=2,min_value=Decimal('0.01'),required=False)
         batch_number=forms.CharField(max_length=64,required=False)
         expiry=forms.DateField(required=False,widget=forms.DateInput(attrs={'type':'date'}))
@@ -302,6 +359,10 @@ def stock_workspace(request):
         try:
             with transaction.atomic():
                 op=data['operation'];batch=data['batch'];location=data['location']
+                if data['package']:
+                    item_id=batch.item_id if batch else getattr(data['item'],'pk',None)
+                    if item_id!=data['package'].item_id: raise ValidationError('Package does not match the item.')
+                    if data['quantity'] is not None: data['quantity']*=data['package'].units_per_pack
                 if op=='opening':
                     if not data['item'] or not data['quantity']: raise ValidationError('Item and quantity are required.')
                     batch=Batch.objects.create(item=data['item'],location=location,batch_no=data['batch_number'],expiry=data['expiry'],quantity_on_hand=data['quantity'])

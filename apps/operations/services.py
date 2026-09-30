@@ -35,6 +35,8 @@ def approve_refund(pk, actor):
     if refund.status == 'approved':
         return refund
     payment = Payment.objects.select_for_update().get(pk=refund.payment_id)
+    if payment.method != Payment.CASH:
+        raise ValidationError('Non-cash refunds must be reconciled through the original provider; a cash refund is not allowed.')
     invoice = Invoice.objects.select_for_update().get(pk=payment.invoice_id)
     previous = payment.refunds.filter(status='approved').aggregate(s=Sum('amount'))['s'] or Decimal('0')
     if refund.amount <= 0 or previous + refund.amount > payment.amount:

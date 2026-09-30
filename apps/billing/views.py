@@ -61,6 +61,8 @@ class PaymentViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
         invoice = Invoice.objects.select_for_update().get(
             pk=serializer.validated_data['invoice'].pk
         )
+        if serializer.validated_data.get('method', 'cash') != 'cash':
+            raise ValidationError({'method': 'Use verified collection or remittance workflows for non-cash payments.'})
         amount = serializer.validated_data['amount']
         if invoice.status == Invoice.CANCELLED:
             raise ValidationError({'invoice': 'Cannot pay a cancelled invoice.'})
