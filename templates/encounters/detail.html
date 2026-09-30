@@ -3,6 +3,7 @@
 {% block content %}
 <a href="{% url 'ehr-board' %}" class="muted">← Back to board</a>
 
+<p><a class="btn btn-secondary" href="{% url 'suite-patient' encounter.patient_id %}">Open full patient chart →</a></p>
 <div class="card">
   <h2 style="margin:0 0 10px;">Encounter #{{ encounter.id }}</h2>
   <div class="chips">

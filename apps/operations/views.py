@@ -122,19 +122,11 @@ def scoped(model, user, field):
 @login_required
 def workspace(request):
     links = [{'slug':key,'label':conf[1]} for key,conf in MODULES.items() if allowed(request.user,conf[4])]
-    encounters = filter_by_facility(Encounter.objects.filter(status='open'), request.user)
-    show_clinical = allowed(request.user,['clinician','nurse'])
-    return render(request,'operations/home.html',{
-        'unreviewed_results':scoped(OrderResult,request.user,'order__patient__facility_id').filter(approved_at__isnull=True).count(),
-        'overdue_referrals':scoped(Referral,request.user,'patient__facility_id').filter(status__in=['open','accepted'],due_date__lt=timezone.localdate()).count(),
-        'failed_reminders':scoped(Reminder,request.user,'patient__facility_id').filter(status='failed').count(),
-        'expiring_batches':scoped(Batch,request.user,'location__facility_id').filter(quantity_on_hand__gt=0,expiry__lte=timezone.localdate()+timedelta(days=30)).count(),
-        'modules':links, 'active_visits':encounters.count(),
-        'pending_results':filter_by_patient_facility(Order.objects.filter(status='ordered',order_type='lab'),request.user).count(),
-        'open_referrals':filter_by_patient_facility(Referral.objects.filter(status='open'),request.user).count(),
-        'admissions_count':filter_by_patient_facility(Admission.objects.filter(discharged_at__isnull=True),request.user).count(),
-        'visits':encounters.select_related('patient','clinician').order_by('started_at')[:50] if show_clinical else [],
-    })
+    from .workspaces import workspace_context
+    context = workspace_context(request.user)
+    context['modules'] = links
+    return render(request,'operations/home.html',context)
+
 
 def collection_form(request, model, fields):
     Form = forms.modelform_factory(model,fields=fields)
@@ -166,6 +158,12 @@ def collection_form(request, model, fields):
                 field.queryset = field.queryset.filter(discharged_at__isnull=True)
             if related is Order:
                 field.queryset = field.queryset.exclude(status='cancelled')
+    if request.method == 'GET' and request.GET.get('patient') and 'patient' in form.fields:
+        try:
+            selected = form.fields['patient'].queryset.get(pk=request.GET['patient'])
+        except (ValueError, Patient.DoesNotExist):
+            raise Http404
+        form.initial['patient'] = selected.pk
     return form
 
 
@@ -387,7 +385,7 @@ def action(request,slug,pk,operation):
 
 @login_required
 def patient_summary(request,pk):
-    if not allowed(request.user,['clinician','nurse','pharmacy','lab']): raise PermissionDenied
+    if not allowed(request.user,['clinician','nurse']): raise PermissionDenied
     patient=get_object_or_404(filter_by_facility(Patient.objects.all(),request.user),pk=pk)
     if patient.merged_into_id: return redirect('suite-patient',pk=patient.merged_into_id)
     specialty_records = []

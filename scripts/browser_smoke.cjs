@@ -16,7 +16,7 @@ const assert = require('node:assert/strict');
     await page.locator('[name=password]').fill(process.env.CLINIC_TEST_PASSWORD);
     await Promise.all([page.waitForURL(url => !url.pathname.includes('/login')),
       page.locator('button[type=submit]').click()]);
-    for (const width of [1440, 390]) {
+    for (const width of [1440, 768, 390]) {
       await page.setViewportSize({ width, height: 900 });
       for (const path of ['/suite/', '/suite/results/', '/suite/insurance/prepare/',
         '/suite/stock/', '/suite/medication-round/', '/suite/theatre/',
@@ -25,7 +25,7 @@ const assert = require('node:assert/strict');
         '/suite/vaccination-corrections/', '/suite/storage-protocols/', '/suite/cold-chain/',
         '/suite/perioperative/', '/suite/instrument-counts/', '/suite/deliveries/',
         '/suite/newborns/', '/suite/labour-observations/', '/suite/rehab-outcomes/',
-        '/suite/vaccine-adverse-events/']) {
+        '/suite/vaccine-adverse-events/', '/suite/find-patient/', ...(process.env.CLINIC_TEST_PATIENT_ID ? ['/suite/patient/'+process.env.CLINIC_TEST_PATIENT_ID+'/'] : [])]) {
         const response = await page.goto(base + path);
         assert.equal(response.status(), 200, path);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, path);
@@ -34,11 +34,22 @@ const assert = require('node:assert/strict');
           runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa'] }
         }));
         assert.deepEqual(result.violations.map(v => ({ id: v.id, impact: v.impact })), [], path);
-        if (process.env.CLINIC_TEST_SCREENSHOTS && ['/suite/theatre/','/suite/specialty-follow-up/'].includes(path)) {
+        if (process.env.CLINIC_TEST_SCREENSHOTS && (['/suite/','/suite/theatre/','/suite/specialty-follow-up/'].includes(path)||path.startsWith('/suite/patient/'))) {
           require('node:fs').mkdirSync(process.env.CLINIC_TEST_SCREENSHOTS,{recursive:true});
-          await page.screenshot({path:require('node:path').join(process.env.CLINIC_TEST_SCREENSHOTS, path.split('/')[2]+'-'+width+'.png'),fullPage:true});
+          await page.screenshot({path:require('node:path').join(process.env.CLINIC_TEST_SCREENSHOTS, (path.split('/')[2]||'home')+'-'+width+'.png'),fullPage:true});
         }
       }
+    }
+    await page.setViewportSize({width:390,height:900});
+    await page.goto(`${base}/suite/`);
+    await page.getByRole('button',{name:'Menu',exact:true}).click();
+    assert.equal(await page.locator('#navigation-toggle').getAttribute('aria-expanded'),'true');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('#navigation-toggle').getAttribute('aria-expanded'),'false');
+    if(process.env.CLINIC_TEST_PATIENT_ID){
+      await page.goto(`${base}/suite/patient/${process.env.CLINIC_TEST_PATIENT_ID}/`);
+      await page.getByRole('link',{name:'Add clinical note',exact:true}).click();
+      assert.equal(await page.locator('#id_patient').inputValue(),process.env.CLINIC_TEST_PATIENT_ID);
     }
     await page.goto(`${base}/suite/pregnancies/`);
     const detailLink=page.locator('a[href^="/suite/specialties/pregnancies/"]').first();

@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, advanced_views, offline_views
+from . import views, advanced_views, offline_views, chart_views
 urlpatterns = [
     path('offline/', offline_views.shell, name='suite-offline'),
     path('offline/sw.js', offline_views.service_worker),
@@ -18,8 +18,10 @@ urlpatterns = [
     path('suite/medication-round/', advanced_views.medication_round, name='suite-medication-round'),
     path('suite/reorder-report/', advanced_views.reorder_report, name='suite-reorder'),
     path('suite/stock/', views.stock_workspace, name='suite-stock'),
+    path('suite/find-patient/', chart_views.patient_search, name='suite-patient-search'),
     path('suite/', views.workspace, name='suite-home'),
-    path('suite/patient/<int:pk>/', views.patient_summary, name='suite-patient'),
+    path('suite/patient/<int:pk>/', chart_views.patient_chart, name='suite-patient'),
+    path('suite/patient/<int:pk>/history/', views.patient_summary, name='suite-patient-history'),
     path('suite/results/<int:pk>/download/', views.result_download, name='suite-download'),
     path('suite/grants/<int:pk>/revoke/', views.revoke_grant, name='suite-revoke'),
     path('suite/<slug:slug>/', views.collection, name='suite-collection'),

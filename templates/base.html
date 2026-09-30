@@ -191,10 +191,12 @@
   <link rel="stylesheet" href="{% static 'css/suite.css' %}">
   {% block head %}{% endblock %}
 </head>
-<body>
+<body {% if user.is_authenticated %}class="workspace-shell"{% endif %}>
   <a class="skip-link" href="#main-content">Skip to content</a>
-  <header>
-    <nav>
+  {% if user.is_authenticated %}<div class="workspace-topbar no-print"><button id="navigation-toggle" aria-controls="workspace-navigation" aria-expanded="true" type="button">Menu</button><span class="facility-context">{% if user.is_superuser %}All facilities{% else %}{{ user.staff_profile.facility|default:'Facility not assigned' }}{% endif %}</span>
+  {% if user.is_superuser or user.role == 'admin' or user.role == 'clinician' or user.role == 'nurse' or user.role == 'pharmacy' or user.role == 'lab' %}<form action="{% url 'suite-patient-search' %}" method="get" class="global-patient-search"><label class="visually-hidden" for="global-patient-query">Find patient by name, phone or MRN</label><input id="global-patient-query" name="q" type="search" placeholder="Find patient · name, phone, MRN" minlength="2" maxlength="120" required><button>Find patient</button></form>{% endif %}</div>{% endif %}
+  <header id="workspace-navigation" {% if user.is_authenticated %}class="workspace-sidebar"{% endif %}>
+    <nav aria-label="Main navigation">
       <a class="branding" href="/suite/">Clinic Suite</a><a href="/">Overview</a>
       {% if user.is_authenticated %}
         <a href="/queues">Queues</a>
@@ -276,5 +278,6 @@
     {% endif %}
     {% block content %}{% endblock %}
   </main>
+<script src="{% static 'js/shell.js' %}" defer></script>
 </body>
 </html>
