@@ -108,7 +108,7 @@ def enforce(user,url):
 # Menu roles match the destination's intended read access, independently of enabled services.
 NAVIGATION=[
  ('Workspace','/suite/',None,None),
- ('Tasks','/suite/tasks/',None,None),
+ ('Tasks','/suite/tasks/',None,['reception','nurse','clinician','lab','pharmacy','cashier','store','manager']),
  ('Patients / customers','/patients','patients',['reception','clinician']),
  ('Appointments','/appointments/schedule','appointments',['reception','clinician']),
  ('Consultations','/ehr','clinical',['clinician','nurse']),
@@ -163,8 +163,8 @@ def can_open(user,url):
         entry=MODULES.get(match.kwargs.get('slug'))
         return bool(entry and user.role in entry[4])
     if path.startswith('/suite/diagnostics'):return user.role in ('clinician','lab','radiology')
-    if path.startswith('/pharmacy/rx/'):return 'prescribing'
-    if path.endswith('/handoff/') or path.endswith('/handoff'):return 'appointments'
+    if path.startswith('/pharmacy/rx/'):return user.role in ('clinician','pharmacy')
+    if path.endswith('/handoff'):return user.role in ('reception','nurse','clinician','lab','pharmacy','cashier')
     if path.startswith('/suite/clinical-operations/'):
         from apps.operations.extension_views import REGISTERS
         entry=REGISTERS.get(path.split('/')[3]);return bool(entry and user.role in entry[4])

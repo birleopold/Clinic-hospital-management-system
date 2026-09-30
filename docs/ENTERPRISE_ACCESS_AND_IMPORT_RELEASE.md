@@ -65,7 +65,7 @@ python manage.py migrate --noinput
 python manage.py check
 ```
 
-Back up database/private media and rehearse restoration before upgrade. New migrations include accounts 0005–0007, operations 0030–0031 and django-otp's TOTP schema. On first administrator login, complete authenticator enrollment. Server recovery procedures must be ready before deployment. Do not use `REQUIRE_ADMIN_MFA=0` in production to evade enrollment; the setting exists for isolated development/test fixtures.
+Back up database/private media and rehearse restoration before upgrade. New migrations include accounts 0005–0008, operations 0030–0031 and django-otp's TOTP schema. On first administrator login, complete authenticator enrollment and the facility service setup at `/accounts/setup/`. Server recovery procedures must be ready before deployment. Do not use `REQUIRE_ADMIN_MFA=0` in production to evade enrollment; the setting exists for isolated development/test fixtures.
 
 Automated tests cover enrollment, password confirmation, replay rejection, session/API enforcement, token refresh and revocation, branch grants/expiry scope, independent imports, atomic revalidation, unchanged re-import, default consent, clinical chart scope and amendment selection. The full role suite runs with the MFA policy isolated; dedicated security regressions explicitly enable it. Browser regression covers setup, import, branch selection and initial authenticator enrollment screens at 390/768/1440 widths. Hardware scanning, staff acceptance, production recovery and clinical interpretation remain facility checks.
 

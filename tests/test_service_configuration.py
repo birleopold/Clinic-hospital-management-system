@@ -110,3 +110,32 @@ def test_visible_home_links_are_accessible_for_pharmacy_roles(client,team):
         for href in set(parser.links):
             response=client.get(href)
             assert response.status_code in (200,302),f'{actor.role}: {href}: {response.status_code}'
+
+
+@pytest.mark.parametrize('role',[key for key,label in User.ROLE_CHOICES])
+def test_hospital_home_links_match_every_staff_role(client,team,role):
+    from html.parser import HTMLParser
+    t=team
+    FacilityConfiguration.objects.create(facility=t.f,service_type='hospital',display_name='Synthetic Hospital',enabled_services=PRESETS['hospital'],configured_by=t.manager)
+    t.nurse.role=role;t.nurse.save();client.force_login(t.nurse)
+    class Links(HTMLParser):
+        def __init__(self):super().__init__();self.links=[]
+        def handle_starttag(self,tag,attrs):
+            href=dict(attrs).get('href','')
+            if tag=='a' and href.startswith('/') and not href.startswith('//'):self.links.append(href)
+    page=client.get('/suite/');assert page.status_code==200
+    parser=Links();parser.feed(page.content.decode())
+    for href in set(parser.links):
+        response=client.get(href)
+        assert response.status_code in (200,302),f'{role}: {href}: {response.status_code}'
+
+
+def test_patient_action_link_visibility_matches_roles(team):
+    from common.service_policy import can_open
+    for role in ['store','manager','radiology']:
+        team.nurse.role=role
+        assert not can_open(team.nurse,'/pharmacy/rx/1')
+        assert not can_open(team.nurse,'/suite/patient/1/handoff/')
+    team.nurse.role='clinician'
+    assert can_open(team.nurse,'/pharmacy/rx/1') is True
+    assert can_open(team.nurse,'/suite/patient/1/handoff/') is True

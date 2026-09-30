@@ -37,4 +37,4 @@ Required next work before hosting unrelated tenants in one deployment:
 4. Run two-organization attack/regression tests, including guessed IDs, conflicting product codes, exports, JWTs, background work and branding isolation.
 5. Only then enable independent tenant onboarding and claim multi-tenant isolation.
 
-Fine-grained per-action delegation, atomic reassignment/offboarding and full tenant branding/print templates remain in the tracker. Role-filtered navigation is not a claim that every existing action-specific approval control has completed a separate usability audit.
+Fine-grained per-action delegation, atomic reassignment/offboarding and full tenant branding/print templates remain in the tracker. Automated checks follow each visible home link for every defined staff role in a fully enabled hospital workspace, alongside pharmacy-only regressions. Role-filtered navigation is not a claim that every existing action-specific approval control has completed a separate usability audit.
