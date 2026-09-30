@@ -13,6 +13,8 @@ class OrderResultSerializer(FacilityScopedSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        if self.instance and hasattr(self.instance, "worksheet"):
+            raise serializers.ValidationError("Structured worksheets are immutable. Withdraw a draft or add an amended worksheet.")
         prior = attrs.get("supersedes")
         order = attrs.get("order", self.instance.order if self.instance else None)
         if prior and (

@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
 {% block title %}Lab &amp; imaging queue{% endblock %}
 {% block content %}{% if context_patient %}{% include 'operations/patient_banner.html' with patient=context_patient %}{% endif %}
-<h2 style="margin-top:0;">Pending orders</h2>
-<p class="muted">Oldest first. Enter a result narrative (optional) and submit to mark the order complete.</p>
+<h2 style="margin-top:0;">Pending orders</h2><p><a href="/suite/diagnostics/">Diagnostic scheduling, worksheets and patient reports</a></p>
+<p class="muted">Oldest first. Enter a draft result narrative, then review and release it in Results.</p>
 
 <div class="card" style="overflow:auto;">
   <table>
@@ -37,7 +37,7 @@
             {% csrf_token %}
             <input type="hidden" name="order_id" value="{{ o.id }}" />
             <textarea name="result_text" rows="2" placeholder="Result notes (optional)" style="width:100%; box-sizing:border-box;"></textarea>
-            <button type="submit" class="btn" data-success-message="Order completed">Complete</button>
+            <button type="submit" class="btn" data-success-message="Draft saved">Save draft</button>
           </form>
           <form method="post" action="{% url 'order-cancel' o.id %}" style="margin-top:8px;" onsubmit="return confirm('Cancel this order? Billing will be reversed if it was billable.');">
             {% csrf_token %}

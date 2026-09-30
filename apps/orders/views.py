@@ -26,15 +26,13 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
+        from .services import cancel_order
+        from django.core.exceptions import ValidationError
         order = self.get_object()
-        if order.status != Order.ORDERED:
-            return Response(
-                {'detail': 'Only pending (ordered) orders can be cancelled.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        order.status = Order.CANCELLED
-        order.save(update_fields=['status'])
+        try:order=cancel_order(order.pk,request.user)
+        except ValidationError as exc:return Response({'detail':exc.messages},status=status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(order).data)
+
 
 
 class OrderResultViewSet(viewsets.ModelViewSet):

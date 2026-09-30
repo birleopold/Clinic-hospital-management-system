@@ -11,7 +11,7 @@ from apps.demographics.models import Patient
 from apps.encounters.models import Encounter, Vital
 from apps.pharmacy.models import Prescription
 from apps.orders.models import OrderResult
-from .models import ClinicalEntry, Referral, OfflineReceipt, ConsultationNote, PatientDocument, CarePlan, TheatreCase, Pregnancy, Vaccination, RehabilitationPlan
+from .models import ClinicalEntry, Referral, OfflineReceipt, ConsultationNote, PatientDocument, CarePlan, TheatreCase, Pregnancy, Vaccination, RehabilitationPlan, VisitingCaseNote
 from apps.billing.models import Invoice
 
 
@@ -35,6 +35,7 @@ def patient_chart(request, pk):
         sources['appointments']=(Appointment.objects.filter(patient=patient),'scheduled_for','Appointments')
 
     if clinical:
+        sources['visitingnotes']=(VisitingCaseNote.objects.filter(engagement__case__patient=patient),'created_at','Visiting specialist notes')
         sources['consultations']=(ConsultationNote.objects.filter(patient=patient),'created_at','Consultation notes')
         sources['documents']=(PatientDocument.objects.filter(patient=patient),'created_at','Documents')
         sources['careplans']=(CarePlan.objects.filter(admission__patient=patient),'created_at','Care plans')
@@ -95,6 +96,8 @@ def patient_chart(request, pk):
             if user.is_superuser or user.role in ('admin','pharmacy','clinician'):event['url']=reverse('rx-detail',args=[obj.pk])
         elif key=='results':
             event.update(title=f'{obj.order.code} · {obj.analyte or "Result"}',text=obj.result_text,author=obj.recorded_by)
+        elif key=='visitingnotes':
+            event.update(title=f'Visiting case note #{obj.pk}',text=obj.body)
         elif key=='consultations':
             event.update(title=f'Consultation note #{obj.pk}',text=obj.body,url=reverse('suite-consultation-note',args=[obj.encounter_id])+f'?copy={obj.pk}')
         elif key=='documents':event.update(title=obj.title,text='',url=reverse('suite-document-download',args=[obj.pk]))

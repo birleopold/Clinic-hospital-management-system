@@ -352,6 +352,7 @@ def action(request,slug,pk,operation):
                 if not allowed(request.user,['manager']): raise PermissionDenied
                 approve_refund(pk,request.user)
             elif slug == 'results' and operation == 'release':
+                if hasattr(obj, 'worksheet'):raise ValidationError('Review and release structured worksheets through the Diagnostics workspace.')
                 if not allowed(request.user,['lab','clinician']): raise PermissionDenied
                 if not obj.result_text.strip() and not obj.value.strip() and not obj.attachment:
                     raise ValidationError('A result needs content before release.')

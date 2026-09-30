@@ -17,7 +17,7 @@
   </form>
 </div>
 
-{% if patient and not link %}<form method="post">{% csrf_token %}<button>Create expiring patient link</button></form>{% endif %}
+{% if patient and not link %}<form method="post">{% csrf_token %}{% include 'operations/form_fields.html' %}<button>Create expiring patient link</button></form>{% endif %}
 {% if link %}
 <div class="card">
   <h3 style="margin:0 0 8px;">Shareable Link</h3>
@@ -25,7 +25,7 @@
     <input id="portal_link" type="text" value="{{ link }}" style="width: min(100%, 720px);" readonly />
     <button class="btn btn-secondary" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText(document.getElementById('portal_link').value)">Copy</button>
   </div>
-  <p class="muted" style="margin-top:8px;">Anyone with this link can view the patient’s read‑only summary until it expires. Share securely.</p>
+  <p class="muted" style="margin-top:8px;">Anyone with this link can view the patient’s summary (and submit appointment requests if explicitly enabled) until it expires. Share securely.</p>
 </div>
 {% endif %}
 {% endblock %}

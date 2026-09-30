@@ -341,3 +341,84 @@ def test_postgres_receipts_cannot_exceed_approved_purchase_quantity():
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures=[pool.submit(run,grn) for grn in receipts];assert sorted(f.result(timeout=20) for f in futures)==['posted','rejected']
     assert StockMovement.objects.filter(reason='GRN').count()==1
+
+
+def test_postgres_overlapping_roster_publication_serializes():
+    if connection.vendor!='postgresql':pytest.skip('Requires PostgreSQL row locks')
+    from datetime import timedelta
+    from django.utils import timezone
+    from apps.accounts.models import Department, StaffProfile
+    from apps.operations.workforce_services import create_shift, shift_action
+    from apps.operations.models import DutyShift
+    facility=Facility.objects.create(name='Roster contention')
+    dept=Department.objects.create(facility=facility,name='Clinic')
+    manager=User.objects.create_user(username='roster-manager',role='manager')
+    doctor=User.objects.create_user(username='roster-doctor',role='clinician')
+    for user in (manager,doctor):StaffProfile.objects.update_or_create(user=user,defaults={'facility':facility,'department':dept})
+    now=timezone.now();shifts=[create_shift(manager,facility,dept,doctor,manager,now,now+timedelta(hours=8))[0] for _ in range(2)]
+    barrier=Barrier(2)
+    def run(shift):
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10);shift_action(shift.pk,manager,'publish',1);return 'published'
+        except ValidationError:return 'conflict'
+        finally:close_old_connections()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures=[pool.submit(run,shift) for shift in shifts]
+        assert sorted(f.result(timeout=20) for f in futures)==['conflict','published']
+    assert DutyShift.objects.filter(status='published').count()==1
+
+
+def test_postgres_repeated_clock_in_creates_one_event():
+    if connection.vendor!='postgresql':pytest.skip('Requires PostgreSQL row locks')
+    from datetime import timedelta
+    from django.utils import timezone
+    from apps.accounts.models import Department, StaffProfile
+    from apps.operations.workforce_services import create_shift, shift_action, clock
+    from apps.operations.models import Attendance
+    facility=Facility.objects.create(name='Clock contention');dept=Department.objects.create(facility=facility,name='Clinic')
+    manager=User.objects.create_user(username='clock-manager',role='manager');doctor=User.objects.create_user(username='clock-doctor',role='clinician')
+    for user in (manager,doctor):StaffProfile.objects.update_or_create(user=user,defaults={'facility':facility,'department':dept})
+    now=timezone.now();shift=create_shift(manager,facility,dept,doctor,manager,now-timedelta(minutes=1),now+timedelta(hours=8))[0]
+    shift_action(shift.pk,manager,'publish',1);barrier=Barrier(2)
+    def run():
+        close_old_connections()
+        try:barrier.wait(timeout=10);return clock(shift.pk,doctor,'in').pk
+        finally:close_old_connections()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures=[pool.submit(run) for _ in range(2)];results=[f.result(timeout=20) for f in futures]
+    assert results[0]==results[1] and Attendance.objects.count()==1
+
+
+def test_postgres_diagnostic_release_and_cancel_cannot_both_succeed():
+    if connection.vendor!='postgresql':pytest.skip('Requires PostgreSQL row locks')
+    from apps.accounts.models import StaffProfile
+    from apps.orders.models import Order, OrderResult
+    from apps.orders.services import cancel_order
+    from apps.operations.models import DiagnosticTemplate, DiagnosticWorksheet
+    from apps.operations.diagnostic_services import review
+    facility=Facility.objects.create(name='Diagnostic contention')
+    patient=Patient.objects.create(facility=facility,first_name='Diagnostic',last_name='Race',gender='F')
+    actors=[]
+    for n in range(2):
+        actor=User.objects.create_user(username=f'diagnostic-race-{n}',role='clinician')
+        StaffProfile.objects.update_or_create(user=actor,defaults={'facility':facility});actors.append(actor)
+    order=Order.objects.create(patient=patient,order_type='imaging',code='SYNTHETIC',billable=False)
+    template=DiagnosticTemplate.objects.create(facility=facility,name='Synthetic',version=1,order_type='imaging',fields=[{'key':'findings','label':'Findings','type':'text'}],status='published',created_by=actors[0])
+    result=OrderResult.objects.create(order=order,result_text='Synthetic findings',recorded_by=actors[0])
+    sheet=DiagnosticWorksheet.objects.create(result=result,template=template,snapshot={'fields':template.fields},answers={'findings':'Synthetic findings'},created_by=actors[0])
+    barrier=Barrier(2)
+    def run(operation):
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10)
+            if operation=='release':review(sheet.pk,actors[1],'release','Verified')
+            else:cancel_order(order.pk,actors[1])
+            return operation
+        except ValidationError:return 'conflict'
+        finally:close_old_connections()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures=[pool.submit(run,op) for op in ('release','cancel')];results=[f.result(timeout=20) for f in futures]
+    assert results.count('conflict')==1
+    order.refresh_from_db();result.refresh_from_db()
+    assert (order.status=='completed' and result.approved_at) or (order.status=='cancelled' and result.approved_at is None)

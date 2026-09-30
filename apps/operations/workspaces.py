@@ -10,15 +10,16 @@ from apps.inventory.models import Batch
 from .models import Referral, Reminder
 
 ROLE_ACTIONS = {
- 'reception': [('Find or register patient','/patients'),('Appointments','/appointments/schedule'),('Patient queues','/queues')],
- 'clinician': [('My consultations','/ehr'),('Review results','/suite/results/'),('Referrals','/suite/referrals/'),('Offline drafts','/offline/')],
+ 'radiology': [('Imaging worklist','/suite/diagnostics/?kind=imaging')],
+ 'reception': [('Patient appointment requests','/suite/appointment-requests/'),('Recall worklist','/suite/recalls/'),('Find or register patient','/patients'),('Appointments','/appointments/schedule'),('Patient queues','/queues')],
+ 'clinician': [('Recall worklist','/suite/recalls/'),('Diagnostic worklist','/suite/diagnostics/'),('My consultations','/ehr'),('Review results','/suite/results/'),('Referrals','/suite/referrals/'),('Offline drafts','/offline/')],
  'nurse': [('Triage and visits','/ehr'),('Medication round','/suite/medication-round/'),('Ward observations','/suite/observations/'),('Offline drafts','/offline/')],
  'pharmacy': [('Medicine returns','/suite/returns/'),('Dispensing baskets','/pharmacy/baskets/'),('Dispense prescriptions','/pharmacy'),('Backorders','/pharmacy/backorders'),('Stock control','/suite/stock/'),('Reorder suggestions','/suite/replenishment/')],
- 'lab': [('Laboratory worklist','/labs'),('Specimen reception','/suite/specimens/'),('Review results','/suite/results/')],
+ 'lab': [('Diagnostic worklist','/suite/diagnostics/'),('Laboratory worklist','/labs'),('Specimen reception','/suite/specimens/'),('Review results','/suite/results/')],
  'cashier': [('Finance reconciliation','/suite/finance/'),('Open cashier','/cashier'),('Collections','/suite/collections/'),('Cashbook','/cashier/cashbook')],
- 'manager': [('Finance reconciliation','/suite/finance/'),('Price approvals','/suite/price-reviews/'),('Medicine returns','/suite/returns/'),('Reports','/reports'),('Stock control','/suite/stock/'),('Reorder suggestions','/suite/replenishment/'),('Settings','/billing/settings')],
+ 'manager': [('Management overview','/suite/management/'),('Finance reconciliation','/suite/finance/'),('Price approvals','/suite/price-reviews/'),('Medicine returns','/suite/returns/'),('Reports','/reports'),('Stock control','/suite/stock/'),('Reorder suggestions','/suite/replenishment/'),('Settings','/billing/settings')],
  'store': [('Stock control','/suite/stock/'),('Purchase orders','/inventory/po'),('Goods receipts','/inventory/grn'),('Reorder suggestions','/suite/replenishment/')],
- 'admin': [('Finance reconciliation','/suite/finance/'),('Price approvals','/suite/price-reviews/'),('Medicine returns','/suite/returns/'),('Patients','/patients'),('Clinical visits','/ehr'),('Reports','/reports'),('Stock control','/suite/stock/')],
+ 'admin': [('Management overview','/suite/management/'),('Finance reconciliation','/suite/finance/'),('Price approvals','/suite/price-reviews/'),('Medicine returns','/suite/returns/'),('Patients','/patients'),('Clinical visits','/ehr'),('Reports','/reports'),('Stock control','/suite/stock/')],
 }
 
 def workspace_context(user):
@@ -44,4 +45,4 @@ def workspace_context(user):
         card('Invoices awaiting payment',filter_by_patient_facility(Invoice.objects.filter(status='ready_to_pay'),user),'/cashier' if role!='manager' else '/reports')
     from .workflow_views import task_scope
     assigned=task_scope(user).filter(owner=user,status__in=['open','in_progress']).select_related('patient').order_by('due_at')[:10]
-    return {'assigned_tasks':assigned,'role_title':role.title(),'role_actions':[{'label':a,'url':b} for a,b in ROLE_ACTIONS.get(role,[])],'attention_cards':cards,'visits':visits.select_related('patient','clinician').order_by('started_at')[:50] if clinical else [],'show_visits':clinical}
+    return {'assigned_tasks':assigned,'role_title':role.title(),'role_actions':[{'label':a,'url':b} for a,b in [('Duty and attendance','/suite/workforce/')]+ROLE_ACTIONS.get(role,[])],'attention_cards':cards,'visits':visits.select_related('patient','clinician').order_by('started_at')[:50] if clinical else [],'show_visits':clinical}

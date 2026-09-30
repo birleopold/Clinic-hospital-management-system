@@ -11,6 +11,7 @@ class User(AbstractUser):
     CASHIER = 'cashier'
     MANAGER = 'manager'
     STORE = 'store'
+    RADIOLOGY = 'radiology'
 
     ROLE_CHOICES = [
         (ADMIN, 'Admin'),
@@ -22,6 +23,7 @@ class User(AbstractUser):
         (CASHIER, 'Cashier'),
         (MANAGER, 'Manager'),
         (STORE, 'Store / inventory'),
+        (RADIOLOGY, 'Radiography / imaging operator'),
     ]
 
     role = models.CharField(max_length=32, choices=ROLE_CHOICES, default=RECEPTION)

@@ -41,6 +41,9 @@ class Appointment(models.Model):
                     theatre_resources |= Q(room_id=self.room_id)
                 if TheatreCase.objects.exclude(status__in=['cancelled','completed']).filter(theatre_resources, starts_at__lt=end, ends_at__gt=self.scheduled_for).exists():
                     raise ValidationError('The clinician or room has an overlapping theatre case.')
+                from apps.operations.models import StaffLeave
+                if StaffLeave.objects.filter(staff_id=self.clinician_id,status='approved',starts_at__lt=end,ends_at__gt=self.scheduled_for).exists():
+                    raise ValidationError('Clinician has approved leave during this appointment.')
                 if DoctorTimeOff.objects.filter(clinician_id=self.clinician_id,start__lt=end,end__gt=self.scheduled_for).exists():
                     raise ValidationError('Clinician is unavailable during this appointment.')
             return super().save(*args, **kwargs)

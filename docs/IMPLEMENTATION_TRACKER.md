@@ -50,36 +50,38 @@ The Phase 2 software scope is implemented; [release evidence and deployment note
 
 ## Workforce and management extension — added 30 September 2026
 
-Requested before starting R2. “Role calling” is tracked as staff **roll call / attendance**, alongside role-based duty assignment. These requirements are added to the implementation scope, not marked as shipped. R2 proceeds first; workforce scheduling and attendance form the next management workstream before optional enterprise integrations. Actual working-time rules require facility policy; attendance records do not automatically prove clinical coverage or determine payroll.
+Requested before starting R2. “Role calling” is tracked as staff **roll call / attendance**, alongside role-based duty assignment. The [workforce/management delivery](WORKFORCE_MANAGEMENT_RELEASE.md) now implements core roster, attendance, review and manager registers. The statuses below retain every remaining acceptance criterion; partial does not mean complete. Actual working-time rules require facility policy; attendance records do not automatically prove clinical coverage or determine payroll.
 
 | ID | Requirement | Acceptance / dependency |
 | --- | --- | --- |
-| STAFF-01 | Staff directory, department, specialty, employment status and credential expiry | Facility-scoped roster; inactive staff cannot receive new duties; credential expiry warns assigned supervisors; sensitive HR fields restricted. |
-| DUTY-01 | Doctor/nurse/support-staff duty roster, recurring shifts and on-call coverage | Assign person, facility, department, shift start/end, supervisor and backup; overnight/timezone handling; detect overlapping duties and insufficient coverage; draft/publish/version audit. |
-| DUTY-02 | Live doctors-on-duty board and patient assignment | Distinguish scheduled, checked-in, on-call, unavailable and actively accepting patients; assign/reassign with reason, capacity and handover; never infer attendance from login alone. |
-| ATTEND-01 | Staff roll call and clock-in/out, breaks, lateness, absence and overtime review | Record actual timestamps and method; prevent duplicate open sessions; supervisor corrections retain original time/reason; approved timesheets; facility-defined grace/rounding rules. |
-| LEAVE-01 | Leave, shift swaps and locum/backup coverage | Request/approve with separate reviewer; conflicts and coverage gaps visible; substitute accepts duty; do not publish overlapping approved leave and duty. |
-| HANDOVER-01 | Shift handover and uncompleted work escalation | Outgoing/incoming acknowledgments; pending patients/results/tasks/stock-cash issues; owner and escalation deadline; sensitive details remain role scoped. |
-| MGMT-01 | Manager command centre and exception inbox | Staffing gaps, queues, overdue results/tasks, stockouts/expiry, cash variances and receivables link to scoped source records; show freshness and named owners. |
-| MGMT-02 | Delegated approval matrix and temporary acting supervisors | Limits for purchasing, discounts, credits, refunds and stock adjustments; prevent self-approval where required; timed delegation and complete audit trail. |
-| MGMT-03 | Incident/complaint register and corrective actions | Severity, accountable owner, evidence, due date and closure review; restricted clinical/HR details; record follow-up without deleting the original report. |
-| MGMT-04 | Asset register, maintenance, calibration and downtime | Asset location/custodian, service schedule, cost and vendor; overdue/downtime warnings; link clinical-equipment checks to LIS-02 rather than duplicate them. |
-| MGMT-05 | Budgets, expenses, supplier obligations and accountable cost centres | Approved budgets/expenses and supporting documents; separate invoices, cash movement and profit; reconcile with FIN-02 and accounting exports. |
-| MGMT-06 | Staff onboarding/offboarding, training and policy acknowledgments | Checklist owners/dates; remove access and reassign open work when leaving; audit role changes and policy versions; no automatic clinical credential verification claim. |
-| MGMT-07 | Workload, attendance and service-quality reporting | Agreed definitions and drill-downs by period/department; distinguish scheduled/worked time and patient volume; role-restricted exports; no opaque performance ranking. |
+| STAFF-01 | Staff directory, department, specialty, employment status and credential expiry | Partial: facility-scoped directory, active-account checks, specialty/credential register and expiry attention implemented. Formal employment lifecycle fields and renewal supersession remain. |
+| DUTY-01 | Doctor/nurse/support-staff duty roster, recurring shifts and on-call coverage | Partial: draft/publish/versioned shifts, weekly recurrence, supervisor/backup, overnight dates and overlap/leave checks implemented. Configurable minimum coverage and grouped roster publication remain. |
+| DUTY-02 | Live doctors-on-duty board and patient assignment | Implemented core: scheduled/checked-in/on-call/break/availability states and reasoned doctor assignment with capacity checks. Legacy consultation routes remain available; roster enforcement is not global. |
+| ATTEND-01 | Staff roll call and clock-in/out, breaks, lateness, absence and overtime review | Partial: own clock-in/out/breaks, roll-call board, exact lateness/time-beyond-end, reviewed corrections and approved exports implemented. Grace/rounding policy and unattended missing-clock-out correction remain. |
+| LEAVE-01 | Leave, shift swaps and locum/backup coverage | Partial: separate leave reviewer, accepted future cover, matching roles and overlap guards implemented. Reciprocal swaps use two cover requests; an atomic two-way swap remains. |
+| HANDOVER-01 | Shift handover and uncompleted work escalation | Partial: outgoing summary, recipient acknowledgment, named owner/due date and overdue board implemented. Automated escalation and source-linked clinical handover bundles remain. |
+| MGMT-01 | Manager command centre and exception inbox | Partial: manager exception overview links staffing, cash/receivables, stock, incidents, equipment, checklists and budgets. Unified escalation ownership and service-quality freshness metrics remain. |
+| MGMT-02 | Delegated approval matrix and temporary acting supervisors | Pending: current fixed admin/manager roles and independent approvals are enforced. Configurable amount limits and timed delegation remain unimplemented. |
+| MGMT-03 | Incident/complaint register and corrective actions | Implemented core: restricted incident/complaint register, severity, accountable manager, corrective actions/evidence/due dates, independent closure and audited reopening. |
+| MGMT-04 | Asset register, maintenance, calibration and downtime | Implemented core: assets, custodians, vendor/cost/service records, maintenance/calibration dates and downtime/restore/retirement events. Device-specific clinical QC remains LIS-02. |
+| MGMT-05 | Budgets, expenses, supplier obligations and accountable cost centres | Partial: independent UGX budget/expense approvals, budget caps and supplier invoice references implemented. Attachments, supplier settlement, accounting exports and profitability remain. |
+| MGMT-06 | Staff onboarding/offboarding, training and policy acknowledgments | Partial: owned checklists, policy/training versions and acknowledgment, independent review and guarded admin offboarding implemented. Automatic reassignment, broader role-change audit and complete lifecycle integration remain. |
+| MGMT-07 | Workload, attendance and service-quality reporting | Partial: scoped attendance, workload/capacity and approved attendance CSV implemented. Agreed service-quality KPI definitions and department/period dashboards remain. |
 
 Biometric terminals, location verification and payroll integration are optional adapters after requirements, device/provider access and privacy rules are agreed. The core attendance/roster workflow must work without those dependencies. Full payroll remains deferred; approved attendance exports are in scope.
 
 ## R3 — engagement and insights
 
+Started: [diagnostics, visiting access and Phase 3 first delivery](DIAGNOSTICS_AND_PHASE_THREE_START.md). The [patient/staff/operator/owner backlog](PATIENT_STAFF_OWNER_BACKLOG.md) adds case-based visiting specialists and diagnostic worksheet requirements without removing earlier scope.
+
 | ID | Requirement | Status / next evidence |
 | --- | --- | --- |
-| PORTAL-01 | Appointment requests, verified patient access and guardian delegation | Pending; existing revocable read-only links retained. |
-| ENGAGE-01 | Recall workflow and automated follow-up scheduling | Pending; existing entered due-date follow-up retained. |
+| PORTAL-01 | Appointment requests, verified patient access and guardian delegation | Partial: existing links remain read-only by default; staff-verified recipient/guardian authority can enable retry-safe patient appointment requests, reception review and conflict-checked booking. Self-service identity verification and finer delegated scopes remain. |
+| ENGAGE-01 | Recall workflow and automated follow-up scheduling | Partial: owned recall worklist, due/overdue tracking, outcomes and idempotent next-recall scheduling implemented. Automated consented outreach/escalation remains. |
 | ENGAGE-02 | Consent/preferences, delivery inbox, opt-out and controlled retry | Pending extensions; existing consented SMS/reminder controls retained. |
 | ENGAGE-03 | WhatsApp channel | Needs provider onboarding, approved templates and consent model. |
 | REPORT-02 | Queue waits, lab turnaround, payer rejection, operational exception dashboards | Pending event/KPI definitions and reconciled drill-downs. |
-| FIN-02 | Expense tracking and meaningful profitability | Pending; collections must not be mislabeled as profit. |
+| FIN-02 | Expense tracking and meaningful profitability | Partial: approved budgeted expense obligations implemented in manager registers. Settlement, reconciled costs and meaningful profitability remain; collections are not profit. |
 
 ## R4 — integrations and enterprise readiness
 
@@ -107,8 +109,12 @@ Biometric terminals, location verification and payroll integration are optional 
 | CLIN-01 | HIV/TB/NCD/ANC programs and cohort workflows | Needs approved current program definitions and clinical owners. |
 | CLIN-02 | Drug-interaction/dose and vaccination eligibility rules | Needs approved/licensed knowledge, terminology, source/version provenance and clinical validation. |
 | SPECIALTY-01 | Validated graphical labour chart, specialty scales and multi-team theatre resources | Pending reviewed specification; existing documentation/count controls retained. |
-| IMAGE-01 | Imaging worklists, study IDs, PACS viewer and report review | Pending selected PACS/devices and secure integration design. |
+| IMAGE-01 | Imaging worklists, study IDs, PACS viewer and report review | Partial: imaging operator role/worklist, scheduling, versioned worksheets, independent review and released patient reports implemented. Study IDs, image storage/PACS and actual device integration remain. |
 | TELE-01 | Teleconsultation when pilot demand justifies it | Pending requirements and selected provider. |
+
+## Additional patient/staff/operator/owner requirements
+
+See [the expanded checklist](PATIENT_STAFF_OWNER_BACKLOG.md) for PAT-01–10, VISIT-01–03, CLIN-03–06, DIAG-01–08 and OWNER-01–07. Implemented cores include temporary case access, immutable diagnostic templates, operator worklists and printable released reports. Preparation clearance, specialist fees, external referral completion, equipment booking, imaging transport, retests, patient itinerary and operational KPIs remain explicitly planned.
 
 ## Explicitly deferred in the source plan, not silently removed
 

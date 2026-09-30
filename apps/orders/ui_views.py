@@ -68,8 +68,11 @@ def cancel_order_ui_view(request, order_id: int):
         if order.encounter_id:
             return redirect('ehr-encounter-detail', encounter_id=order.encounter_id)
         return redirect('labs-worklist')
-    order.status = Order.CANCELLED
-    order.save(update_fields=['status'])
+    from .services import cancel_order
+    from django.core.exceptions import ValidationError
+    from django.contrib import messages
+    try:order=cancel_order(order.pk,request.user)
+    except ValidationError as exc:messages.error(request,'; '.join(exc.messages))
     if order.encounter_id:
         return redirect('ehr-encounter-detail', encounter_id=order.encounter_id)
     return redirect('labs-worklist')

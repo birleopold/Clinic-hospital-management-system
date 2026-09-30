@@ -18,7 +18,7 @@ const assert = require('node:assert/strict');
       page.locator('button[type=submit]').click()]);
     for (const width of [1440, 768, 390]) {
       await page.setViewportSize({ width, height: 900 });
-      for (const path of ['/suite/', '/suite/finance/', '/suite/returns/', '/suite/price-reviews/', '/suite/replenishment/', '/pharmacy/catalog/', '/pharmacy/baskets/', '/suite/results/', '/suite/insurance/prepare/',
+      for (const path of ['/suite/', '/suite/workforce/', '/suite/workforce/directory/', '/suite/workforce/timesheets/', '/suite/workforce/inbox/', '/suite/workforce/new/shift/', '/suite/management/', '/suite/management/cases/', '/suite/management/assets/', '/suite/management/checklists/', '/suite/management/budgets/', '/suite/management/expenses/', '/suite/diagnostics/', '/suite/diagnostics/templates/', '/suite/diagnostics/templates/new/', '/suite/visiting-specialists/', '/suite/recalls/', '/suite/appointment-requests/', '/suite/finance/', '/suite/returns/', '/suite/price-reviews/', '/suite/replenishment/', '/pharmacy/catalog/', '/pharmacy/baskets/', '/suite/results/', '/suite/insurance/prepare/',
         '/suite/stock/', '/suite/medication-round/', '/suite/theatre/',
         '/suite/pregnancies/', '/suite/maternity-visits/', '/suite/vaccinations/',
         '/suite/rehabilitation/', '/suite/rehab-sessions/', '/suite/specialty-follow-up/',
@@ -34,11 +34,34 @@ const assert = require('node:assert/strict');
           runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa'] }
         }));
         assert.deepEqual(result.violations.map(v => ({ id: v.id, impact: v.impact })), [], path);
-        if (process.env.CLINIC_TEST_SCREENSHOTS && (['/suite/','/suite/finance/','/suite/returns/','/suite/replenishment/','/suite/theatre/','/suite/specialty-follow-up/'].includes(path)||path.startsWith('/suite/patient/'))) {
+        if (process.env.CLINIC_TEST_SCREENSHOTS && (['/suite/','/suite/diagnostics/','/suite/diagnostics/templates/new/','/suite/workforce/','/suite/workforce/timesheets/','/suite/finance/','/suite/returns/','/suite/replenishment/','/suite/theatre/','/suite/specialty-follow-up/'].includes(path)||path.startsWith('/suite/patient/'))) {
           require('node:fs').mkdirSync(process.env.CLINIC_TEST_SCREENSHOTS,{recursive:true});
           await page.screenshot({path:require('node:path').join(process.env.CLINIC_TEST_SCREENSHOTS, (path.split('/')[2]||'home')+'-'+width+'.png'),fullPage:true});
         }
       }
+    }
+    if(process.env.CLINIC_TEST_DIAGNOSTIC_SHEET_ID){
+      await page.goto(base+'/suite/diagnostics/sheets/'+process.env.CLINIC_TEST_DIAGNOSTIC_SHEET_ID+'/');
+      await page.locator('#id_decision').selectOption('release');
+      await page.locator('#id_reason').fill('Synthetic browser review completed');
+      await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Record decision',exact:true}).click()]);
+      await page.getByRole('link',{name:'Patient report / print / download',exact:true}).click();
+      assert.equal(await page.getByRole('heading',{name:'Diagnostic report',exact:true}).count(),1);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Patient report overflow');
+      await page.addScriptTag({path:require.resolve('axe-core/axe.min.js')});
+      const reportAudit=await page.evaluate(()=>axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}}));
+      assert.deepEqual(reportAudit.violations.map(v=>v.id),[],'Patient report accessibility');
+    }
+    if(process.env.CLINIC_TEST_SHIFT_ID){
+      await page.goto(base+'/suite/workforce/shift/'+process.env.CLINIC_TEST_SHIFT_ID+'/');
+      for(const name of ['Clock in','Start break','End break','Clock out']){
+        await Promise.all([page.waitForNavigation(),page.getByRole('button',{name,exact:true}).click()]);
+      }
+      assert.equal(await page.getByRole('button',{name:'Clock in',exact:true}).count(),0);
+      await page.goto(base+'/suite/workforce/timesheets/');
+      await page.addScriptTag({path:require.resolve('axe-core/axe.min.js')});
+      const attendanceAudit=await page.evaluate(()=>axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}}));
+      assert.deepEqual(attendanceAudit.violations.map(v=>v.id),[],'Attendance accessibility');
     }
     if(process.env.CLINIC_TEST_BASKET_ID){
       const path='/pharmacy/baskets/'+process.env.CLINIC_TEST_BASKET_ID+'/';
