@@ -10,6 +10,10 @@ class Appointment(models.Model):
         from django.core.exceptions import ValidationError
         from apps.accounts.models import User
         with transaction.atomic():
+            from apps.demographics.models import Patient
+            patient = Patient.objects.select_for_update().get(pk=self.patient_id)
+            if patient.merged_into_id:
+                raise ValidationError('Select the canonical patient identity.')
             User.objects.select_for_update().get(pk=self.clinician_id)
             if not 1 <= self.duration_minutes <= 1440:
                 raise ValidationError('Appointment duration must be between 1 and 1440 minutes.')
@@ -30,6 +34,13 @@ class Appointment(models.Model):
                     room_bookings=type(self).objects.filter(room_id=self.room_id,scheduled_for__lt=end,scheduled_for__gt=self.scheduled_for-timedelta(days=1)).exclude(status__in=['cancelled','no_show']).exclude(pk=self.pk)
                     if any(a.scheduled_for+timedelta(minutes=a.duration_minutes)>self.scheduled_for for a in room_bookings):
                         raise ValidationError('This room already has an overlapping appointment.')
+                from apps.operations.models import TheatreCase
+                from django.db.models import Q
+                theatre_resources = Q(surgeon_id=self.clinician_id) | Q(patient_id=self.patient_id)
+                if self.room_id:
+                    theatre_resources |= Q(room_id=self.room_id)
+                if TheatreCase.objects.exclude(status__in=['cancelled','completed']).filter(theatre_resources, starts_at__lt=end, ends_at__gt=self.scheduled_for).exists():
+                    raise ValidationError('The clinician or room has an overlapping theatre case.')
                 if DoctorTimeOff.objects.filter(clinician_id=self.clinician_id,start__lt=end,end__gt=self.scheduled_for).exists():
                     raise ValidationError('Clinician is unavailable during this appointment.')
             return super().save(*args, **kwargs)

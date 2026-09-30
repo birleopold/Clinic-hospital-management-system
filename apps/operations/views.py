@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime, date
 from decimal import Decimal
 from django import forms
 from django.contrib import messages
@@ -24,10 +24,18 @@ from .models import ClinicalEntry, Referral, Specimen, StockLocation, StockCount
 from .models import PatientMerge, LabPanel, LabAnalyte, InpatientOrder, CarePlan, PackageUnit, SupplierCredit, CoveragePlan, Policy, Remittance, PaymentIntent
 from apps.inventory.models import InventoryItem, Supplier, PurchaseOrder
 from .advanced_services import merge_patients, prepare_claim, post_remittance, scheduled_doses
+from .specialty_services import SPECIALTIES, create_specialty, transition_specialty
+from .models import TheatreCase, Pregnancy, MaternityVisit, Vaccination, RehabilitationPlan, RehabilitationSession
 from .services import post_count, approve_refund, transfer_stock, approve_credit
 
 # Every collection and writable relation has an explicit scope and role policy.
 MODULES = {
+ 'theatre': (TheatreCase, 'Theatre scheduling', ['patient','room','surgeon','procedure','indication','starts_at','ends_at'], 'patient__facility_id', ['clinician','nurse']),
+ 'pregnancies': (Pregnancy, 'Maternity episodes', ['patient','gravida','parity','last_menstrual_period','estimated_due_date','assessment'], 'patient__facility_id', ['clinician','nurse']),
+ 'maternity-visits': (MaternityVisit, 'Maternity visits & amendments', ['pregnancy','occurred_at','visit_type','findings','care_provided','plan','follow_up_on','supersedes','amendment_reason'], 'pregnancy__patient__facility_id', ['clinician','nurse']),
+ 'vaccinations': (Vaccination, 'Vaccination visits', ['patient','vaccine','dose_label','due_on'], 'patient__facility_id', ['clinician','nurse']),
+ 'rehabilitation': (RehabilitationPlan, 'Rehabilitation care plans', ['patient','clinician','problem','baseline','goals','intervention_plan','review_on'], 'patient__facility_id', ['clinician','nurse']),
+ 'rehab-sessions': (RehabilitationSession, 'Rehabilitation sessions', ['plan','occurred_at','intervention','response','progress','next_visit_on','supersedes','amendment_reason'], 'plan__patient__facility_id', ['clinician','nurse']),
  'lab-panels': (LabPanel, 'Laboratory panels', ['facility','code','name','specimen_type','active'], 'facility_id', ['lab','manager']),
  'lab-analytes': (LabAnalyte, 'Analytes & approved ranges', ['panel','code','name','units','low','high','reference_note'], 'panel__facility_id', ['lab','manager']),
  'inpatient-orders': (InpatientOrder, 'Inpatient medication orders', ['admission','prescription_item','dose','route','interval_hours','starts_at','ends_at'], 'admission__patient__facility_id', ['clinician']),
@@ -58,6 +66,8 @@ MODULES = {
  'claims': (Claim, 'Insurance claims', ['invoice','payer','membership_number','authorization_reference','amount'], 'invoice__patient__facility_id', ['cashier','manager']),
 }
 RELATIONS = {
+ Pregnancy:'patient__facility_id', MaternityVisit:'pregnancy__patient__facility_id',
+ RehabilitationPlan:'patient__facility_id', RehabilitationSession:'plan__patient__facility_id',
  LabPanel:'facility_id', LabAnalyte:'panel__facility_id', Specimen:'order__patient__facility_id',
  Policy:'patient__facility_id', Claim:'invoice__patient__facility_id', PurchaseOrder:'facility_id',
 
@@ -68,6 +78,16 @@ RELATIONS = {
  Bed: 'facility_id', Admission: 'patient__facility_id', Payer: 'facility_id',
  PrescriptionItem: 'prescription__patient__facility_id',
 }
+
+def display_value(value):
+    if isinstance(value, bool):
+        return 'Yes' if value else 'No'
+    if isinstance(value, datetime):
+        return timezone.localtime(value).strftime('%d %b %Y, %H:%M %Z') if timezone.is_aware(value) else value.strftime('%d %b %Y, %H:%M')
+    if isinstance(value, date):
+        return value.strftime('%d %b %Y')
+    return '—' if value is None or value == '' else str(value)
+
 
 def allowed(user, roles):
     return user.is_active and (user.is_superuser or user.role == 'admin' or user.role in roles)
@@ -178,7 +198,10 @@ def collection(request, slug):
                         raise ValidationError('Choose a payer in the same facility and a valid invoice amount.')
                 from .advanced_validation import validate_new_record
                 validate_new_record(obj,request.user)
-                obj.save()
+                if isinstance(obj, SPECIALTIES):
+                    create_specialty(obj, request.user)
+                else:
+                    obj.save()
                 if isinstance(obj,Remittance): post_remittance(obj)
                 if isinstance(obj,ClinicalEntry) and obj.kind == 'allergy':
                     Patient.objects.filter(pk=obj.patient_id).update(allergy_status='recorded')
@@ -191,10 +214,24 @@ def collection(request, slug):
     query=request.GET.get('q','').strip()
     if query:
         filters=Q()
+        if scope and 'patient__' in scope:
+            patient_prefix=scope.rsplit('facility_id',1)[0]
+            filters |= Q(**{patient_prefix+'first_name__icontains':query}) | Q(**{patient_prefix+'last_name__icontains':query})
+            import uuid
+            try:
+                identifier=uuid.UUID(query)
+            except ValueError:
+                pass
+            else:
+                filters |= Q(**{patient_prefix+'medical_record_id':identifier})
         for field in model._meta.fields:
             if isinstance(field,(model._meta.get_field('id').__class__,)) and query.isdigit(): filters |= Q(pk=int(query))
             if field.get_internal_type() in ('CharField','TextField'): filters |= Q(**{field.name+'__icontains':query})
         records=records.filter(filters)
+    if model in (TheatreCase, Pregnancy, Vaccination, RehabilitationPlan):
+        status = request.GET.get('status', '')
+        if status in dict(model._meta.get_field('status').choices):
+            records = records.filter(status=status)
     page=Paginator(records,25).get_page(request.GET.get('page'))
     records=page.object_list
     rows=[]
@@ -207,10 +244,9 @@ def collection(request, slug):
             if field == 'attachment':
                 continue
             value=getattr(obj,field)
-            if isinstance(value,bool): value='Yes' if value else 'No'
-            values.append(str(value or '—')[:180])
+            values.append(display_value(value)[:180])
         rows.append({'obj':obj,'values':values,'state':state})
-    return render(request,'operations/collection.html',{'page':page,'query':query,'title':title,'slug':slug,'form':form,'rows':rows,'available_beds':scoped(Bed,request.user,'facility_id').filter(active=True).exclude(admission__discharged_at__isnull=True,admission__isnull=False) if slug=='admissions' else [],'headers':[model._meta.get_field(f).verbose_name for f in fields if f!='attachment']})
+    return render(request,'operations/collection.html',{'specialty':model in SPECIALTIES,'page':page,'query':query,'title':title,'slug':slug,'form':form,'rows':rows,'available_beds':scoped(Bed,request.user,'facility_id').filter(active=True).exclude(admission__discharged_at__isnull=True,admission__isnull=False) if slug=='admissions' else [],'status_choices':model._meta.get_field('status').choices if model in (TheatreCase,Pregnancy,Vaccination,RehabilitationPlan) else [],'selected_status':request.GET.get('status',''),'headers':[model._meta.get_field(f).verbose_name for f in fields if f!='attachment']})
 
 @login_required
 @require_POST
@@ -219,7 +255,9 @@ def action(request,slug,pk,operation):
     try:
         with transaction.atomic():
             obj=get_object_or_404(scoped(model,request.user,scope).select_for_update(),pk=pk)
-            if slug == 'duplicates' and operation == 'merge':
+            if model in SPECIALTIES:
+                transition_specialty(model, obj.pk, operation, request.POST, request.user)
+            elif slug == 'duplicates' and operation == 'merge':
                 merge_patients(obj.pk,request.user,request.POST.get('reason',''))
             elif slug == 'policies' and operation == 'verify':
                 if not obj.verification_reference.strip(): raise ValidationError('Record eligibility evidence.')
@@ -307,6 +345,8 @@ def action(request,slug,pk,operation):
             else:
                 raise Http404
         messages.success(request,'Action recorded.')
+    except IntegrityError:
+        messages.error(request, 'A conflicting update occurred. Refresh and review the record.')
     except ValidationError as exc:
         messages.error(request,'; '.join(exc.messages))
     return redirect('suite-collection',slug=slug)
@@ -316,7 +356,11 @@ def patient_summary(request,pk):
     if not allowed(request.user,['clinician','nurse','pharmacy','lab']): raise PermissionDenied
     patient=get_object_or_404(filter_by_facility(Patient.objects.all(),request.user),pk=pk)
     if patient.merged_into_id: return redirect('suite-patient',pk=patient.merged_into_id)
-    return render(request,'operations/patient.html',{'patient':patient,'entries':ClinicalEntry.objects.filter(patient=patient).select_related('created_by').order_by('-created_at'),'referrals':Referral.objects.filter(patient=patient).order_by('-created_at'),'grants':PortalGrant.objects.filter(patient=patient).order_by('-created_at')})
+    specialty_records = []
+    if allowed(request.user, ['clinician','nurse']):
+        for model, slug, label in [(TheatreCase,'theatre','Theatre'),(Pregnancy,'pregnancies','Maternity'),(Vaccination,'vaccinations','Vaccination'),(RehabilitationPlan,'rehabilitation','Rehabilitation')]:
+            specialty_records.append({'label':label,'slug':slug,'records':model.objects.filter(patient=patient).order_by('-pk')[:10]})
+    return render(request,'operations/patient.html',{'specialty_records':specialty_records,'patient':patient,'entries':ClinicalEntry.objects.filter(patient=patient).select_related('created_by').order_by('-created_at'),'referrals':Referral.objects.filter(patient=patient).order_by('-created_at'),'grants':PortalGrant.objects.filter(patient=patient).order_by('-created_at')})
 
 @login_required
 def result_download(request,pk):

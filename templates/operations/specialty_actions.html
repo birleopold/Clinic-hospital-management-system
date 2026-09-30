@@ -1,0 +1,36 @@
+{% if slug == 'theatre' %}
+{% if row.state == 'planned' %}
+<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'ready' %}">{% csrf_token %}<input name="consent_reference" maxlength="200" required aria-label="Consent reference" placeholder="Consent reference"><input name="checklist_reference" maxlength="200" required aria-label="Preoperative checklist reference" placeholder="Approved checklist reference"><button>Confirm readiness</button></form>
+{% elif row.state == 'ready' %}
+<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'in_progress' %}">{% csrf_token %}<button>Record procedure start</button></form>
+{% elif row.state == 'in_progress' %}
+<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'recovery' %}">{% csrf_token %}<textarea name="note" required aria-label="Procedure and recovery handoff note" placeholder="Procedure outcome and recovery handoff"></textarea><button>Transfer to recovery</button></form>
+{% elif row.state == 'recovery' %}
+<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'completed' %}">{% csrf_token %}<textarea name="note" required aria-label="Recovery handoff outcome" placeholder="Recovery handoff outcome"></textarea><button>Complete case</button></form>
+{% endif %}
+{% if row.state == 'planned' or row.state == 'ready' %}<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'cancelled' %}">{% csrf_token %}<input name="note" required aria-label="Cancellation reason" placeholder="Cancellation reason"><button>Cancel case</button></form>{% endif %}
+<p class="record-note">{{ row.obj.outcome_note }}</p>
+{% endif %}
+{% if slug == 'pregnancies' %}
+{% if row.state == 'active' %}<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'close' %}">{% csrf_token %}<input name="outcome" maxlength="200" required aria-label="Pregnancy outcome" placeholder="Clinician-recorded outcome"><textarea name="note" required aria-label="Episode closure and follow-up note" placeholder="Closure and follow-up note"></textarea><button>Close episode</button></form>{% else %}<p>{{ row.obj.outcome }}</p><p class="record-note">{{ row.obj.closure_note }}</p>{% endif %}
+{% endif %}
+{% if slug == 'rehabilitation' %}
+{% if row.state == 'active' %}<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'completed' %}">{% csrf_token %}<textarea name="note" required aria-label="Goals and discharge outcome" placeholder="Goals achieved and discharge plan"></textarea><button>Complete plan</button></form><form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'cancelled' %}">{% csrf_token %}<input name="note" required aria-label="Plan cancellation reason" placeholder="Cancellation reason"><button>Cancel plan</button></form>{% endif %}<p class="record-note">{{ row.obj.outcome }}</p>
+{% endif %}
+{% if slug == 'vaccinations' %}
+{% if row.state == 'scheduled' or row.state == 'deferred' %}
+<details><summary>Document administration</summary><form method="post" action="{% url 'suite-action' slug row.obj.pk 'given' %}">{% csrf_token %}
+<p><label>Administration time<input name="administered_at" type="datetime-local" required></label></p>
+<p><label>Manufacturer<input name="manufacturer" maxlength="120" required></label></p>
+<p><label>Lot number<input name="lot_number" maxlength="100" required></label></p>
+<p><label>Lot expiry<input name="expires_on" type="date" required></label></p>
+<p><label>Actual dose and units<input name="dose" maxlength="80" required></label></p>
+<p><label>Route<input name="route" maxlength="80" required></label></p>
+<p><label>Administration site<input name="site" maxlength="100" required></label></p>
+<p><label>Consent record reference<input name="consent_reference" maxlength="200" required></label></p>
+<p><label>Notes<textarea name="note"></textarea></label></p><button>Record given dose</button></form></details>
+<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'deferred' %}">{% csrf_token %}<input name="note" required aria-label="Deferral reason" placeholder="Deferral reason"><button>Defer</button></form>
+<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'scheduled' %}">{% csrf_token %}<label>New due date<input name="due_on" type="date" required></label><input name="note" required aria-label="Rescheduling reason" placeholder="Rescheduling reason"><button>Reschedule</button></form>
+<form class="actions" method="post" action="{% url 'suite-action' slug row.obj.pk 'cancelled' %}">{% csrf_token %}<input name="note" required aria-label="Vaccination cancellation reason" placeholder="Cancellation reason"><button>Cancel visit</button></form>
+{% elif row.state == 'given' %}<p>{{ row.obj.administered_at }} · {{ row.obj.administered_by }}</p><p>{{ row.obj.manufacturer }} · Lot {{ row.obj.lot_number }} · {{ row.obj.dose }} · {{ row.obj.route }} · {{ row.obj.site }}</p>{% endif %}<p class="record-note">{{ row.obj.note }}</p>
+{% endif %}

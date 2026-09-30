@@ -164,3 +164,5 @@ No project license has been selected in this repository. Confirm ownership and c
 ## Expanded suite
 
 See [expanded workflows and deployment checks](docs/EXPANDED_SUITE.md) for patient merging, laboratory catalogs, inpatient rounds, coverage/co-pay, provider integrations, UI improvements and explicit remaining work.
+
+The [specialty workflow release](docs/SPECIALTY_WORKFLOWS.md) adds theatre scheduling, maternity visits, vaccination administration records, rehabilitation and a follow-up dashboard.

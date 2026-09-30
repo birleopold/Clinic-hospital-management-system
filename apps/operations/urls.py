@@ -1,6 +1,8 @@
 from django.urls import path
 from . import views, advanced_views
 urlpatterns = [
+    path('suite/specialties/<slug:slug>/<int:pk>/', advanced_views.specialty_detail, name='suite-specialty-detail'),
+    path('suite/specialty-follow-up/', advanced_views.specialty_follow_up, name='suite-specialty-follow-up'),
     path('suite/cards/<int:pk>/', advanced_views.identity_card, name='suite-card'),
     path('suite/barcodes/<slug:kind>/<int:pk>/', advanced_views.barcode, name='suite-barcode'),
     path('suite/insurance/prepare/', advanced_views.prepare_insurance, name='suite-prepare-claim'),

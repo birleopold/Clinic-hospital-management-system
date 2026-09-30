@@ -282,3 +282,6 @@ class LoginThrottle(models.Model):
     key = models.CharField(max_length=64, unique=True)
     window_start = models.DateTimeField()
     attempts = models.PositiveIntegerField(default=0)
+
+# Registered here so Django discovers specialty tables in the operations app.
+from .specialty_models import (TheatreCase, Pregnancy, MaternityVisit, Vaccination, RehabilitationPlan, RehabilitationSession)  # noqa: E402,F401

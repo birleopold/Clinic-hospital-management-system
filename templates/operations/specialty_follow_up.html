@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block title %}Specialty follow-up · Clinic Suite{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">Care continuity</div><h1>Specialty follow-up</h1><p class="muted">Staff-entered due dates as of {{ today }}. Contact and clinical decisions remain with the care team.</p></div><a class="btn btn-secondary" href="{% url 'suite-home' %}">Workspace</a></div>
+<div class="follow-up-grid">{% for group in groups %}<section class="card"><h2>{{ group.label }}</h2><p>{{ group.count }} record{{ group.count|pluralize }}{% if group.count > 100 %} · showing the first 100{% endif %}</p><div class="table-wrap" tabindex="0" role="region" aria-label="{{ group.label }}"><table><thead><tr><th>Patient</th><th>Due</th><th>Status</th></tr></thead><tbody>{% for row in group.rows %}<tr><td><a href="{% url 'suite-patient' row.patient.pk %}">{{ row.patient }}</a><br><small>Record #{{ row.record.pk }}</small></td><td>{{ row.due }}{% if row.session_due %}<br>Next session: {{ row.session_due }}{% endif %}</td><td>{{ row.record.get_status_display }}</td></tr>{% empty %}<tr><td colspan="3">No records due.</td></tr>{% endfor %}</tbody></table></div><p><a href="{% url 'suite-collection' group.slug %}">Open workspace →</a></p></section>{% endfor %}</div>
+{% endblock %}

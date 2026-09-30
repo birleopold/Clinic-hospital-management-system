@@ -41,7 +41,7 @@ For SMS, register `/integrations/sms/delivery/?token=<secret>` as the callback U
 
 ## Validation and limitations
 
-Local verification: 112 tests passed on SQLite; two PostgreSQL-only contention tests are intentionally skipped there. CI runs Python 3.11/3.12 with SQLite/PostgreSQL and executes those contention tests on PostgreSQL. Browser checks exercised home, results, insurance preparation, stock and medication-round pages; HTTP responses, JavaScript errors, desktop/mobile overflow and automated WCAG checks were checked. Manual assistive-technology testing and complete role-by-role staff acceptance remain necessary. The reusable browser script is `scripts/browser_smoke.cjs`; it requires Playwright, axe-core, a running disposable instance and staff test credentials.
+Original expanded-release verification: 112 tests passed on SQLite; two PostgreSQL-only contention tests were intentionally skipped there. The subsequent specialty release adds dedicated regression tests, a third PostgreSQL contention test and broader browser coverage; see [SPECIALTY_WORKFLOWS.md](SPECIALTY_WORKFLOWS.md). CI runs Python 3.11/3.12 with SQLite/PostgreSQL and executes those contention tests on PostgreSQL. Browser checks exercised home, results, insurance preparation, stock and medication-round pages; HTTP responses, JavaScript errors, desktop/mobile overflow and automated WCAG checks were checked. Manual assistive-technology testing and complete role-by-role staff acceptance remain necessary. The reusable browser script is `scripts/browser_smoke.cjs`; it requires Playwright, axe-core, a running disposable instance and staff test credentials.
 
 Live provider transactions, official HL7 validation against the facility's chosen guide and a PostgreSQL restore drill have **not** been performed in this environment. Never use a public validation endpoint for patient records. The official validator can access terminology/package services; configure approved local/offline resources before using identifiable exports.
 
@@ -50,7 +50,7 @@ Live provider transactions, official HL7 validation against the facility's chose
 - Facility staff must approve clinical catalogs, reference ranges, coverage contracts, identifiers, permissions and workflow acceptance scenarios.
 - HMIS indicator mappings and national submission formats require approved current specifications and comparison with facility registers. Readiness checks do not certify those indicators.
 - Insurer-specific electronic claim transport, automated original-provider refunds and additional payment providers remain separate integrations.
-- Theatre, maternity, vaccination and rehabilitation modules are not implemented. Their clinical datasets and workflows need service-owner requirements; generic notes are not represented as completed specialty modules.
+- Theatre scheduling, maternity episodes/visits, vaccination documentation and rehabilitation plans/sessions are now implemented. See [SPECIALTY_WORKFLOWS.md](SPECIALTY_WORKFLOWS.md) for exact depth, acceptance checks and remaining specialty requirements.
 - Governed medication-interaction/dose decision support, cross-device offline conflict resolution and validated performance targets are not implemented.
 - Patient merges must be done during a quiet registration window: audited merge and archived-patient validation are present, but a comprehensive simultaneous-write merge protocol across every legacy entry point remains a hardening task.
 

@@ -69,3 +69,40 @@ def test_postgres_appointment_slot_is_not_double_booked():
         )
     )
     assert sorted(outcomes) == ["created", "rejected"]
+
+
+def test_postgres_theatre_room_is_not_double_booked():
+    if connection.vendor != "postgresql":
+        pytest.skip("Requires PostgreSQL row locks")
+    from apps.accounts.models import StaffProfile
+    from apps.operations.models import TheatreCase, ServiceRoom
+    from apps.operations.specialty_services import create_specialty
+
+    facility = Facility.objects.create(name="Theatre contention")
+    actor = User.objects.create_user(username="theatre-admin", role="admin")
+    surgeon = User.objects.create_user(username="theatre-doctor", role="clinician")
+    for user in (actor, surgeon):
+        StaffProfile.objects.update_or_create(
+            user=user, defaults={"facility": facility}
+        )
+    patient = Patient.objects.create(
+        first_name="Test", last_name="Patient", gender="F", facility=facility
+    )
+    room = ServiceRoom.objects.create(facility=facility, name="Theatre")
+    starts = timezone.now() + timedelta(days=1)
+    outcomes = run_two(
+        lambda: create_specialty(
+            TheatreCase(
+                patient_id=patient.pk,
+                room_id=room.pk,
+                surgeon_id=surgeon.pk,
+                procedure="Test",
+                indication="Test",
+                starts_at=starts,
+                ends_at=starts + timedelta(hours=1),
+            ),
+            actor,
+        )
+    )
+    assert sorted(outcomes) == ["created", "rejected"]
+    assert TheatreCase.objects.count() == 1

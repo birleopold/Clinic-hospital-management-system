@@ -12,7 +12,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render, redirect
 from django.views.decorators.http import require_POST
 from django.utils import timezone
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from common.exports import csv_response
 from common.facility_scope import filter_by_facility
 from .views import allowed, scoped
@@ -228,3 +228,118 @@ def reorder_report(request):
         if totals.get(i.pk, 0) < i.reorder_level
     ]
     return render(request, "operations/reorder.html", {"rows": rows})
+
+
+@login_required
+def specialty_follow_up(request):
+    """Operational due dates entered by staff; not generated clinical schedules."""
+    if not allowed(request.user, ["clinician", "nurse"]):
+        raise PermissionDenied
+    from datetime import timedelta
+    from django.db.models import OuterRef, Subquery
+    from .models import (
+        TheatreCase,
+        Pregnancy,
+        MaternityVisit,
+        Vaccination,
+        RehabilitationPlan,
+        RehabilitationSession,
+    )
+
+    today = timezone.localdate()
+    next_week = timezone.now() + timedelta(days=7)
+    latest_maternity = MaternityVisit.objects.filter(
+        pregnancy_id=OuterRef("pk"), amendment__isnull=True
+    ).order_by("-occurred_at", "-pk")
+    latest_rehab = RehabilitationSession.objects.filter(
+        plan_id=OuterRef("pk"), amendment__isnull=True
+    ).order_by("-occurred_at", "-pk")
+    vaccinations = (
+        scoped(Vaccination, request.user, "patient__facility_id")
+        .filter(status__in=["scheduled", "deferred"], due_on__lte=today)
+        .select_related("patient")
+        .order_by("due_on")
+    )
+    maternity = (
+        scoped(Pregnancy, request.user, "patient__facility_id")
+        .annotate(next_follow_up=Subquery(latest_maternity.values("follow_up_on")[:1]))
+        .filter(next_follow_up__lte=today)
+        .select_related("patient")
+        .order_by("next_follow_up")
+    )
+    rehab = (
+        scoped(RehabilitationPlan, request.user, "patient__facility_id")
+        .filter(status="active")
+        .annotate(next_session=Subquery(latest_rehab.values("next_visit_on")[:1]))
+        .filter(Q(review_on__lte=today) | Q(next_session__lte=today))
+        .select_related("patient")
+        .order_by("review_on")
+    )
+    theatre = (
+        scoped(TheatreCase, request.user, "patient__facility_id")
+        .exclude(status__in=["completed", "cancelled"])
+        .filter(starts_at__lte=next_week)
+        .select_related("patient", "room", "surgeon")
+        .order_by("starts_at")
+    )
+    groups = []
+    for label, slug, queryset, date_field in [
+        ("Vaccinations due", "vaccinations", vaccinations, "due_on"),
+        ("Maternity follow-up", "maternity-visits", maternity, "next_follow_up"),
+        ("Rehabilitation reviews / sessions", "rehabilitation", rehab, "review_on"),
+        ("Theatre: overdue and next seven days", "theatre", theatre, "starts_at"),
+    ]:
+        groups.append(
+            {
+                "label": label,
+                "slug": slug,
+                "count": queryset.count(),
+                "rows": [
+                    {
+                        "record": r,
+                        "patient": r.patient,
+                        "due": getattr(r, date_field),
+                        "session_due": getattr(r, "next_session", None),
+                    }
+                    for r in queryset[:100]
+                ],
+            }
+        )
+    return render(
+        request,
+        "operations/specialty_follow_up.html",
+        {"groups": groups, "today": today},
+    )
+
+
+@login_required
+def specialty_detail(request, slug, pk):
+    from .views import config, display_value
+    from .specialty_services import SPECIALTIES
+    from django.http import Http404
+
+    model, title, fields, scope, roles = config(request, slug)
+    if model not in SPECIALTIES:
+        raise Http404
+    record = get_object_or_404(scoped(model, request.user, scope), pk=pk)
+    details = []
+    for field in model._meta.fields:
+        if field.name == "id":
+            continue
+        value = getattr(record, field.name)
+        if field.choices:
+            value = getattr(record, "get_" + field.name + "_display")()
+        details.append({"label": field.verbose_name, "value": display_value(value)})
+    return render(
+        request,
+        "operations/specialty_detail.html",
+        {
+            "record": record,
+            "slug": slug,
+            "title": title,
+            "details": details,
+            "history": record.history.select_related("history_user").order_by(
+                "-history_date"
+            ),
+        },
+    )
