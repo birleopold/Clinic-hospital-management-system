@@ -141,6 +141,7 @@ class DuplicateReview(Record):
 
 
 class ServiceRoom(models.Model):
+    directions=models.CharField(max_length=250,blank=True)
     facility = models.ForeignKey('accounts.Facility', on_delete=models.PROTECT)
     name = models.CharField(max_length=120)
     class Meta:
@@ -291,7 +292,7 @@ from .offline_models import OfflineDevice, OfflineReceipt  # noqa: E402,F401
 from .workflow_models import WorkTask, NoteTemplate, ConsultationNote, PatientDocument
 from .finance_models import PaymentRequest, RefundAuthorization, MedicineReturn, ReturnRefundLink, PriceOverride, ReplenishmentRule
 from .workforce_models import StaffCredential, DutyShift, Attendance, AttendanceBreak, AttendanceCorrection, StaffLeave, ShiftCover, ShiftHandover, DutyAssignment
-from .management_models import ManagementCase, CorrectiveAction, FacilityAsset, AssetEvent, StaffChecklist, OperatingBudget, OperatingExpense
+from .management_models import ManagementCase, CorrectiveAction, FacilityAsset, AssetEvent, StaffChecklist, OperatingBudget, OperatingExpense, ExpenseSettlement
 from .diagnostic_models import VisitingSpecialist, VisitingEngagement, VisitingCaseNote, DiagnosticTemplate, DiagnosticWorkItem, DiagnosticWorksheet
 from .engagement_models import PortalRecipient, AppointmentRequest, PatientRecall
 from .extension_models import ContactPreference, ReminderAttempt, RecallOutreach, SpecimenCustody, SpecimenAliquot, ReagentLot, LaboratoryQC, LabRunEvidence, ProgrammeDefinition, ProgrammeEnrollment, ProgrammeReview, ImagingStudy

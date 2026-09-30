@@ -6,10 +6,13 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.integrations.webhooks import sms_delivery
-from apps.accounts import mfa_views, branch_views, setup_views as account_setup_views
+from apps.accounts import mfa_views, branch_views, structure_views, setup_views as account_setup_views
 from apps.accounts.token_views import StaffTokenView, StaffRefreshView
 
 urlpatterns = [
+    path('accounts/structure/<slug:kind>/',structure_views.structure,name='facility-structure'),
+    path('accounts/structure/<slug:kind>/<int:pk>/',structure_views.structure,name='facility-structure-edit'),
+    path('accounts/branding/<int:pk>/logo/',account_setup_views.logo,name='facility-logo'),
     path('accounts/control/',account_setup_views.control,name='owner-control'),
     path('accounts/setup/',account_setup_views.configure,name='facility-configure'),
     path('accounts/staff/',account_setup_views.staff,name='facility-staff'),

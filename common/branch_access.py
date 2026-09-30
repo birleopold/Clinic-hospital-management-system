@@ -22,7 +22,7 @@ def apply(user,pk):
 class BranchScopeMiddleware:
     def __init__(self,get_response):self.get_response=get_response
     def __call__(self,request):
-        if request.user.is_authenticated and request.session.get('active_facility_id') and not request.path.startswith(('/accounts/','/admin/')):
+        if request.user.is_authenticated and request.session.get('active_facility_id') and not request.path.startswith(('/accounts/login','/accounts/logout','/accounts/facility','/accounts/mfa','/accounts/password','/admin/')):
             try:apply(request.user,request.session['active_facility_id'])
             except PermissionDenied as exc:return JsonResponse({'detail':str(exc),'selection_url':'/accounts/facility/'},status=403)
         return self.get_response(request)

@@ -25,7 +25,7 @@
     <input id="portal_link" type="text" value="{{ link }}" style="width: min(100%, 720px);" readonly />
     <button class="btn btn-secondary" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText(document.getElementById('portal_link').value)">Copy</button>
   </div>
-  <p class="muted" style="margin-top:8px;">Anyone with this link can view the patient’s summary (and submit appointment requests if explicitly enabled) until it expires. Share securely.</p>
+  <p class="muted" style="margin-top:8px;">Anyone holding this link can access its authorized sections until expiry or revocation. Verify the intended recipient and share securely.</p>
 </div>
 {% endif %}
-{% endblock %}
+{% if patient %}<section class="card"><h2>Issued links and recipient access</h2>{% for grant in grants %}<article><h3>Link #{{ grant.pk }}</h3><p>Expires {{ grant.expires_at }} · Revoked {{ grant.revoked_at|default:'No' }} · Recipient {{ grant.verified_recipient.recipient_name|default:'Legacy summary recipient' }} · Scopes {{ grant.verified_recipient.scopes|join:', '|default:'Legacy summary' }}</p>{% if not grant.revoked_at %}<form method="post" action="{% url 'suite-revoke' grant.pk %}">{% csrf_token %}<button type="submit">Revoke issued link #{{ grant.pk }}</button></form>{% endif %}</article>{% empty %}<p>No links issued.</p>{% endfor %}</section>{% endif %}{% endblock %}

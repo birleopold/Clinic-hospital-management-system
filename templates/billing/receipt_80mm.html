@@ -14,6 +14,7 @@
   </style>
 </head>
 <body>
+{% if brand_logo %}<img src="data:{{ brand_logo_mime }};base64,{{ brand_logo }}" alt="{{ facility_brand.display_name }} logo" style="max-width:120px;max-height:70px;">{% endif %}
   <div class="center"><strong>{{ facility_brand.display_name|default:config.clinic_name|default:"Clinic" }}</strong></div>
   <div class="center muted">RECEIPT #{{ payment.id }}</div>
   <div class="center muted">{{ payment.paid_at|date:"Y-m-d H:i" }}</div>
@@ -28,5 +29,6 @@
   <div class="row"><div><strong>Balance</strong></div><div><strong>{{ invoice.total_amount|add:-invoice.paid_amount }}</strong></div></div>
   <div class="line"></div>
   <div class="center muted">Thank you.</div>
+{% if facility_brand %}<p>{{ facility_brand.tagline }} · {{ facility_brand.contact_phone }}</p><p>{{ facility_brand.print_footer }}</p>{% endif %}
 </body>
 </html>

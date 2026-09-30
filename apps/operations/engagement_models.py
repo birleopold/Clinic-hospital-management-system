@@ -11,12 +11,16 @@ class PortalRecipient(Record):
     verification_reference=models.CharField(max_length=250)
     authority_reference=models.CharField(max_length=250,blank=True)
     allow_appointment_requests=models.BooleanField(default=False)
+    scopes=models.JSONField(default=list, blank=True, help_text='An empty list preserves historical summary access. New links use explicit scopes.')
 
 
 class AppointmentRequest(models.Model):
     request_key=models.UUIDField(default=uuid.uuid4,unique=True)
     grant=models.ForeignKey('operations.PortalGrant',on_delete=models.PROTECT)
     patient=models.ForeignKey('demographics.Patient',on_delete=models.PROTECT)
+    kind=models.CharField(max_length=12,default='new',choices=[('new','New booking'),('reschedule','Reschedule'),('cancel','Cancel booking')])
+    target_appointment=models.ForeignKey('appointments.Appointment',null=True,blank=True,on_delete=models.PROTECT,related_name='change_requests')
+    target_scheduled_for=models.DateTimeField(null=True,blank=True)
     preferred_date=models.DateField()
     reason=models.CharField(max_length=250)
     created_at=models.DateTimeField(auto_now_add=True)

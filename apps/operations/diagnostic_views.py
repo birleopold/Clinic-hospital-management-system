@@ -13,7 +13,7 @@ from apps.orders.models import OrderResult
 from common.facility_scope import filter_by_facility
 from .workforce_views import staff_choices, datetime_field
 from .workforce_services import facility_lock
-from .models import DiagnosticTemplate, DiagnosticWorkItem, DiagnosticWorksheet, Specimen
+from .models import ServiceRoom, FacilityAsset, DiagnosticTemplate, DiagnosticWorkItem, DiagnosticWorksheet, Specimen
 from . import diagnostic_services as services
 
 
@@ -53,7 +53,7 @@ def template_create(request):
     class TemplateForm(forms.ModelForm):
         class Meta:
             model=DiagnosticTemplate
-            fields=['facility','name','version','order_type','modality']
+            fields=['facility','name','version','order_type','modality','patient_instructions','instruction_language','instruction_reference']
     class FieldForm(forms.Form):
         label=forms.CharField(max_length=160)
         type=forms.ChoiceField(initial='text',choices=[('text','Text / findings'),('number','Number'),('choice','Choice')])
@@ -94,7 +94,9 @@ def template_review(request,pk):
             if decision=='publish':
                 if obj.created_by_id==request.user.pk:raise ValidationError('Another qualified reviewer must publish this template.')
                 if obj.status!='draft':raise ValidationError('Only draft versions may be published.')
-                services.validate_fields(obj.fields);obj.status='published'
+                services.validate_fields(obj.fields)
+                if obj.patient_instructions and not (obj.instruction_language.strip() and obj.instruction_reference.strip()):raise ValidationError('Patient instructions require their language and approved source reference.')
+                obj.status='published'
             elif decision=='retire':obj.status='retired'
             else:raise ValidationError('Choose publish or retire.')
             obj.reviewed_by=request.user;obj.reviewed_at=timezone.now();obj.review_reason=reason;obj._history_user=request.user;obj.save()
@@ -109,14 +111,20 @@ def order_detail(request,pk):
     class ScheduleForm(forms.Form):
         operator=forms.ModelChoiceField(queryset=staff_choices(request.user).filter(staff_profile__facility_id=order.patient.facility_id,role__in=['admin','clinician','lab','radiology']))
         modality=forms.CharField(max_length=30,required=False)
+        room=forms.ModelChoiceField(queryset=ServiceRoom.objects.filter(facility_id=order.patient.facility_id),required=False)
+        asset=forms.ModelChoiceField(queryset=FacilityAsset.objects.filter(facility_id=order.patient.facility_id,status='operational'),required=False,label='Reserved equipment')
+        instruction_template=forms.ModelChoiceField(queryset=DiagnosticTemplate.objects.filter(facility_id=order.patient.facility_id,order_type=order.order_type,status='published').exclude(patient_instructions=''),required=False,label='Approved patient preparation instructions')
+        duration_minutes=forms.IntegerField(min_value=1,max_value=1440,initial=30,required=False)
         scheduled_at=datetime_field(required=False)
         preparation_note=forms.CharField(max_length=250,required=False)
         revision=forms.IntegerField(widget=forms.HiddenInput())
-    form=ScheduleForm(request.POST or None,initial={'operator':work.operator_id if work else None,'modality':work.modality if work else '', 'scheduled_at':work.scheduled_at if work else None,'preparation_note':work.preparation_note if work else '', 'revision':work.revision if work else 1})
+    form=ScheduleForm(request.POST or None,initial={'operator':work.operator_id if work else None,'modality':work.modality if work else '', 'scheduled_at':work.scheduled_at if work else None,'preparation_note':work.preparation_note if work else '', 'room':work.room_id if work else None,'asset':work.asset_id if work else None,'duration_minutes':work.duration_minutes if work else 30,'instruction_template':work.instruction_template_id if work else None, 'revision':work.revision if work else 1})
     if request.method=='POST':
         try:
             if request.POST.get('action')=='start':services.start(pk,request.user);return redirect('suite-diagnostic-order',pk=pk)
-            elif form.is_valid():services.schedule(pk,request.user,**form.cleaned_data);return redirect('suite-diagnostic-order',pk=pk)
+            elif form.is_valid():
+                data=dict(form.cleaned_data);data['duration_minutes']=data['duration_minutes'] or 30
+                services.schedule(pk,request.user,**data);return redirect('suite-diagnostic-order',pk=pk)
         except ValidationError as exc:form.add_error(None,'; '.join(exc.messages))
     templates=template_scope(request.user).filter(facility_id=order.patient.facility_id,order_type=order.order_type,status='published')
     sheets=DiagnosticWorksheet.objects.filter(result__order=order).select_related('result','created_by').order_by('-pk')

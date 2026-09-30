@@ -32,7 +32,7 @@ def request_review(request,pk):
     reception(request.user)
     obj=get_object_or_404(filter_by_patient_facility(AppointmentRequest.objects.select_related('patient'),request.user),pk=pk)
     class Form(forms.Form):
-        decision=forms.ChoiceField(choices=[('booked','Book an appointment'),('declined','Decline with explanation')])
+        decision=forms.ChoiceField(choices=[('booked','Approve request'),('declined','Decline with explanation')])
         clinician=forms.ModelChoiceField(queryset=staff_choices(request.user).filter(role='clinician',staff_profile__facility_id=obj.patient.facility_id),required=False)
         scheduled_for=datetime_field(required=False)
         duration_minutes=forms.IntegerField(min_value=1,max_value=1440,initial=30,required=False)
@@ -46,7 +46,23 @@ def request_review(request,pk):
                 obj=AppointmentRequest.objects.select_for_update().get(pk=pk)
                 if obj.status!='requested':return redirect('suite-appointment-requests')
                 data=form.cleaned_data
-                if data['decision']=='booked':
+                if data['decision']=='booked' and obj.kind!='new':
+                    from apps.accounts.models import User
+                    initial=Appointment.objects.get(pk=obj.target_appointment_id,patient=patient)
+                    User.objects.select_for_update().get(pk=initial.clinician_id)
+                    target=Appointment.objects.select_for_update().get(pk=initial.pk)
+                    if target.status not in ('scheduled','confirmed') or target.scheduled_for<=timezone.now() or target.scheduled_for!=obj.target_scheduled_for:raise ValidationError('Booking changed or has started. Decline this stale request and arrange a new one.')
+                    if obj.kind=='cancel':target.status='cancelled'
+                    else:
+                        if not data['scheduled_for'] or data['scheduled_for']<=timezone.now():raise ValidationError('Choose a future replacement time.')
+                        target.scheduled_for=data['scheduled_for']
+                        if data['duration_minutes']:target.duration_minutes=data['duration_minutes']
+                        if data['clinician']:
+                            staff_at(data['clinician'],patient.facility_id)
+                            if data['clinician'].pk!=target.clinician_id:raise ValidationError('Rescheduling retains the clinician. Use a separately reviewed new booking to change clinician.')
+                    target.notes=(target.notes+'\nPatient request #'+str(obj.pk)+': '+data['response_note']).strip()
+                    target.save()
+                elif data['decision']=='booked':
                     if not data['clinician'] or not data['scheduled_for'] or not data['duration_minutes'] or data['scheduled_for']<=timezone.now():raise ValidationError('Choose a clinician, future appointment time and duration.')
                     staff_at(data['clinician'],patient.facility_id)
                     # Appointment.save applies existing clinician/room/time-off/theatre overlap checks.
@@ -54,7 +70,7 @@ def request_review(request,pk):
                 obj.status=data['decision'];obj.reviewed_by=request.user;obj.reviewed_at=timezone.now();obj.response_note=data['response_note'];obj._history_user=request.user;obj.save()
         except ValidationError as exc:form.add_error(None,'; '.join(exc.messages))
         else:return redirect('suite-appointment-requests')
-    return render(request,'operations/workflow_form.html',{'form':form,'patient':obj.patient,'title':'Review appointment request','help':f'Preferred date: {obj.preferred_date}. Reason: {obj.reason}. A request does not reserve a slot until booked.'})
+    return render(request,'operations/workflow_form.html',{'form':form,'patient':obj.patient,'title':'Review appointment request','help':f'{obj.get_kind_display()}. Preferred date: {obj.preferred_date}. Reason: {obj.reason}. A booking change updates the original appointment only after your approval.'})
 
 
 @login_required

@@ -63,6 +63,8 @@ def check_theatre_conflicts(obj):
     User.objects.select_for_update().get(pk=obj.surgeon_id)
     ServiceRoom.objects.select_for_update().get(pk=obj.room_id)
     check_staff(obj.surgeon, obj.patient)
+    from .diagnostic_services import diagnostic_conflicts
+    if diagnostic_conflicts(obj.starts_at,obj.ends_at,room_id=obj.room_id,operator_id=obj.surgeon_id,patient_id=obj.patient_id):raise ValidationError('Patient, surgeon or room has an overlapping diagnostic booking.')
     clashes = (
         TheatreCase.objects.exclude(pk=obj.pk)
         .exclude(status__in=["cancelled", "completed"])

@@ -22,6 +22,7 @@
   </style>
 </head>
 <body>
+{% if brand_logo %}<img src="data:{{ brand_logo_mime }};base64,{{ brand_logo }}" alt="{{ facility_brand.display_name }} logo" style="max-width:120px;max-height:70px;">{% endif %}
   <div class="header">
     <div>
       <div class="clinic">{{ facility_brand.display_name|default:config.clinic_name|default:"Clinic" }}</div>
@@ -74,5 +75,6 @@
   </table>
 
   <div class="footer">Thank you.</div>
+{% if facility_brand %}<p>{{ facility_brand.tagline }} · {{ facility_brand.contact_phone }}</p><p>{{ facility_brand.print_footer }}</p>{% endif %}
 </body>
 </html>

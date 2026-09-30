@@ -85,6 +85,7 @@ class StaffLeave(Record):
 
 
 class ShiftCover(Record):
+    swap_partner = models.OneToOneField('self',null=True,blank=True,on_delete=models.PROTECT,related_name='paired_from')
     shift = models.ForeignKey(DutyShift,on_delete=models.PROTECT,related_name='cover_requests')
     original_staff = models.ForeignKey('accounts.User',on_delete=models.PROTECT,related_name='+')
     replacement = models.ForeignKey('accounts.User',on_delete=models.PROTECT,related_name='+')
