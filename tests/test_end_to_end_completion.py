@@ -282,6 +282,21 @@ def test_module_disabled_portal_sections_are_hidden(client,team):
         assert label not in response.content
 
 
+def test_expense_report_respects_disabled_billing_module(client,team):
+    from apps.billing.models import Invoice,Payment
+    patient=Patient.objects.create(facility=team.f,first_name='Synthetic',last_name='Billing disabled',gender='F')
+    invoice=Invoice.objects.create(patient=patient,total_amount=1000)
+    Payment.objects.create(invoice=invoice,amount=600)
+    FacilityConfiguration.objects.create(facility=team.f,service_type='custom',display_name='Expense management',enabled_services=['patients','management'],configured_by=team.manager)
+    client.force_login(team.manager)
+    response=client.get('/suite/management/expenses/report/')
+    assert response.status_code==200 and response.context['collected']==0
+    assert b'Billing is disabled' in response.content and b'Net of these recorded flows' not in response.content
+    day=timezone.localdate().isoformat()
+    response=client.get('/suite/management/expenses/report/',{'start':day,'end':day,'source':'collections'})
+    assert response.context['form'].errors and response.context['page'].paginator.count==0
+
+
 def test_discharge_copy_has_visible_entry_and_scope(client,team):
     from apps.operations.models import Bed, Admission
     t=team;patient=Patient.objects.create(facility=t.f,first_name='Discharged',last_name='Synthetic',gender='M')

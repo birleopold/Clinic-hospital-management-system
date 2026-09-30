@@ -69,6 +69,8 @@ def review(request, pk):
 @login_required
 def report(request):
     manager(request.user)
+    from common.service_policy import enabled
+    billing_enabled=enabled(request.user,'billing')
     class Dates(forms.Form):
         start = forms.DateField(widget=forms.DateInput(attrs={'type':'date'}))
         end = forms.DateField(widget=forms.DateInput(attrs={'type':'date'}))
@@ -79,12 +81,14 @@ def report(request):
             return data
     today=timezone.localdate()
     form=Dates(request.GET or {'start':today.replace(day=1), 'end':today})
+    if not billing_enabled:form.fields['source'].choices=[('expenses','Expense settlements')]
     incoming=Payment.objects.none(); outgoing=ExpenseSettlement.objects.none(); refunds=Refund.objects.none()
     if form.is_valid():
         dates={'gte':form.cleaned_data['start'], 'lte':form.cleaned_data['end']}
-        incoming=filter_by_patient_facility(Payment.objects.all(),request.user,'invoice__patient__').filter(**{'paid_at__date__'+k:v for k,v in dates.items()})
+        if billing_enabled:
+            incoming=filter_by_patient_facility(Payment.objects.all(),request.user,'invoice__patient__').filter(**{'paid_at__date__'+k:v for k,v in dates.items()})
+            refunds=filter_by_patient_facility(Refund.objects.all(),request.user,'payment__invoice__patient__').filter(status='approved',**{'approved_at__date__'+k:v for k,v in dates.items()})
         outgoing=settlements(request.user).filter(status='confirmed',**{'paid_on__'+k:v for k,v in dates.items()})
-        refunds=filter_by_patient_facility(Refund.objects.all(),request.user,'payment__invoice__patient__').filter(status='approved',**{'approved_at__date__'+k:v for k,v in dates.items()})
     def total(qs):return qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
     collected, paid, returned=total(incoming),total(outgoing),total(refunds)
     source=form.cleaned_data.get('source') or 'expenses' if form.is_valid() else 'expenses'
@@ -96,4 +100,4 @@ def report(request):
         rows=[{'id':row.pk,'expense':row.expense_id,'payee':row.expense.payee,'paid_on':row.paid_on,'method':row.method,'account':row.account_reference,'transaction':row.transaction_reference,'amount':row.amount,'reconciled_by':row.reconciled_by_id} for row in outgoing.order_by('pk')]
         return csv_response('reconciled_expenses.csv',['id','expense','payee','paid_on','method','account','transaction','amount','reconciled_by'],rows)
     query=request.GET.copy();query.pop('page',None);query.pop('export',None)
-    return render(request,'operations/expense_report.html',{'form':form,'page':page,'source':source,'pagination_query':query.urlencode(),'collected':collected,'settled':paid,'refunds':returned,'net':collected-returned-paid,'pending':settlements(request.user).filter(status='pending').count()})
+    return render(request,'operations/expense_report.html',{'form':form,'page':page,'source':source,'billing_enabled':billing_enabled,'pagination_query':query.urlencode(),'collected':collected,'settled':paid,'refunds':returned,'net':collected-returned-paid,'pending':settlements(request.user).filter(status='pending').count()})

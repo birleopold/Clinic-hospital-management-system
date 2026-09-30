@@ -28,6 +28,8 @@ Navigation and direct routes apply existing role, facility, MFA and enabled-serv
 controls. Selected-site owner/support scope now also applies to setup, staff,
 branding and structure screens. Private logos use scoped delivery; printed copies
 embed the actual patient's facility logo rather than another selected site.
+An expenses-only installation excludes disabled billing sources and clearly marks
+collections/refunds as excluded rather than reporting them as an empty ledger.
 
 ## Integrity and duplication
 
