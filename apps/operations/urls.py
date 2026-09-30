@@ -1,6 +1,11 @@
 from django.urls import path
-from . import views, advanced_views, offline_views, chart_views, workflow_views, finance_views, workforce_views, management_views, diagnostic_views, visiting_views, engagement_views, extension_views, insight_views, setup_views, labour_views
+from . import views, advanced_views, offline_views, chart_views, workflow_views, finance_views, workforce_views, management_views, diagnostic_views, visiting_views, engagement_views, extension_views, insight_views, setup_views, labour_views, settlement_views, patient_sheet_views
 urlpatterns = [
+    path('suite/patient/<int:pk>/itinerary/',patient_sheet_views.itinerary,name='suite-patient-itinerary'),
+    path('suite/admissions/<int:pk>/discharge-copy/',patient_sheet_views.discharge,name='suite-discharge-copy'),
+    path('suite/management/expenses/report/',settlement_views.report,name='suite-expense-report'),
+    path('suite/management/expenses/<int:pk>/',settlement_views.detail,name='suite-expense-detail'),
+    path('suite/management/settlements/<int:pk>/review/',settlement_views.review,name='suite-settlement-review'),
     path('suite/pregnancies/<int:pk>/trends/',labour_views.trend,name='suite-labour-trends'),
     path('suite/setup/',setup_views.setup,name='suite-setup'),
     path('suite/imports/',setup_views.imports,name='suite-imports'),

@@ -190,3 +190,5 @@ The [Phases 3–5 incremental delivery](docs/PHASE_THREE_FIVE_DELIVERY.md) adds 
 ### Select only the services your site offers
 
 Use [service setup](docs/SERVICE_SETUP_AND_ROLE_WORKSPACES.md) for pharmacy/clinic/hospital presets, configurable modules, business naming, staff recruitment and role-specific workspaces. First-run service setup is required by default. Independent SaaS tenant onboarding is not yet enabled: shared catalogue/pricing ownership still requires isolation work.
+
+The [UI-connected workflow release](docs/END_TO_END_WORKFLOW_RELEASE.md) adds reviewed expense settlement/cash-flow sources, scoped patient booking changes and feedback, reciprocal duty swaps, missing-clock-out review, diagnostic resource reservations and approved preparation, printable patient directions/discharge copies, logos and room/department setup. Every delivered workflow has an application entry point; the tracker retains the remaining whole-stage requirements.

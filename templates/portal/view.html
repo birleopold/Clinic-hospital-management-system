@@ -7,13 +7,13 @@
     <span class="chip">Patient ID: #{{ patient.id }}</span>
     {% if patient.phone %}<span class="chip">Phone: {{ patient.phone }}</span>{% endif %}
   </div>
-  <p class="muted" style="margin:8px 0 0;">This view shows your recent visits, released diagnostic results, prescriptions and invoices.</p>
+  <p class="muted" style="margin:8px 0 0;">This link shows the information and actions authorized for its verified recipient.</p>
 </div>
 
-{% if appointment_form %}<section class="card"><h2>Request an appointment</h2><p>A request is not a confirmed booking. Reception will review availability. For urgent care, contact the facility directly.</p><form method="post">{% csrf_token %}{% include 'operations/form_fields.html' with form=appointment_form %}<button type="submit">Send appointment request</button></form><h3>Requests through this link</h3><ul>{% for item in appointment_requests %}<li>{{ item.preferred_date }} · {{ item.get_status_display }} · {{ item.response_note }}{% if item.appointment %} · Booked {{ item.appointment.scheduled_for }}{% endif %}</li>{% empty %}<li>No requests yet.</li>{% endfor %}</ul></section>{% endif %}
-<div class="card">
+{% if appointment_form %}<section class="card"><h2>Request an appointment</h2><p>A request is not a confirmed booking. Reception will review availability. For urgent care, contact the facility directly.</p><form method="post">{% csrf_token %}{% include 'operations/form_fields.html' with form=appointment_form %}<button type="submit">Send appointment request</button></form><h3>Requests through this link</h3><ul>{% for item in appointment_requests %}<li>{{ item.get_kind_display }} · {{ item.preferred_date }} · {% if item.kind != 'new' and item.status == 'booked' %}Change approved{% else %}{{ item.get_status_display }}{% endif %} · {{ item.response_note }}{% if item.appointment %} · Booked {{ item.appointment.scheduled_for }}{% endif %}</li>{% empty %}<li>No requests yet.</li>{% endfor %}</ul></section>{% endif %}
+{% if 'visits' in scopes %}<div class="card">
   <h3 style="margin:0 0 10px;">Visits (Encounters)</h3>
-  <div style="overflow:auto;">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Visit summary table">
     <table>
       <thead><tr><th>ID</th><th>Status</th><th>Clinician</th><th>Started</th><th>Ended</th></tr></thead>
       <tbody>
@@ -33,9 +33,9 @@
   </div>
 </div>
 
-<div class="card">
+{% endif %}{% if 'results' in scopes %}<div class="card">
   <h3 style="margin:0 0 10px;">Diagnostic Results</h3>
-  <div style="overflow:auto;">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Released diagnostic results table">
     <table>
       <thead><tr><th>Order #</th><th>Code</th><th>Description</th><th>Status</th><th>Results</th></tr></thead>
       <tbody>
@@ -67,9 +67,9 @@
   </div>
 </div>
 
-<div class="card">
+{% endif %}{% if 'medicines' in scopes %}<div class="card">
   <h3 style="margin:0 0 10px;">Prescriptions</h3>
-  <div style="overflow:auto;">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Prescription table">
     <table>
       <thead><tr><th>Rx #</th><th>Created</th><th>Items</th></tr></thead>
       <tbody>
@@ -95,9 +95,9 @@
   </div>
 </div>
 
-<div class="card">
+{% endif %}{% if 'billing' in scopes %}<div class="card">
   <h3 style="margin:0 0 10px;">Invoices</h3>
-  <div style="overflow:auto;">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Invoice table">
     <table>
       <thead><tr><th>ID</th><th>Total</th><th>Paid</th><th>Status</th><th>Date</th></tr></thead>
       <tbody>
@@ -117,4 +117,9 @@
   </div>
   <p class="muted" style="margin-top:8px;">For prints or official copies, visit the facility cashier.</p>
 </div>
+{% endif %}
+{% if 'appointments' in scopes %}<section class="card"><h2>Upcoming bookings</h2>{% for booking in appointments %}<p>{{ booking.scheduled_for }} · {{ booking.clinician }} · {{ booking.get_status_display }} · <a href="{% url 'portal-appointment-change' token booking.pk %}">Request reschedule or cancellation</a></p>{% empty %}<p>No upcoming bookings.</p>{% endfor %}</section>{% endif %}
+{% if 'feedback' in scopes %}<section class="card"><h2>Feedback</h2><a href="{% url 'portal-feedback' token %}">Send feedback to the facility manager</a><ul>{% for item in feedback %}<li>Receipt #{{ item.pk }} · {{ item.title }} · {{ item.created_at }} · {{ item.get_status_display }}</li>{% empty %}<li>No feedback through this link.</li>{% endfor %}</ul></section>{% endif %}
+<section class="card"><h2>Link access</h2><p>This link shows only the information authorized for its recipient. You can stop access through this link now.</p><form method="post" action="{% url 'portal-self-revoke' token %}">{% csrf_token %}<button type="submit" data-confirm="Revoke this link? You will need a new verified link to return.">Revoke this link</button></form></section>
+{% if 'instructions' in scopes %}<section class="card"><h2>Approved preparation instructions</h2>{% for item in preparations %}<article><h3>{{ item.order.description|default:item.order.code }}</h3><p>Scheduled {{ item.scheduled_at|default:'Contact reception for time' }} · Room {{ item.room|default:'Contact reception' }} · {{ item.room.directions }}</p><p>{{ item.instructions_snapshot.name }} v{{ item.instructions_snapshot.version }} · {{ item.instructions_snapshot.language }} · Source {{ item.instructions_snapshot.reference }}</p>{{ item.instructions_snapshot.text|linebreaks }}{% if item.instructions_acknowledged_at %}<p>Acknowledged {{ item.instructions_acknowledged_at }}</p>{% else %}<form method="post" action="{% url 'portal-instruction-acknowledge' token item.pk %}">{% csrf_token %}<input type="hidden" name="revision" value="{{ item.revision }}"><button type="submit">I have received these instructions</button></form>{% endif %}</article>{% empty %}<p>No approved instructions for active services.</p>{% endfor %}<p>Receipt of instructions does not provide clinical clearance. Contact the facility if you need an interpreter or clarification.</p></section>{% endif %}
 {% endblock %}

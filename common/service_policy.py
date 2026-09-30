@@ -164,6 +164,8 @@ def can_open(user,url):
         return bool(entry and user.role in entry[4])
     if path.startswith('/suite/diagnostics'):return user.role in ('clinician','lab','radiology')
     if path.startswith('/pharmacy/rx/'):return user.role in ('clinician','pharmacy')
+    if match.url_name=='suite-patient-itinerary':return user.role in ('reception','clinician','nurse')
+    if match.url_name=='suite-discharge-copy':return user.role in ('clinician','nurse')
     if path.endswith('/handoff'):return user.role in ('reception','nurse','clinician','lab','pharmacy','cashier')
     if path.startswith('/suite/clinical-operations/'):
         from apps.operations.extension_views import REGISTERS
@@ -172,6 +174,7 @@ def can_open(user,url):
     if path.startswith(('/suite/management','/suite/insights')):return user.role=='manager'
     if path.startswith('/suite/finance'):return user.role in ('manager','cashier')
     if path.startswith(('/suite/appointment-requests','/suite/recalls','/suite/outreach')):return user.role in ('reception','clinician','nurse')
+    if path.startswith('/accounts/structure'):return user.role=='manager'
     if path.startswith(('/accounts/setup','/accounts/staff')):return False
     if path.startswith('/suite/setup'):return user.role=='manager'
     for label,navurl,service,roles in NAVIGATION:

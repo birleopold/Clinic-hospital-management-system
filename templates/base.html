@@ -20,7 +20,7 @@
   {% if show_global_search %}<form action="{% url 'suite-patient-search' %}" method="get" class="global-patient-search"><label class="visually-hidden" for="global-patient-query">Find patient by name, phone or MRN</label><input id="global-patient-query" name="q" type="search" placeholder="Find patient · name, phone, MRN" minlength="2" maxlength="120" required><button>Find patient</button></form>{% endif %}</div>{% endif %}
   <header id="workspace-navigation" {% if user.is_authenticated %}class="workspace-sidebar"{% endif %}>
     <nav aria-label="Main navigation">
-      {% accessible_link %}<a class="branding" href="/suite/">{{ facility_brand.display_name|default:'Clinic Suite' }}</a>{% endaccessible_link %}
+      {% accessible_link %}<a class="branding" href="/suite/">{% if facility_brand.logo %}<img src="{% url 'facility-logo' facility_brand.facility_id %}" alt="" width="32" height="32">{% endif %}{{ facility_brand.display_name|default:'Clinic Suite' }}</a>{% endaccessible_link %}
       {% if user.is_authenticated %}
         {% for entry in workspace_navigation %}{% accessible_link %}<a href="{{ entry.url }}">{{ entry.label }}</a>{% endaccessible_link %}{% endfor %}
         {% if user.is_superuser %}{% accessible_link %}<a href="/accounts/control/">Owner control dashboard</a>{% endaccessible_link %} {% accessible_link %}<a href="/admin/">System administration</a>{% endaccessible_link %}{% endif %}

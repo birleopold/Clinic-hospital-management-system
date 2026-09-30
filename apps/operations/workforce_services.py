@@ -141,7 +141,7 @@ def request_correction(pk,actor,clock_in,clock_out,break_minutes,reason):
     attendance=Attendance.objects.select_for_update().get(pk=pk)
     if actor.pk!=attendance.staff_id:manager(actor)
     reason_required(reason);interval(clock_in,clock_out)
-    if not attendance.clock_out:raise ValidationError('Close attendance before requesting a correction.')
+    if not attendance.clock_out and attendance.shift.ends_at>timezone.now():raise ValidationError('A missing clock-out correction is available after the scheduled shift ends.')
     if clock_out>timezone.now() or not 0<=break_minutes<(clock_out-clock_in).total_seconds()/60:raise ValidationError('Check actual times and total break minutes.')
     if attendance.corrections.filter(status='requested').exists():raise ValidationError('A correction already awaits review.')
     return AttendanceCorrection.objects.create(attendance=attendance,clock_in=clock_in,clock_out=clock_out,break_minutes=break_minutes,reason=reason,created_by=actor)
@@ -161,7 +161,19 @@ def review_correction(pk,actor,decision,reason):
         for other in Attendance.objects.filter(staff=obj.attendance.staff).exclude(pk=obj.attendance_id).select_related('shift'):
             totals=attendance_totals(other)
             if totals['start']<obj.clock_out and (totals['end'] is None or totals['end']>obj.clock_in):raise ValidationError('Corrected times overlap another attendance.')
-        att=obj.attendance;att.reviewed_at=None;att.reviewed_by=None;att.review_reason='';att._history_user=actor;att.save()
+        att=Attendance.objects.select_for_update().get(pk=obj.attendance_id)
+        if not att.clock_out:
+            # Close the operational attendance only after independent review. Original in/out
+            # evidence and the asserted interval remain available in history and correction.
+            if att.shift.ends_at>timezone.now():raise ValidationError('The shift has not ended.')
+            if obj.clock_out<att.clock_in:raise ValidationError('Recorded clock-out precedes the original clock-in.')
+            for pause in att.breaks.select_for_update().filter(ended_at__isnull=True):
+                if pause.started_at>obj.clock_out:raise ValidationError('Clock-out precedes an open break. Resolve the actual event times.')
+                pause.ended_at=obj.clock_out;pause._history_user=actor;pause.save()
+            att.clock_out=obj.clock_out
+            shift=DutyShift.objects.select_for_update().get(pk=att.shift_id)
+            shift.availability='unavailable';shift.revision+=1;shift._history_user=actor;shift.save()
+        att.reviewed_at=None;att.reviewed_by=None;att.review_reason='';att._history_user=actor;att.save()
     obj.status=decision;obj.reviewed_by=actor;obj.reviewed_at=timezone.now();obj.review_reason=reason;obj._history_user=actor;obj.save();return obj
 
 
@@ -216,7 +228,9 @@ def request_cover(pk,actor,replacement,reason):
 @transaction.atomic
 def review_cover(pk,actor,decision,reason):
     candidate=ShiftCover.objects.select_related('shift').get(pk=pk);facility_lock(actor,candidate.shift.facility_id)
-    obj=ShiftCover.objects.select_for_update().get(pk=pk);shift=DutyShift.objects.select_for_update().get(pk=obj.shift_id)
+    obj=ShiftCover.objects.select_for_update().get(pk=pk)
+    if obj.swap_partner_id:return review_swap(obj,actor,decision,reason)
+    shift=DutyShift.objects.select_for_update().get(pk=obj.shift_id)
     if obj.status!='requested':return obj
     if decision=='accept':
         if actor.pk!=obj.replacement_id:raise PermissionDenied
@@ -274,3 +288,51 @@ def assign_visit(encounter_id,shift_id,actor,reason):
     if Encounter.objects.filter(clinician=shift.staff,status='open').count()>=shift.capacity:raise ValidationError('Doctor is at configured open-visit capacity.')
     DutyAssignment.objects.create(encounter=visit,shift=shift,previous_clinician=visit.clinician,reason=reason,created_by=actor)
     visit.clinician=shift.staff;visit._history_user=actor;visit.save(update_fields=['clinician']);return visit
+
+
+@transaction.atomic
+def request_swap(actor, first_id, second_id, reason):
+    first=DutyShift.objects.get(pk=first_id)
+    facility_lock(actor,first.facility_id)
+    shifts={s.pk:s for s in DutyShift.objects.select_for_update().filter(pk__in=[first_id,second_id]).order_by('pk')}
+    if len(shifts)!=2:raise ValidationError('Choose two different shifts.')
+    first,second=shifts[first_id],shifts[second_id]
+    if actor.pk!=first.staff_id:manager(actor)
+    if first.facility_id!=second.facility_id or first.staff_id==second.staff_id or first.staff.role!=second.staff.role:raise ValidationError('Choose different staff with the same role in this facility.')
+    reason_required(reason)
+    for shift in (first,second):
+        staff_at(shift.staff,first.facility_id)
+        if shift.status!='published' or shift.starts_at<=timezone.now() or Attendance.objects.filter(shift=shift).exists():raise ValidationError('Only future published, unworked shifts can be swapped.')
+        if shift.cover_requests.filter(status='requested').exists():raise ValidationError('A cover or swap already awaits review for one of these shifts.')
+    a=ShiftCover.objects.create(shift=first,original_staff=first.staff,replacement=second.staff,reason=reason,created_by=actor)
+    b=ShiftCover.objects.create(shift=second,original_staff=second.staff,replacement=first.staff,reason=reason,created_by=actor,swap_partner=a)
+    a.swap_partner=b;a.save(update_fields=['swap_partner'])
+    return a
+
+
+def review_swap(obj, actor, decision, reason):
+    pair=list(ShiftCover.objects.select_for_update().filter(pk__in=[obj.pk,obj.swap_partner_id]).order_by('pk'))
+    if len(pair)!=2 or any(x.swap_partner_id not in [p.pk for p in pair] or x.swap_partner_id==x.pk for x in pair):raise ValidationError('Invalid swap pairing; contact an administrator.')
+    if all(x.status!='requested' for x in pair):return obj
+    if any(x.status!='requested' for x in pair):raise ValidationError('Swap state changed; review both requests.')
+    if decision=='accept':
+        if actor.pk!=obj.replacement_id:raise PermissionDenied
+        obj.accepted_at=timezone.now();obj._history_user=actor;obj.save();return obj
+    supervisor(actor,obj.created_by_id);reason_required(reason)
+    if actor.pk in {x.original_staff_id for x in pair}:raise ValidationError('A supervisor outside the swap must review both duties.')
+    if decision not in ('approved','rejected'):raise ValidationError('Choose approve or reject.')
+    if decision=='approved':
+        if any(not x.accepted_at for x in pair):raise ValidationError('Both replacement staff must accept before the atomic swap.')
+        shifts={s.pk:s for s in DutyShift.objects.select_for_update().filter(pk__in=[x.shift_id for x in pair]).order_by('pk')}
+        for item in pair:
+            shift=shifts[item.shift_id]
+            if shift.facility_id!=obj.shift.facility_id or shift.status!='published' or shift.staff_id!=item.original_staff_id or shift.starts_at<=timezone.now() or Attendance.objects.filter(shift=shift).exists():raise ValidationError('A shift changed or started; reject this stale swap.')
+            staff_at(item.replacement,shift.facility_id)
+            if item.replacement.role!=shift.staff.role:raise ValidationError('Duty role changed.')
+            if DutyShift.objects.filter(staff=item.replacement,status='published',starts_at__lt=shift.ends_at,ends_at__gt=shift.starts_at).exclude(pk__in=shifts).exists() or StaffLeave.objects.filter(staff=item.replacement,status='approved',starts_at__lt=shift.ends_at,ends_at__gt=shift.starts_at).exists():raise ValidationError('Replacement has a duty or approved leave conflict.')
+        if shifts[pair[0].shift_id].starts_at<shifts[pair[1].shift_id].ends_at and shifts[pair[1].shift_id].starts_at<shifts[pair[0].shift_id].ends_at:raise ValidationError('Overlapping duties cannot form a reciprocal swap.')
+        for item in pair:
+            shift=shifts[item.shift_id];shift.staff=item.replacement;shift.availability='unavailable';shift.revision+=1;shift._history_user=actor;shift.save()
+    for item in pair:
+        item.status=decision;item.reviewed_by=actor;item.reviewed_at=timezone.now();item.review_reason=reason;item._history_user=actor;item.save()
+    return obj

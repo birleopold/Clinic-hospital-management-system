@@ -88,7 +88,15 @@ def create(request,kind,pk=None):
             shift=get_object_or_404(filter_by_facility(DutyShift.objects.all(),request.user),pk=pk)
             if request.user.pk!=shift.staff_id and (not is_manager(request.user) or kind=='handover'):raise PermissionDenied
             choices=choices.filter(staff_profile__facility_id=shift.facility_id)
-    if kind=='shift':
+    if kind=='swap':
+        published=filter_by_facility(DutyShift.objects.filter(status='published',starts_at__gt=timezone.now()),request.user).select_related('staff','department')
+        own=published if is_manager(request.user) else published.filter(staff=request.user)
+        class Form(forms.Form):
+            first_id=forms.ModelChoiceField(queryset=own,label='First duty')
+            second_id=forms.ModelChoiceField(queryset=published,label='Reciprocal duty')
+            reason=forms.CharField(max_length=250)
+        title='Request an atomic reciprocal swap'
+    elif kind=='shift':
         services.manager(request.user)
         class Form(forms.Form):
             facility=forms.ModelChoiceField(queryset=filter_by_facility(Facility.objects.filter(is_active=True),request.user,field='pk'))
@@ -144,7 +152,8 @@ def create(request,kind,pk=None):
     if request.method=='POST' and form.is_valid():
         try:
             data=form.cleaned_data
-            if kind=='shift':services.create_shift(request.user,**data)
+            if kind=='swap':services.request_swap(request.user,data['first_id'].pk,data['second_id'].pk,data['reason'])
+            elif kind=='shift':services.create_shift(request.user,**data)
             elif kind=='leave':services.request_leave(request.user,**data)
             elif kind=='cover':services.request_cover(pk,request.user,**data)
             elif kind=='handover':services.handover(pk,request.user,**data)

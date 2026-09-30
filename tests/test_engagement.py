@@ -38,7 +38,7 @@ def test_legacy_readonly_link_cannot_request_or_escalate(client,team):
     assert client.get(url).status_code==200
     assert client.post(url,{'preferred_date':timezone.localdate(),'reason':'Hello','request_key':uuid.uuid4()}).status_code==403
     client.force_login(t.reception)
-    bad={'allow_appointment_requests':'on','recipient_name':'Guardian','relationship':'guardian','verification_reference':'Verified','verified':'on'}
+    bad={'scopes':['visits','results','appointments'],'allow_appointment_requests':'on','recipient_name':'Guardian','relationship':'guardian','verification_reference':'Verified','verified':'on'}
     assert client.post(f'/portal/token?patient_id={patient.pk}',bad).status_code==200
     assert PortalRecipient.objects.count()==0
     good={**bad,'authority_reference':'Approved guardian authority reference'}

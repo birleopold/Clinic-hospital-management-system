@@ -34,6 +34,8 @@ class Appointment(models.Model):
                     room_bookings=type(self).objects.filter(room_id=self.room_id,scheduled_for__lt=end,scheduled_for__gt=self.scheduled_for-timedelta(days=1)).exclude(status__in=['cancelled','no_show']).exclude(pk=self.pk)
                     if any(a.scheduled_for+timedelta(minutes=a.duration_minutes)>self.scheduled_for for a in room_bookings):
                         raise ValidationError('This room already has an overlapping appointment.')
+                from apps.operations.diagnostic_services import diagnostic_conflicts
+                if diagnostic_conflicts(self.scheduled_for,end,room_id=self.room_id,operator_id=self.clinician_id,patient_id=self.patient_id):raise ValidationError('Patient, clinician or room has an overlapping diagnostic booking.')
                 from apps.operations.models import TheatreCase
                 from django.db.models import Q
                 theatre_resources = Q(surgeon_id=self.clinician_id) | Q(patient_id=self.patient_id)

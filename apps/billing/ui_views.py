@@ -12,6 +12,16 @@ from common.exports import pdf_response_from_template, csv_response, xlsx_respon
 from common.facility_scope import filter_by_patient_facility
 
 
+def brand_image_context(brand):
+    if not brand or not brand.logo:return {}
+    import base64
+    from PIL import Image
+    with brand.logo.open('rb') as image_file:
+        kind=Image.open(image_file).format
+        image_file.seek(0)
+        return {'brand_logo':base64.b64encode(image_file.read()).decode('ascii'),'brand_logo_mime':'image/png' if kind=='PNG' else 'image/jpeg'}
+
+
 @login_required
 def cashier_view(request):
     user = request.user
@@ -57,11 +67,13 @@ def invoice_print_view(request, invoice_id: int):
     cfg = ClinicConfig.get_solo()
     from apps.accounts.models import FacilityConfiguration
     brand=FacilityConfiguration.objects.filter(facility_id=invoice.patient.facility_id).first()
-    template = 'billing/invoice_a4.html' if cfg.receipt_paper == ClinicConfig.A4 else 'billing/invoice_80mm.html'
+    template = 'billing/invoice_a4.html' if (brand.receipt_paper if brand else cfg.receipt_paper) == ClinicConfig.A4 else 'billing/invoice_80mm.html'
     balance = (invoice.total_amount or Decimal('0')) - (invoice.paid_amount or Decimal('0'))
     ctx = {
         'config': cfg,
         'facility_brand':brand,
+        **brand_image_context(brand),
+
         'invoice': invoice,
         'lines': invoice.lines.all(),
         'balance': balance,
@@ -85,10 +97,12 @@ def receipt_print_view(request, payment_id: int):
     cfg = ClinicConfig.get_solo()
     from apps.accounts.models import FacilityConfiguration
     brand=FacilityConfiguration.objects.filter(facility_id=payment.invoice.patient.facility_id).first()
-    template = 'billing/receipt_a4.html' if cfg.receipt_paper == ClinicConfig.A4 else 'billing/receipt_80mm.html'
+    template = 'billing/receipt_a4.html' if (brand.receipt_paper if brand else cfg.receipt_paper) == ClinicConfig.A4 else 'billing/receipt_80mm.html'
     ctx = {
         'config': cfg,
         'facility_brand':brand,
+        **brand_image_context(brand),
+
         'payment': payment,
         'invoice': payment.invoice,
         'lines': payment.invoice.lines.all(),

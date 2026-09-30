@@ -177,7 +177,9 @@ def test_audit_redacts_patient_queries_and_portal_tokens(clinic, client):
     response = client.get(reverse('portal-view', args=[token]))
     assert response.status_code == 200
     assert 'no-store' in response['Cache-Control']
-    assert response['Referrer-Policy'] == 'no-referrer'
+    # Same-origin permits native form CSRF origin checks without leaking the
+    # signed patient URL to external destinations.
+    assert response['Referrer-Policy'] == 'same-origin'
     paths = list(AuditEvent.objects.values_list('path', flat=True))
     assert not any('SensitivePatientSearch' in path or token in path for path in paths)
     assert '/portal/<redacted>/' in paths

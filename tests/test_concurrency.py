@@ -37,6 +37,91 @@ def run_two(fn):
         return [f.result(timeout=20) for f in futures]
 
 
+def test_postgres_pending_settlements_cannot_overcommit_expense():
+    if connection.vendor != 'postgresql':
+        pytest.skip('Requires PostgreSQL row locks')
+    from decimal import Decimal
+    from uuid import uuid4
+    from apps.accounts.models import StaffProfile
+    from apps.operations.models import OperatingBudget, OperatingExpense, ExpenseSettlement
+    from apps.operations.settlement_services import record_settlement
+
+    facility = Facility.objects.create(name='Settlement contention')
+    actor = User.objects.create_user(username='settlement-manager', role='manager')
+    StaffProfile.objects.update_or_create(user=actor, defaults={'facility': facility})
+    today = timezone.localdate()
+    budget = OperatingBudget.objects.create(facility=facility, cost_centre='Synthetic', starts_on=today,
+        ends_on=today + timedelta(days=30), amount=1000, status='approved', created_by=actor)
+    expense = OperatingExpense.objects.create(budget=budget, incurred_on=today, payee='Synthetic',
+        reference='CONCURRENT', description='Synthetic invoice', amount=800, status='approved', created_by=actor)
+    outcomes = run_two(lambda: record_settlement(actor, expense.pk, amount=Decimal('500'),
+        paid_on=today, method='bank', account_reference='Synthetic account',
+        transaction_reference=str(uuid4()), evidence='Synthetic statement', request_key=uuid4()))
+    assert sorted(outcomes) == ['created', 'rejected']
+    assert ExpenseSettlement.objects.filter(expense=expense).count() == 1
+
+
+def test_postgres_settlement_replay_records_one_payment():
+    if connection.vendor != 'postgresql':
+        pytest.skip('Requires PostgreSQL row locks')
+    from decimal import Decimal
+    from uuid import uuid4
+    from apps.accounts.models import StaffProfile
+    from apps.operations.models import OperatingBudget, OperatingExpense, ExpenseSettlement
+    from apps.operations.settlement_services import record_settlement
+
+    facility = Facility.objects.create(name='Settlement replay')
+    actor = User.objects.create_user(username='settlement-replay-manager', role='manager')
+    StaffProfile.objects.update_or_create(user=actor, defaults={'facility': facility})
+    today = timezone.localdate()
+    budget = OperatingBudget.objects.create(facility=facility, cost_centre='Synthetic', starts_on=today,
+        ends_on=today + timedelta(days=30), amount=1000, status='approved', created_by=actor)
+    expense = OperatingExpense.objects.create(budget=budget, incurred_on=today, payee='Synthetic',
+        reference='REPLAY', description='Synthetic invoice', amount=800, status='approved', created_by=actor)
+    data = dict(amount=Decimal('500'), paid_on=today, method='bank', account_reference='Synthetic account',
+        transaction_reference='SAME-TRANSACTION', evidence='Synthetic statement', request_key=uuid4())
+    assert run_two(lambda: record_settlement(actor, expense.pk, **data)) == ['created', 'created']
+    assert ExpenseSettlement.objects.filter(expense=expense).count() == 1
+
+
+def test_postgres_diagnostic_equipment_cannot_be_double_reserved():
+    if connection.vendor != 'postgresql':
+        pytest.skip('Requires PostgreSQL row locks')
+    from apps.accounts.models import StaffProfile
+    from apps.orders.models import Order
+    from apps.operations.models import FacilityAsset, DiagnosticWorkItem
+    from apps.operations.diagnostic_services import schedule
+
+    facility = Facility.objects.create(name='Diagnostic resource contention')
+    operators = [User.objects.create_user(username=f'diagnostic-operator-{i}', role='radiology') for i in range(2)]
+    orders = []
+    for i, operator in enumerate(operators):
+        StaffProfile.objects.update_or_create(user=operator, defaults={'facility': facility})
+        patient = Patient.objects.create(first_name='Synthetic', last_name=f'Patient {i}', gender='F', facility=facility)
+        orders.append(Order.objects.create(patient=patient, order_type='imaging', code=f'SYNTHETIC-{i}', description='Synthetic study'))
+    asset = FacilityAsset.objects.create(facility=facility, tag='SYNTHETIC-SCANNER', name='Synthetic scanner',
+        location='Synthetic room', custodian=operators[0], status='operational', created_by=operators[0])
+    starts = timezone.now() + timedelta(days=1)
+    barrier = Barrier(2)
+
+    def reserve(index):
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10)
+            try:
+                schedule(orders[index].pk, operators[index], operators[index], 'CT', starts, '', 1, asset=asset)
+                return 'created'
+            except ValidationError:
+                return 'rejected'
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = [future.result(timeout=20) for future in [pool.submit(reserve, i) for i in range(2)]]
+    assert sorted(outcomes) == ['created', 'rejected']
+    assert DiagnosticWorkItem.objects.filter(asset=asset).count() == 1
+
+
 def test_postgres_last_unit_is_not_double_dispensed():
     if connection.vendor != "postgresql":
         pytest.skip("Requires PostgreSQL row locks")

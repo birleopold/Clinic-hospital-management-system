@@ -4,6 +4,9 @@ from .models import Record
 
 
 class ManagementCase(Record):
+    created_by=models.ForeignKey('accounts.User',null=True,blank=True,on_delete=models.PROTECT,related_name='+')
+    source_grant=models.ForeignKey('operations.PortalGrant',null=True,blank=True,on_delete=models.PROTECT,related_name='feedback')
+    submission_key=models.UUIDField(null=True,blank=True,unique=True)
     facility=models.ForeignKey('accounts.Facility',on_delete=models.PROTECT)
     kind=models.CharField(max_length=16,choices=[('incident','Incident'),('complaint','Complaint')])
     severity=models.CharField(max_length=12,choices=[('low','Low'),('moderate','Moderate'),('high','High'),('critical','Critical')])
@@ -99,3 +102,21 @@ class OperatingExpense(Record):
     review_reason=models.CharField(max_length=250,blank=True)
     class Meta:
         constraints=[models.CheckConstraint(condition=Q(amount__gt=0),name='positive_operating_expense'),models.UniqueConstraint(fields=['budget','payee','reference'],name='unique_expense_reference')]
+
+
+class ExpenseSettlement(Record):
+    """Evidence of a disbursement; independent reconciliation posts it to reports."""
+    expense = models.ForeignKey(OperatingExpense, on_delete=models.PROTECT, related_name='settlements')
+    request_key = models.UUIDField(unique=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    paid_on = models.DateField()
+    method = models.CharField(max_length=20, choices=[('bank', 'Bank transfer'), ('mobile_money', 'Mobile money'), ('petty_cash', 'Separate petty-cash account')])
+    account_reference = models.CharField(max_length=100)
+    transaction_reference = models.CharField(max_length=120)
+    evidence = models.TextField()
+    status = models.CharField(max_length=12, default='pending', choices=[('pending', 'Awaiting reconciliation'), ('confirmed', 'Reconciled'), ('rejected', 'Rejected evidence')])
+    reconciled_by = models.ForeignKey('accounts.User', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    reconciled_at = models.DateTimeField(null=True, blank=True)
+    review_reason = models.CharField(max_length=250, blank=True)
+    class Meta:
+        constraints = [models.CheckConstraint(condition=Q(amount__gt=0), name='positive_expense_settlement')]

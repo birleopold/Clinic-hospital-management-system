@@ -73,7 +73,7 @@ def clean_answers(fields,answers):
 
 
 @transaction.atomic
-def schedule(pk,actor,operator,modality,scheduled_at,preparation_note,revision):
+def schedule(pk,actor,operator,modality,scheduled_at,preparation_note,revision,room=None,asset=None,duration_minutes=30,instruction_template=None):
     order=locked_order(pk,actor)
     if order.status!='ordered':raise ValidationError('Only an open order can be scheduled.')
     staff_at(operator,order.patient.facility_id)
@@ -82,6 +82,38 @@ def schedule(pk,actor,operator,modality,scheduled_at,preparation_note,revision):
     item,_=DiagnosticWorkItem.objects.get_or_create(order=order,defaults={'created_by':actor})
     if item.revision!=revision:raise ValidationError('Worklist changed; reload before assigning.')
     if item.started_at:raise ValidationError('Started service assignments are retained. Finish/review the existing work before arranging another service.')
+    from apps.accounts.models import User
+    from .models import ServiceRoom, FacilityAsset, TheatreCase
+    from apps.appointments.models import Appointment
+    from django.db.models import Q
+    from datetime import timedelta
+    User.objects.select_for_update().get(pk=operator.pk)
+    if not 1<=duration_minutes<=1440:raise ValidationError('Duration must be 1–1440 minutes.')
+    if (room or asset) and not scheduled_at:raise ValidationError('Set a scheduled time before reserving equipment or a room.')
+    if room:
+        room=ServiceRoom.objects.select_for_update().get(pk=room.pk)
+        if room.facility_id!=order.patient.facility_id:raise ValidationError('Choose a room in the patient facility.')
+    if asset:
+        asset=FacilityAsset.objects.select_for_update().get(pk=asset.pk)
+        if asset.facility_id!=order.patient.facility_id or asset.status!='operational':raise ValidationError('Choose operational equipment in the patient facility.')
+    if scheduled_at:
+        end=scheduled_at+timedelta(minutes=duration_minutes)
+        if diagnostic_conflicts(scheduled_at,end,operator_id=operator.pk,room_id=getattr(room,'pk',None),asset_id=getattr(asset,'pk',None),patient_id=order.patient_id,exclude_order=order.pk):raise ValidationError('Patient, operator, room or equipment has an overlapping diagnostic booking.')
+        resources=Q(clinician_id=operator.pk)|Q(patient_id=order.patient_id)
+        theatre_resources=Q(surgeon_id=operator.pk)|Q(patient_id=order.patient_id)
+        if room:resources|=Q(room_id=room.pk);theatre_resources|=Q(room_id=room.pk)
+        appointments=Appointment.objects.filter(resources,scheduled_for__lt=end,scheduled_for__gt=scheduled_at-timedelta(days=1)).exclude(status__in=['cancelled','no_show','completed'])
+        if any(a.scheduled_for+timedelta(minutes=a.duration_minutes)>scheduled_at for a in appointments) or TheatreCase.objects.filter(theatre_resources,starts_at__lt=end,ends_at__gt=scheduled_at).exclude(status__in=['cancelled','completed']).exists():raise ValidationError('Patient, operator or room has an overlapping appointment or theatre booking.')
+    if instruction_template:
+        template=DiagnosticTemplate.objects.select_for_update().get(pk=instruction_template.pk)
+        if template.facility_id!=order.patient.facility_id or template.order_type!=order.order_type or template.status!='published' or not template.patient_instructions.strip() or not template.instruction_language.strip() or not template.instruction_reference.strip():raise ValidationError('Choose published, sourced instructions matching this facility and service.')
+        if template.modality.strip() and template.modality.strip().casefold()!=modality.strip().casefold():raise ValidationError('Preparation instructions must match the assigned modality.')
+        snapshot={'name':template.name,'version':template.version,'language':template.instruction_language,'reference':template.instruction_reference,'text':template.patient_instructions}
+    else:snapshot={}
+    if snapshot!=item.instructions_snapshot:
+        item.instructions_acknowledged_at=None;item.instructions_acknowledged_grant=None
+    item.instruction_template=instruction_template;item.instructions_snapshot=snapshot
+    item.room=room;item.asset=asset;item.duration_minutes=duration_minutes
     item.operator=operator;item.modality=modality;item.scheduled_at=scheduled_at;item.preparation_note=preparation_note;item.revision+=1;item._history_user=actor;item.save();return item
 
 
@@ -91,6 +123,7 @@ def start(pk,actor):
     if order.status!='ordered':raise ValidationError('Order is not open.')
     item=DiagnosticWorkItem.objects.filter(order=order).first()
     if not item or item.operator_id!=actor.pk:raise ValidationError('Only the assigned operator may start the procedure.')
+    if item.asset_id and item.asset.status!='operational':raise ValidationError('Reserved equipment is unavailable. Arrange a reviewed replacement before starting.')
     if not item.started_at:item.started_at=timezone.now();item.revision+=1;item._history_user=actor;item.save()
     return item
 
@@ -147,3 +180,14 @@ def review(pk,actor,decision,reason):
         sheet.review_reason=reason;sheet._history_user=actor;sheet.save()
         order.status='completed';order._history_user=actor;order.save(update_fields=['status'])
     return sheet
+
+
+def diagnostic_conflicts(start,end,room_id=None,operator_id=None,asset_id=None,patient_id=None,exclude_order=None):
+    from datetime import timedelta
+    from django.db.models import Q
+    resources=Q()
+    for key,value in [('room_id',room_id),('operator_id',operator_id),('asset_id',asset_id),('order__patient_id',patient_id)]:
+        if value:resources|=Q(**{key:value})
+    if not resources:return False
+    bookings=DiagnosticWorkItem.objects.filter(resources,scheduled_at__lt=end,scheduled_at__gt=start-timedelta(days=1),completed_at__isnull=True).exclude(order__status='cancelled').exclude(order_id=exclude_order)
+    return any(item.scheduled_at+timedelta(minutes=item.duration_minutes)>start for item in bookings)

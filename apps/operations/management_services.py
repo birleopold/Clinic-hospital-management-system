@@ -33,6 +33,8 @@ def create_record(actor,form):
         budget=OperatingBudget.objects.select_for_update().get(pk=obj.budget_id)
         if budget.status!='approved' or not budget.starts_on<=obj.incurred_on<=budget.ends_on:raise ValidationError('Expense must fall within an approved budget period.')
         if not obj.reference.strip():raise ValidationError('A supporting document reference is required.')
+        if OperatingExpense.objects.filter(budget__facility_id=facility_id,payee__iexact=obj.payee.strip(),reference__iexact=obj.reference.strip()).exclude(status='rejected').exists():raise ValidationError('This supplier invoice is already recorded in the facility expense register.')
+        obj.payee=obj.payee.strip();obj.reference=obj.reference.strip()
     elif isinstance(obj,AssetEvent):
         asset=FacilityAsset.objects.select_for_update().get(pk=obj.asset_id)
         if asset.status=='retired':raise ValidationError('Retired assets cannot receive new service events.')

@@ -6,6 +6,10 @@ from django.db import transaction
 from django.shortcuts import render,redirect,get_object_or_404
 from django.utils import timezone
 from django.core.paginator import Paginator
+from django.http import FileResponse
+from django.views.decorators.cache import never_cache
+from PIL import Image, UnidentifiedImageError
+import warnings
 from django.views.decorators.debug import sensitive_post_parameters
 from common.facility_scope import filter_by_facility,user_staff_facility_id
 from common.service_policy import SERVICES,PRESETS,DEPENDENCIES
@@ -37,13 +41,31 @@ def configure(request):
         display_name=forms.CharField(max_length=160,label='Business / facility display name')
         tagline=forms.CharField(max_length=250,required=False)
         contact_phone=forms.CharField(max_length=40,required=False)
+        logo=forms.FileField(required=False,help_text='PNG or JPEG, maximum 2 MiB and 2000 × 2000 pixels.')
+        remove_logo=forms.BooleanField(required=False)
+        receipt_paper=forms.ChoiceField(choices=FacilityConfiguration._meta.get_field('receipt_paper').choices,required=False,initial='a4')
+        print_footer=forms.CharField(max_length=250,required=False)
+        def clean_logo(self):
+            upload=self.cleaned_data.get('logo')
+            if not upload:return upload
+            if upload.size>2*1024*1024:raise forms.ValidationError('Logo must be at most 2 MiB.')
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter('error',Image.DecompressionBombWarning)
+                    image=Image.open(upload)
+                    if image.format not in ('PNG','JPEG') or max(image.size)>2000:raise forms.ValidationError('Use a PNG/JPEG at most 2000 × 2000 pixels.')
+                    upload.name=__import__('uuid').uuid4().hex+('.png' if image.format=='PNG' else '.jpg')
+                    image.verify()
+            except (UnidentifiedImageError,OSError,Image.DecompressionBombWarning,Image.DecompressionBombError):raise forms.ValidationError('Invalid PNG/JPEG logo.')
+            finally:upload.seek(0)
+            return upload
         enabled_services=forms.MultipleChoiceField(choices=[(key,f'{name} — {description}') for key,(name,description) in SERVICES.items()],widget=forms.CheckboxSelectMultiple,label='Services available at this site')
         revision=forms.IntegerField(widget=forms.HiddenInput,initial=0)
     initial={'facility':facility,'service_type':'clinic','enabled_services':PRESETS['clinic'],'display_name':facility.name if facility else ''}
-    if current:initial.update({key:getattr(current,key) for key in ['service_type','display_name','tagline','contact_phone','enabled_services','revision']})
+    if current:initial.update({key:getattr(current,key) for key in ['service_type','display_name','tagline','contact_phone','receipt_paper','print_footer','enabled_services','revision']})
     preset=request.GET.get('preset')
     if preset in PRESETS:initial.update(service_type=preset,enabled_services=PRESETS[preset])
-    form=Form(request.POST or None,initial=initial)
+    form=Form(request.POST or None,request.FILES or None,initial=initial)
     if request.method=='POST' and form.is_valid():
         data=form.cleaned_data
         try:
@@ -56,6 +78,9 @@ def configure(request):
                 if (obj.revision if obj else 0)!=data['revision']:raise ValidationError('Configuration changed; reload before saving.')
                 if not obj:obj=FacilityConfiguration(facility=target,configured_by=request.user,revision=0)
                 for key in ['service_type','display_name','tagline','contact_phone','enabled_services']:setattr(obj,key,data[key])
+                obj.receipt_paper=data['receipt_paper'] or 'a4';obj.print_footer=data['print_footer']
+                if data['remove_logo']:obj.logo=''
+                elif data['logo']:obj.logo=data['logo']
                 obj.revision+=1;obj.configured_by=request.user;obj.full_clean();obj.save()
                 record(request.user,'facility_services_changed',f'Facility {target.pk}; revision {obj.revision}; services: '+','.join(sorted(selected)))
         except ValidationError as exc:form.add_error(None,'; '.join(exc.messages))
@@ -124,3 +149,18 @@ def control(request):
     if not request.user.is_superuser:raise PermissionDenied
     sites=Facility.objects.select_related('configuration').order_by('name')
     return render(request,'accounts/owner_control.html',{'sites':Paginator(sites,25).get_page(request.GET.get('page'))})
+
+
+@login_required
+@never_cache
+def logo(request,pk):
+    conf=get_object_or_404(filter_by_facility(FacilityConfiguration.objects.all(),request.user),facility_id=pk)
+    if not conf.logo:
+        from django.http import Http404
+        raise Http404
+    # Determine MIME from the validated image, never from a user-supplied filename.
+    file=conf.logo.open('rb')
+    image=Image.open(file);kind=image.format;file.seek(0)
+    response=FileResponse(file,content_type='image/png' if kind=='PNG' else 'image/jpeg')
+    response['X-Content-Type-Options']='nosniff'
+    return response

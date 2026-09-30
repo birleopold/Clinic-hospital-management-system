@@ -251,4 +251,7 @@ def test_portal_grant_creation_requires_post(suite):
     assert suite.client.get(url).status_code==200
     assert not PortalGrant.objects.exists()
     assert suite.client.post(url).status_code==200
+    assert not PortalGrant.objects.exists()
+    payload={'scopes':['visits','results'],'recipient_name':'Verified patient','relationship':'patient','verification_reference':'In-person check','verified':'on'}
+    assert suite.client.post(url,payload).status_code==200
     assert PortalGrant.objects.filter(patient=suite.p).count()==1
