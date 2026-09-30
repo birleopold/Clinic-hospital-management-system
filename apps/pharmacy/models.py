@@ -85,3 +85,5 @@ class Backorder(models.Model):
 
     def __str__(self):
         return f"BO {self.item_code} x{self.quantity} ({self.status})"
+
+from .checkout_models import MedicineProfile, MedicineBarcode, PharmacyPolicy, DispensingBasket, BasketLine, BasketAllocation

@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Prescription #{{ rx.id }}{% endblock %}
-{% block content %}{% include 'operations/patient_banner.html' with patient=rx.patient %}
+{% block content %}{% if user.is_superuser or user.role == "admin" or user.role == "pharmacy" %}<p><a href="{% url 'pharmacy-baskets' %}?patient={{ rx.patient_id }}">Start a basket for this patient</a></p>{% endif %}{% include 'operations/patient_banner.html' with patient=rx.patient %}
 <a href="{% if rx.encounter_id %}/ehr/encounter/{{ rx.encounter_id }}{% else %}/pharmacy{% endif %}" class="muted">← Back</a>
 
 <div class="card">

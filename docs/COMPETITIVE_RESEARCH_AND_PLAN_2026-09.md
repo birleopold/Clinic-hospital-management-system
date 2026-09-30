@@ -175,3 +175,7 @@ Official product pages/documentation unless noted; accessed 30 September 2026. T
 14. [OpenLMIS features](https://openlmis.org/product/features/).
 15. [URA EFRIS](https://ura.go.ug/en/efris/), [handbook](https://ura.go.ug/en/efris-handbook/).
 16. [Uganda MoH health information exchange and interoperability guidelines](https://library.health.go.ug/health-information-systems/digital-health/uganda-health-information-exchange-and-interoperability).
+
+## Scope addition: workforce and management (30 September 2026)
+
+The owner requested staff roll call, doctor time/attendance and assigning doctors on duty before proceeding to R2. The tracker now contains STAFF-01, DUTY-01/02, ATTEND-01, LEAVE-01, HANDOVER-01 and MGMT-01–07 with acceptance criteria. This adds rosters/on-call coverage, attendance corrections and approval, leave/swaps, handovers, manager exceptions, delegated approvals, incidents, assets, budgets and staff lifecycle controls. Implement R2 first, then the workforce management workstream. Existing R3–R5 requirements remain intact; related reporting/finance/quality work should share records rather than introduce duplicate ledgers.

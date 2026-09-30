@@ -67,8 +67,10 @@ def ready_open_invoices_for_patient(patient) -> None:
 @transaction.atomic
 def add_line_from_dispense(dispense) -> InvoiceLine:
     source_ref = f"dispense:{dispense.id}"
-    invoice = get_or_create_open_invoice(dispense.patient)
-    unit_price = price_for(dispense.item_code) or Decimal('0.00')
+    invoice = getattr(dispense, "_billing_invoice", None) or get_or_create_open_invoice(dispense.patient)
+    unit_price = getattr(dispense, "_billing_unit_price", None)
+    if unit_price is None:
+        unit_price = price_for(dispense.item_code) or Decimal('0.00')
     with transaction.atomic():
         line, _ = InvoiceLine.objects.get_or_create(
             source_ref=source_ref,

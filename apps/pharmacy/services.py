@@ -28,6 +28,13 @@ def save_dispense(instance, *args, **kwargs):
             raise ValidationError('Prescription does not match the patient and medicine.')
         if qty > pi.quantity - pi.dispensed_quantity:
             raise ValidationError('Quantity exceeds the outstanding prescription.')
+    from .models import MedicineProfile
+    from .checkout_services import policy_check
+    profile = MedicineProfile.objects.filter(item__code=instance.item_code).first()
+    if profile:
+        policy_check(instance.patient, profile, pi)
+    elif not pi:
+        raise ValidationError('Review this medicine and its facility retail policy before dispensing without a prescription.')
     batches = usable_batches().select_for_update().filter(item__code=instance.item_code, quantity_on_hand__gte=qty)
     if instance.patient.facility_id:
         batches = batches.filter(location__facility_id=instance.patient.facility_id)

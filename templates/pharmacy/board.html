@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Pharmacy{% endblock %}
 {% block content %}{% if context_patient %}{% include 'operations/patient_banner.html' with patient=context_patient %}{% endif %}
-<div class="card">
+<div class="card"><p><a href="{% url 'pharmacy-baskets' %}{% if context_patient %}?patient={{ context_patient.pk }}{% endif %}">Open dispensing baskets</a> · <a href="{% url 'pharmacy-catalog' %}">Medicine catalog</a></p>
   <h2 style="margin:0 0 12px;">Pending Prescriptions</h2>
   <div style="overflow:auto;">
     <table>

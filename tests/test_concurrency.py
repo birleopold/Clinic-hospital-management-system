@@ -47,6 +47,9 @@ def test_postgres_last_unit_is_not_double_dispensed():
     location = StockLocation.objects.create(facility=facility, name="Pharmacy")
     item = InventoryItem.objects.create(code="LAST", name="Last unit")
     batch = Batch.objects.create(item=item, location=location, quantity_on_hand=1)
+    from apps.pharmacy.models import MedicineProfile, PharmacyPolicy
+    MedicineProfile.objects.create(item=item, reviewed=True, prescription_required=False)
+    PharmacyPolicy.objects.create(facility=facility, allow_retail=True)
     outcomes = run_two(
         lambda: Dispense.objects.create(
             patient_id=patient.pk, batch_id=batch.pk, item_code="LAST", quantity=1
@@ -205,3 +208,44 @@ def test_postgres_merge_blocks_late_bulk_patient_write():
             merge_patients(review.pk,u,'Verified synthetic identity')
         assert future.result(timeout=10)=='rejected'
     assert not ClinicalEntry.objects.filter(patient=source).exists()
+
+
+@pytest.mark.parametrize('same_basket',[True,False])
+def test_postgres_basket_checkout_replay_and_final_unit(same_basket):
+    if connection.vendor!='postgresql':pytest.skip('Requires PostgreSQL row locks')
+    from apps.accounts.models import StaffProfile
+    from apps.billing.models import PriceList, PriceListItem, Invoice
+    from apps.pharmacy.models import MedicineProfile, Prescription, PrescriptionItem, BasketAllocation
+    from apps.pharmacy.checkout_services import create_basket, add_item, checkout
+    facility=Facility.objects.create(name='Basket contention')
+    actor=User.objects.create_user(username='basket-dispenser',role='pharmacy')
+    StaffProfile.objects.update_or_create(user=actor,defaults={'facility':facility})
+    item=InventoryItem.objects.create(code='BASKET-LAST',name='Synthetic last unit')
+    MedicineProfile.objects.create(item=item,reviewed=True)
+    price=PriceList.objects.create(name='Synthetic')
+    PriceListItem.objects.create(pricelist=price,code=item.code,name=item.name,amount=100)
+    batch=Batch.objects.create(item=item,location=StockLocation.objects.create(facility=facility,name='Shelf'),quantity_on_hand=1)
+    baskets=[]
+    for number in range(1 if same_basket else 2):
+        patient=Patient.objects.create(first_name=f'Basket {number}',last_name='Synthetic',gender='F',facility=facility)
+        pi=PrescriptionItem.objects.create(prescription=Prescription.objects.create(patient=patient),item_code=item.code,quantity=1)
+        basket=create_basket(patient.pk,actor)
+        add_item(basket.pk,actor,1,item.code,1,pi.pk)
+        baskets.append(basket)
+    if same_basket:baskets.append(baskets[0])
+    barrier=Barrier(2)
+    def run(basket):
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10)
+            return checkout(basket.pk,actor,2,basket.checkout_key).invoice_id
+        except ValidationError:return None
+        finally:close_old_connections()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures=[pool.submit(run,basket) for basket in baskets]
+        results=[f.result(timeout=20) for f in futures]
+    if same_basket:assert results[0] and results[0]==results[1]
+    else:assert sum(result is not None for result in results)==1
+    batch.refresh_from_db();assert batch.quantity_on_hand==0
+    assert Dispense.objects.count()==1 and BasketAllocation.objects.count()==1
+    assert Invoice.objects.count()==1 and Invoice.objects.get().total_amount==100

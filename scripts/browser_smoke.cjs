@@ -18,7 +18,7 @@ const assert = require('node:assert/strict');
       page.locator('button[type=submit]').click()]);
     for (const width of [1440, 768, 390]) {
       await page.setViewportSize({ width, height: 900 });
-      for (const path of ['/suite/', '/suite/results/', '/suite/insurance/prepare/',
+      for (const path of ['/suite/', '/pharmacy/catalog/', '/pharmacy/baskets/', '/suite/results/', '/suite/insurance/prepare/',
         '/suite/stock/', '/suite/medication-round/', '/suite/theatre/',
         '/suite/pregnancies/', '/suite/maternity-visits/', '/suite/vaccinations/',
         '/suite/rehabilitation/', '/suite/rehab-sessions/', '/suite/specialty-follow-up/',
@@ -39,6 +39,29 @@ const assert = require('node:assert/strict');
           await page.screenshot({path:require('node:path').join(process.env.CLINIC_TEST_SCREENSHOTS, (path.split('/')[2]||'home')+'-'+width+'.png'),fullPage:true});
         }
       }
+    }
+    if(process.env.CLINIC_TEST_BASKET_ID){
+      const path='/pharmacy/baskets/'+process.env.CLINIC_TEST_BASKET_ID+'/';
+      await page.goto(base+path);
+      await page.locator('#id_code').fill(process.env.CLINIC_TEST_MEDICINE_CODE);
+      await page.locator('#id_packs').fill('2');
+      await page.locator('#id_prescription_item').selectOption(process.env.CLINIC_TEST_RX_ITEM_ID);
+      await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Add to basket',exact:true}).click()]);
+      for(const width of [1440,768,390]){
+        await page.setViewportSize({width,height:900});
+        assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Basket overflow');
+        await page.addScriptTag({path:require.resolve('axe-core/axe.min.js')});
+        const audit=await page.evaluate(()=>axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}}));
+        assert.deepEqual(audit.violations.map(v=>({id:v.id,impact:v.impact})),[],'Basket accessibility');
+        if(process.env.CLINIC_TEST_SCREENSHOTS)await page.screenshot({path:require('node:path').join(process.env.CLINIC_TEST_SCREENSHOTS,'basket-'+width+'.png'),fullPage:true});
+      }
+      await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Hold basket',exact:true}).click()]);
+      assert.equal(await page.getByRole('button',{name:'Add to basket',exact:true}).count(),0);
+      await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Resume basket',exact:true}).click()]);
+      await page.locator('[name=reviewed]').check();
+      await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Dispense all and prepare invoice',exact:true}).click()]);
+      await page.getByRole('link',{name:'Print medicine labels',exact:true}).click();
+      assert.equal(await page.getByRole('heading',{name:'Medicine labels',exact:true}).count(),1);
     }
     await page.setViewportSize({width:390,height:900});
     await page.goto(`${base}/suite/`);

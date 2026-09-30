@@ -12,7 +12,7 @@ The Phase 1 software scope is implemented. See [release evidence and deployment 
 | --- | --- | --- |
 | R0-01 | Synthetic dataset and repeatable role journeys | Implemented: six-role registration-through-payment regression, browser fixtures and repeatable large-history benchmark. |
 | R0-02 | Registration, consultation, dispensing and reconciliation baseline timings/clicks/errors | Pending staff measurement; no claimed speed or click-reduction result. |
-| R0-03 | Patient chart and pharmacy prototypes | Chart implemented; pharmacy basket prototype remains an R2 prerequisite. |
+| R0-03 | Patient chart and pharmacy prototypes | Chart implemented; working pharmacy basket now delivered for pilot review in R2. |
 | R0-04 | Pilot clinic, staff reviewers and accepted workflow designs | Needs facility participants; release includes a concrete review checklist. |
 | SAFE-01 | Concurrent patient merge audit and transaction protocol across write paths | Implemented for current schema: database guards cover direct and indirect patient relations, including bulk writes; PostgreSQL contention regression verifies blocking/rejection of late writes. Future schema changes require guard review. |
 
@@ -35,16 +35,40 @@ The Phase 1 software scope is implemented. See [release evidence and deployment 
 
 ## R2 — pharmacy and financial efficiency
 
+In progress. The [first Phase 2 delivery](PHASE_TWO_RELEASE.md) implements the catalog/basket foundation and invoice handoff. R2 is not complete: integrated payment retry protection, returns/reconciliation, procurement and advanced reports remain below.
+
 | ID | Requirement | Status / next evidence |
 | --- | --- | --- |
-| PHARM-01 | Structured ingredient/strength/form/route/generic/brand catalog and barcode aliases | Pending; preserve legacy codes and historical records in migration. |
-| PHARM-02 | Multi-item scanner basket and atomic/idempotent checkout | Pending; reuse existing dispense/payment services and test final-unit contention. |
-| PHARM-03 | Held baskets, package conversions and medicine instruction labels | Pending; existing package unit foundation retained. |
-| PHARM-04 | Prescription versus permitted retail-sale rules | Needs facility pharmacy policy; implementation pending. |
+| PHARM-01 | Structured ingredient/strength/form/route/generic/brand catalog and barcode aliases | Implemented: catalog profile linked to unchanged stock codes, ingredient/strength/form/route/generic/brand fields, reviewed status, unique barcode aliases and package mapping. Facility catalog review remains required. |
+| PHARM-02 | Multi-item scanner basket and atomic/idempotent checkout | Partial: scanner/code basket, atomic multi-batch dispensing, dedicated invoice and retry-safe basket completion implemented using existing dispense service. PostgreSQL replay/final-unit tests added. Payment remains the separate existing cashier workflow; combined payment idempotency remains pending. |
+| PHARM-03 | Held baskets, package conversions and medicine instruction labels | Implemented: hold/resume/cancel, audited removal and stale-revision checks; existing package units converted to base quantities; labels preserve medicine/prescription snapshots. Physical scanner and label-printer review pending. |
+| PHARM-04 | Prescription versus permitted retail-sale rules | Partial: reviewed Rx-required classification and default-disabled facility retail switch implemented; no-Rx supply requires reviewed catalog and enabled policy across existing/new dispensing. Facility approval of actual classifications remains required; additional controlled-medicine rules not inferred. |
 | STOCK-01 | Consumption/lead-time/open-PO replenishment and transfer suggestions | Pending; current minimum-stock suggestions retained. |
 | STOCK-02 | Approval-based purchasing and price/credit overrides | Pending additional workflow; preserve existing audit/control services. |
 | REPORT-01 | Receivables aging, expiry/stockout drill-down and ledger reconciliation | Pending; current reports remain available. |
-| FIN-01 | Checkout and return/refund outcomes reconcile stock, cash and ledger | Pending end-to-end basket work; existing tested refund/credit flows retained. |
+| FIN-01 | Checkout and return/refund outcomes reconcile stock, cash and ledger | Partial: basket stock/Rx/invoice posting and rollback/replay tested. Linked returns, restock eligibility, credit/refund/payment and ledger reconciliation remain pending; existing tested refund/credit flows retained. |
+
+## Workforce and management extension — added 30 September 2026
+
+Requested before starting R2. “Role calling” is tracked as staff **roll call / attendance**, alongside role-based duty assignment. These requirements are added to the implementation scope, not marked as shipped. R2 proceeds first; workforce scheduling and attendance form the next management workstream before optional enterprise integrations. Actual working-time rules require facility policy; attendance records do not automatically prove clinical coverage or determine payroll.
+
+| ID | Requirement | Acceptance / dependency |
+| --- | --- | --- |
+| STAFF-01 | Staff directory, department, specialty, employment status and credential expiry | Facility-scoped roster; inactive staff cannot receive new duties; credential expiry warns assigned supervisors; sensitive HR fields restricted. |
+| DUTY-01 | Doctor/nurse/support-staff duty roster, recurring shifts and on-call coverage | Assign person, facility, department, shift start/end, supervisor and backup; overnight/timezone handling; detect overlapping duties and insufficient coverage; draft/publish/version audit. |
+| DUTY-02 | Live doctors-on-duty board and patient assignment | Distinguish scheduled, checked-in, on-call, unavailable and actively accepting patients; assign/reassign with reason, capacity and handover; never infer attendance from login alone. |
+| ATTEND-01 | Staff roll call and clock-in/out, breaks, lateness, absence and overtime review | Record actual timestamps and method; prevent duplicate open sessions; supervisor corrections retain original time/reason; approved timesheets; facility-defined grace/rounding rules. |
+| LEAVE-01 | Leave, shift swaps and locum/backup coverage | Request/approve with separate reviewer; conflicts and coverage gaps visible; substitute accepts duty; do not publish overlapping approved leave and duty. |
+| HANDOVER-01 | Shift handover and uncompleted work escalation | Outgoing/incoming acknowledgments; pending patients/results/tasks/stock-cash issues; owner and escalation deadline; sensitive details remain role scoped. |
+| MGMT-01 | Manager command centre and exception inbox | Staffing gaps, queues, overdue results/tasks, stockouts/expiry, cash variances and receivables link to scoped source records; show freshness and named owners. |
+| MGMT-02 | Delegated approval matrix and temporary acting supervisors | Limits for purchasing, discounts, credits, refunds and stock adjustments; prevent self-approval where required; timed delegation and complete audit trail. |
+| MGMT-03 | Incident/complaint register and corrective actions | Severity, accountable owner, evidence, due date and closure review; restricted clinical/HR details; record follow-up without deleting the original report. |
+| MGMT-04 | Asset register, maintenance, calibration and downtime | Asset location/custodian, service schedule, cost and vendor; overdue/downtime warnings; link clinical-equipment checks to LIS-02 rather than duplicate them. |
+| MGMT-05 | Budgets, expenses, supplier obligations and accountable cost centres | Approved budgets/expenses and supporting documents; separate invoices, cash movement and profit; reconcile with FIN-02 and accounting exports. |
+| MGMT-06 | Staff onboarding/offboarding, training and policy acknowledgments | Checklist owners/dates; remove access and reassign open work when leaving; audit role changes and policy versions; no automatic clinical credential verification claim. |
+| MGMT-07 | Workload, attendance and service-quality reporting | Agreed definitions and drill-downs by period/department; distinguish scheduled/worked time and patient volume; role-restricted exports; no opaque performance ranking. |
+
+Biometric terminals, location verification and payroll integration are optional adapters after requirements, device/provider access and privacy rules are agreed. The core attendance/roster workflow must work without those dependencies. Full payroll remains deferred; approved attendance exports are in scope.
 
 ## R3 — engagement and insights
 
