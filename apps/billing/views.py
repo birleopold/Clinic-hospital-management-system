@@ -51,39 +51,20 @@ class PaymentViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
             prefix='invoice__patient__',
         )
 
-    @transaction.atomic
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        from django.core.exceptions import ValidationError as ModelValidationError
+        from django.db import IntegrityError
+        from .payment_services import collect_cash
+        serializer=self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        # Serialize payments by cashier, then invoice, to avoid lost totals and
-        # duplicate automatically opened sessions on PostgreSQL.
-        get_user_model().objects.select_for_update().get(pk=request.user.pk)
-        invoice = Invoice.objects.select_for_update().get(
-            pk=serializer.validated_data['invoice'].pk
-        )
-        if serializer.validated_data.get('method', 'cash') != 'cash':
-            raise ValidationError({'method': 'Use verified collection or remittance workflows for non-cash payments.'})
-        amount = serializer.validated_data['amount']
-        if invoice.status == Invoice.CANCELLED:
-            raise ValidationError({'invoice': 'Cannot pay a cancelled invoice.'})
-        paid = invoice.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
-        paid -= Refund.objects.filter(payment__invoice=invoice, status='approved').aggregate(total=Sum('amount'))['total'] or Decimal('0')
-        if amount > invoice.total_amount - paid:
-            raise ValidationError({'amount': 'Amount exceeds the outstanding balance.'})
-        session = CashSession.objects.select_for_update().filter(
-            opened_by=request.user, close_time__isnull=True
-        ).first()
-        if session is None:
-            session = CashSession.objects.create(opened_by=request.user)
-        serializer.save(invoice=invoice, cash_session=session)
-        invoice.paid_amount = paid + amount
-        if invoice.paid_amount >= invoice.total_amount:
-            invoice.status = Invoice.PAID
-        invoice.save(update_fields=['paid_amount', 'status'])
-        session.expected_cash = session.opening_float + (
-            session.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
-        )
-        session.expected_cash -= Refund.objects.filter(cash_session=session, status='approved').aggregate(total=Sum('amount'))['total'] or Decimal('0')
-        session.save(update_fields=['expected_cash'])
-        return Response(serializer.data, status=status.HTTP_201_CREATED,
-                        headers=self.get_success_headers(serializer.data))
+        data=serializer.validated_data
+        if data.get('method','cash')!='cash':
+            raise ValidationError({'method':'Use verified collection or remittance workflows for non-cash payments.'})
+        try:
+            payment,created=collect_cash(data['invoice'].pk,request.user,data['amount'],data['idempotency_key'],data.get('notes',''))
+        except ModelValidationError as exc:
+            raise ValidationError({'detail':exc.messages})
+        except IntegrityError as exc:
+            if 'Patient identity was merged' in str(exc):raise
+            raise ValidationError({'idempotency_key':'Payment reference conflict. Reload and check the payment ledger before retrying.'})
+        return Response(self.get_serializer(payment).data,status=201 if created else 200)

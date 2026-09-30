@@ -140,6 +140,7 @@
     </div>
     <div style="margin-top:12px; display:flex; gap:8px;">
       {% if po.status == 'draft' %}
+        {% if not po.created_by_id %}<form method="post">{% csrf_token %}<button name="action" value="claim">Claim legacy draft for review</button></form>{% endif %}
         <form method="post" action="{% url 'inventory-po-approve' po.id %}" style="display:inline">{% csrf_token %}<button type="submit" class="btn btn-secondary">Approve</button></form>
         <form method="post" action="{% url 'inventory-po-cancel' po.id %}" style="display:inline">{% csrf_token %}<button type="submit" class="btn btn-secondary">Cancel</button></form>
       {% elif po.status == 'approved' %}

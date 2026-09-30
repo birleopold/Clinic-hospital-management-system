@@ -249,3 +249,95 @@ def test_postgres_basket_checkout_replay_and_final_unit(same_basket):
     batch.refresh_from_db();assert batch.quantity_on_hand==0
     assert Dispense.objects.count()==1 and BasketAllocation.objects.count()==1
     assert Invoice.objects.count()==1 and Invoice.objects.get().total_amount==100
+
+
+@pytest.mark.parametrize('same_key',[True,False])
+def test_postgres_cash_collection_retry_and_competing_cashiers(same_key):
+    import uuid
+    from apps.accounts.models import StaffProfile
+    from apps.billing.models import Invoice, Payment
+    from apps.billing.payment_services import collect_cash
+    if connection.vendor!='postgresql':pytest.skip('Requires PostgreSQL row locks')
+    facility=Facility.objects.create(name='Cash contention')
+    patient=Patient.objects.create(first_name='Cash',last_name='Synthetic',gender='F',facility=facility)
+    invoice=Invoice.objects.create(patient=patient,total_amount=100,status='ready_to_pay')
+    actors=[]
+    for n in range(1 if same_key else 2):
+        actor=User.objects.create_user(username=f'cash-race-{n}',role='cashier')
+        StaffProfile.objects.update_or_create(user=actor,defaults={'facility':facility});actors.append(actor)
+    if same_key:actors.append(actors[0])
+    keys=[uuid.uuid4(),uuid.uuid4()]
+    if same_key:keys[1]=keys[0]
+    barrier=Barrier(2)
+    def run(n):
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10)
+            return collect_cash(invoice.pk,actors[n],100,keys[n])[0].pk
+        except ValidationError:return None
+        finally:close_old_connections()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures=[pool.submit(run,n) for n in range(2)];results=[f.result(timeout=20) for f in futures]
+    if same_key:assert results[0] and results[0]==results[1]
+    else:assert sum(r is not None for r in results)==1
+    assert Payment.objects.count()==1
+    invoice.refresh_from_db();assert invoice.paid_amount==100
+
+
+def test_postgres_concurrent_returns_cannot_overcredit_or_restock():
+    if connection.vendor!='postgresql':pytest.skip('Requires PostgreSQL row locks')
+    from apps.accounts.models import StaffProfile
+    from apps.billing.models import Invoice, InvoiceLine
+    from apps.pharmacy.models import Prescription, PrescriptionItem
+    from apps.operations.finance_services import request_return, review_return
+    from apps.operations.models import MedicineReturn
+    facility=Facility.objects.create(name='Return contention')
+    patient=Patient.objects.create(first_name='Return',last_name='Synthetic',gender='F',facility=facility)
+    creator=User.objects.create_user(username='return-pharmacy',role='pharmacy')
+    manager=User.objects.create_user(username='return-manager',role='manager')
+    for actor in (creator,manager):StaffProfile.objects.update_or_create(user=actor,defaults={'facility':facility})
+    item=InventoryItem.objects.create(code='RETURN-RACE',name='Synthetic')
+    batch=Batch.objects.create(item=item,location=StockLocation.objects.create(facility=facility,name='Shelf'),quantity_on_hand=1)
+    pi=PrescriptionItem.objects.create(prescription=Prescription.objects.create(patient=patient),item_code=item.code,quantity=1)
+    disp=Dispense.objects.create(patient=patient,item_code=item.code,prescription_item=pi,batch=batch,quantity=1)
+    line=InvoiceLine.objects.get(source_ref=f'dispense:{disp.pk}');line.unit_price=100;line.save()
+    Invoice.objects.filter(pk=line.invoice_id).update(total_amount=100)
+    requests=[request_return(disp.pk,creator,1,'quarantine','Return','Isolate') for _ in range(2)]
+    barrier=Barrier(2)
+    def run(obj):
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10);review_return(obj.pk,manager,'post','Checked');return 'posted'
+        except ValidationError:return 'rejected'
+        finally:close_old_connections()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures=[pool.submit(run,obj) for obj in requests];assert sorted(f.result(timeout=20) for f in futures)==['posted','rejected']
+    assert MedicineReturn.objects.filter(status='posted').count()==1
+    assert InvoiceLine.objects.filter(source_ref__startswith='return:').count()==1
+    assert Invoice.objects.get(pk=line.invoice_id).total_amount==0
+
+
+def test_postgres_receipts_cannot_exceed_approved_purchase_quantity():
+    if connection.vendor!='postgresql':pytest.skip('Requires PostgreSQL row locks')
+    from apps.inventory.models import PurchaseOrder, PurchaseOrderLine, GoodsReceipt, GoodsReceiptLine, Supplier, StockMovement
+    from apps.inventory.services import post_goods_receipt
+    facility=Facility.objects.create(name='Receiving contention')
+    location=StockLocation.objects.create(facility=facility,name='Shelf')
+    item=InventoryItem.objects.create(code='RECEIVE-RACE',name='Synthetic')
+    po=PurchaseOrder.objects.create(facility=facility,supplier=Supplier.objects.create(name='Synthetic supplier'),status='approved')
+    line=PurchaseOrderLine.objects.create(po=po,item=item,quantity_ordered=1,unit_cost=1)
+    receipts=[]
+    for n in range(2):
+        grn=GoodsReceipt.objects.create(po=po,location=location)
+        GoodsReceiptLine.objects.create(grn=grn,po_line=line,item=item,quantity_received=1)
+        receipts.append(grn)
+    barrier=Barrier(2)
+    def run(grn):
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10);post_goods_receipt(grn.pk);return 'posted'
+        except ValidationError:return 'rejected'
+        finally:close_old_connections()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures=[pool.submit(run,grn) for grn in receipts];assert sorted(f.result(timeout=20) for f in futures)==['posted','rejected']
+    assert StockMovement.objects.filter(reason='GRN').count()==1

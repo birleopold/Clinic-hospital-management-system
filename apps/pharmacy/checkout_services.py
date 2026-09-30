@@ -141,12 +141,18 @@ def checkout(pk,actor,revision,key):
     pis={p.pk:p for p in PrescriptionItem.objects.select_for_update().filter(pk__in=[l.prescription_item_id for l in lines if l.prescription_item_id]).order_by('pk')}
     pricelist=get_active_pricelist()
     prices={p.code:p.amount for p in PriceListItem.objects.select_for_update().filter(pricelist=pricelist,code__in=[i.code for i in items.values()],active=True).order_by('pk')}
+    from apps.operations.models import PriceOverride
+    reviews={r.line_id:r for r in PriceOverride.objects.filter(line__in=lines,status__in=['requested','approved'])}
+    if any(r.status=='requested' for r in reviews.values()):raise ValidationError('Resolve pending price approvals before dispensing.')
     required={};rx_required={}
     for line in lines:
         item=items[line.item_id];profile=profiles.get(line.item_id);pi=pis.get(line.prescription_item_id)
         if not profile:raise ValidationError('Catalog entry missing.')
         policy_check(basket.patient,profile,pi)
-        if medicine_snapshot(item,profile)!=line.medicine_snapshot or prices.get(item.code)!=line.unit_price:
+        review=reviews.get(line.pk)
+        expected_price=review.catalog_price if review else line.unit_price
+        if review and line.unit_price!=review.requested_price:raise ValidationError('Approved price no longer matches. Review the line.')
+        if medicine_snapshot(item,profile)!=line.medicine_snapshot or prices.get(item.code)!=expected_price:
             raise ValidationError(f'{item.code}: catalog or price changed. Remove and re-add this line to review it.')
         if line.package_id and (line.package.item_id!=item.pk or line.package.units_per_pack!=line.units_per_pack or line.package.name!=line.package_name):
             raise ValidationError('Package conversion changed. Remove and re-add this line.')

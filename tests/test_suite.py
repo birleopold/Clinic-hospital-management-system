@@ -1,3 +1,4 @@
+import uuid
 from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -92,12 +93,12 @@ def test_refund_repayment_reconciles(suite):
     inv=Invoice.objects.create(patient=suite.p,total_amount=100,paid_amount=100,status='paid')
     session=CashSession.objects.create(opened_by=suite.u,expected_cash=100)
     pay=Payment.objects.create(invoice=inv,cash_session=session,amount=100)
-    refund=Refund.objects.create(payment=pay,amount=30,reason='Correction',created_by=suite.u)
+    refund=Refund.objects.create(payment=pay,amount=30,reason='Correction',created_by=User.objects.create_user(username='refund-requester'))
     approve_refund(refund.pk,suite.u);approve_refund(refund.pk,suite.u)
     inv.refresh_from_db();session.refresh_from_db()
     assert inv.paid_amount==70 and session.expected_cash==70
     api=APIClient();api.force_authenticate(suite.u)
-    response=api.post('/api/payments/',{'invoice':inv.pk,'amount':'30.00','method':'cash'})
+    response=api.post('/api/payments/',{'idempotency_key':str(uuid.uuid4()),'invoice':inv.pk,'amount':'30.00','method':'cash'})
     assert response.status_code==201,response.data
     inv.refresh_from_db();session.refresh_from_db()
     assert inv.paid_amount==100 and session.expected_cash==100
@@ -229,7 +230,7 @@ def test_credit_is_idempotent_and_separate_from_cash_refund(suite):
     from apps.billing.models import InvoiceLine
     invoice=Invoice.objects.create(patient=suite.p,total_amount=100)
     InvoiceLine.objects.create(invoice=invoice,code='SERVICE',quantity=1,unit_price=100,source_ref='service:test')
-    credit=InvoiceCredit.objects.create(invoice=invoice,amount=25,reason='Approved correction',created_by=suite.u)
+    credit=InvoiceCredit.objects.create(invoice=invoice,amount=25,reason='Approved correction',created_by=User.objects.create_user(username='credit-requester'))
     approve_credit(credit.pk,suite.u);approve_credit(credit.pk,suite.u)
     invoice.refresh_from_db()
     assert invoice.total_amount==75

@@ -2,7 +2,7 @@
 {% block title %}Cashier{% endblock %}
 {% block content %}{% if context_patient %}{% include 'operations/patient_banner.html' with patient=context_patient %}{% endif %}
 <div class="card">
-  <h2>Cash Session</h2>
+  <h2>Cash Session</h2><p><a href="/suite/finance/">Receivables and reconciliation</a></p>
   <div class="chips" style="margin-bottom:8px">
     <a class="btn btn-secondary" href="/cashier/session/report">Session Report</a>
     <a class="btn btn-secondary" href="/cashier/cashbook">Cashbook</a>
@@ -57,13 +57,14 @@
     <tbody>
       {% for inv in invoices %}
       <tr>
-        <td>{{ inv.id }}</td>
+        <td><a href="{% url 'suite-invoice-detail' inv.pk %}">{{ inv.id }}</a></td>
         <td>{{ inv.patient }}</td>
         <td>{{ inv.total_amount }}</td>
         <td>{{ inv.paid_amount }}</td>
         <td>{{ inv.balance }}</td>
         <td>
           <form hx-post="/api/payments/" hx-swap="none" data-success-message="Payment recorded" data-reload-after="true" style="display:inline-flex; gap:8px; align-items:center">
+            <input type="hidden" name="idempotency_key" value="{{ inv.payment_key }}" />
             <input type="hidden" name="invoice" value="{{ inv.id }}" />
             <input type="hidden" name="method" value="cash" />
             <input type="number" name="amount" step="0.01" min="0" max="{{ inv.balance }}" value="{{ inv.balance }}" style="width:120px; padding:6px; border:1px solid #cbd5e1; border-radius:6px;" />

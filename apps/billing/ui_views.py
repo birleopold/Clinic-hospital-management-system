@@ -27,6 +27,9 @@ def cashier_view(request):
         .order_by('-created_at')
     )
 
+    import uuid
+    ready_invoices=list(ready_invoices)
+    for invoice in ready_invoices: invoice.payment_key=uuid.uuid4()
     session = CashSession.objects.filter(opened_by=user, close_time__isnull=True).first()
     recent_payments = (
         filter_by_patient_facility(Payment.objects.all(), user, prefix='invoice__patient__')

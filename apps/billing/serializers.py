@@ -23,6 +23,7 @@ class InvoiceSerializer(FacilityScopedSerializer):
         read_only_fields = ('total_amount','paid_amount','status','created_at','lines')
 
 class PaymentSerializer(FacilityScopedSerializer):
+    idempotency_key = serializers.UUIDField(write_only=True)
     amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
 
     class Meta:

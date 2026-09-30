@@ -18,7 +18,7 @@ const assert = require('node:assert/strict');
       page.locator('button[type=submit]').click()]);
     for (const width of [1440, 768, 390]) {
       await page.setViewportSize({ width, height: 900 });
-      for (const path of ['/suite/', '/pharmacy/catalog/', '/pharmacy/baskets/', '/suite/results/', '/suite/insurance/prepare/',
+      for (const path of ['/suite/', '/suite/finance/', '/suite/returns/', '/suite/price-reviews/', '/suite/replenishment/', '/pharmacy/catalog/', '/pharmacy/baskets/', '/suite/results/', '/suite/insurance/prepare/',
         '/suite/stock/', '/suite/medication-round/', '/suite/theatre/',
         '/suite/pregnancies/', '/suite/maternity-visits/', '/suite/vaccinations/',
         '/suite/rehabilitation/', '/suite/rehab-sessions/', '/suite/specialty-follow-up/',
@@ -34,7 +34,7 @@ const assert = require('node:assert/strict');
           runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa'] }
         }));
         assert.deepEqual(result.violations.map(v => ({ id: v.id, impact: v.impact })), [], path);
-        if (process.env.CLINIC_TEST_SCREENSHOTS && (['/suite/','/suite/theatre/','/suite/specialty-follow-up/'].includes(path)||path.startsWith('/suite/patient/'))) {
+        if (process.env.CLINIC_TEST_SCREENSHOTS && (['/suite/','/suite/finance/','/suite/returns/','/suite/replenishment/','/suite/theatre/','/suite/specialty-follow-up/'].includes(path)||path.startsWith('/suite/patient/'))) {
           require('node:fs').mkdirSync(process.env.CLINIC_TEST_SCREENSHOTS,{recursive:true});
           await page.screenshot({path:require('node:path').join(process.env.CLINIC_TEST_SCREENSHOTS, (path.split('/')[2]||'home')+'-'+width+'.png'),fullPage:true});
         }

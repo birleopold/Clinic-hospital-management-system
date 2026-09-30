@@ -289,3 +289,4 @@ from .care_models import (VaccinationCorrection, StorageProtocol, ColdChainReadi
 from .care_models import VaccinationAdverseEvent  # noqa: E402,F401
 from .offline_models import OfflineDevice, OfflineReceipt  # noqa: E402,F401
 from .workflow_models import WorkTask, NoteTemplate, ConsultationNote, PatientDocument
+from .finance_models import PaymentRequest, RefundAuthorization, MedicineReturn, ReturnRefundLink, PriceOverride, ReplenishmentRule

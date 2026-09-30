@@ -27,34 +27,9 @@ def post_count(pk, actor):
     count.save()
     return count
 
-@transaction.atomic
 def approve_refund(pk, actor):
-    from django.contrib.auth import get_user_model
-    get_user_model().objects.select_for_update().get(pk=actor.pk)
-    refund = Refund.objects.select_for_update().get(pk=pk)
-    if refund.status == 'approved':
-        return refund
-    payment = Payment.objects.select_for_update().get(pk=refund.payment_id)
-    if payment.method != Payment.CASH:
-        raise ValidationError('Non-cash refunds must be reconciled through the original provider; a cash refund is not allowed.')
-    invoice = Invoice.objects.select_for_update().get(pk=payment.invoice_id)
-    previous = payment.refunds.filter(status='approved').aggregate(s=Sum('amount'))['s'] or Decimal('0')
-    if refund.amount <= 0 or previous + refund.amount > payment.amount:
-        raise ValidationError('Refund exceeds the remaining payment amount.')
-    session = CashSession.objects.select_for_update().filter(opened_by=actor, close_time__isnull=True).first()
-    if not session:
-        raise ValidationError('Open your cash session before handing out a cash refund.')
-    refund.approved_at = timezone.now()
-    refund.status = 'approved'
-    refund.approved_by = actor
-    refund.cash_session = session
-    refund.save()
-    invoice.paid_amount -= refund.amount
-    invoice.status = Invoice.PAID if invoice.paid_amount >= invoice.total_amount else Invoice.READY
-    invoice.save(update_fields=['paid_amount','status'])
-    session.expected_cash -= refund.amount
-    session.save(update_fields=['expected_cash'])
-    return refund
+    from .finance_services import disburse_refund
+    return disburse_refund(pk,actor,authorize_if_allowed=True)
 
 @transaction.atomic
 def transfer_stock(batch_id, destination, quantity, actor):
@@ -75,19 +50,6 @@ def transfer_stock(batch_id, destination, quantity, actor):
     return target
 
 
-@transaction.atomic
 def approve_credit(pk, actor):
-    from .models import InvoiceCredit
-    from apps.billing.models import InvoiceLine
-    from apps.billing.services import recalc_invoice
-    credit=InvoiceCredit.objects.select_for_update().get(pk=pk)
-    if credit.status=='approved': return credit
-    invoice=Invoice.objects.select_for_update().get(pk=credit.invoice_id)
-    if invoice.status==Invoice.CANCELLED or credit.amount<=0 or credit.amount>invoice.total_amount:
-        raise ValidationError('Credit must be positive and within the uncancelled invoice total.')
-    InvoiceLine.objects.create(invoice=invoice,code='CREDIT',description=credit.reason,quantity=-1,unit_price=credit.amount,source_ref=f'credit:{credit.pk}')
-    recalc_invoice(invoice)
-    invoice.status=Invoice.PAID if invoice.paid_amount>=invoice.total_amount else Invoice.READY
-    invoice.save(update_fields=['status'])
-    credit.status='approved';credit.approved_by=actor;credit.save()
-    return credit
+    from .finance_services import approve_invoice_credit
+    return approve_invoice_credit(pk,actor)

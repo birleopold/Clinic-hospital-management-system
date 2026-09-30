@@ -1,6 +1,16 @@
 from django.urls import path
-from . import views, advanced_views, offline_views, chart_views, workflow_views
+from . import views, advanced_views, offline_views, chart_views, workflow_views, finance_views
 urlpatterns = [
+    path('suite/finance/',finance_views.finance,name='suite-finance'),
+    path('suite/finance/invoice/<int:pk>/',finance_views.invoice_detail,name='suite-invoice-detail'),
+    path('suite/finance/refunds/<int:pk>/',finance_views.refund_detail,name='suite-refund-detail'),
+    path('suite/returns/',finance_views.returns,name='suite-returns'),
+    path('suite/returns/<int:pk>/',finance_views.return_detail,name='suite-return-detail'),
+    path('suite/price-reviews/',finance_views.price_reviews,name='suite-price-reviews'),
+    path('suite/price-reviews/new/<int:line_id>/',finance_views.price_request,name='suite-price-request'),
+    path('suite/price-reviews/<int:pk>/',finance_views.price_review,name='suite-price-review'),
+    path('suite/replenishment/',finance_views.replenishment,name='suite-replenishment'),
+    path('suite/stock/batch/<int:pk>/',finance_views.stock_detail,name='suite-stock-detail'),
     path('suite/visit/<int:pk>/claim/', workflow_views.claim_visit, name='suite-claim-visit'),
     path('suite/department-board/', workflow_views.department_board, name='suite-department-board'),
     path('suite/patient/<int:pk>/handoff/', workflow_views.handoff, name='suite-handoff'),

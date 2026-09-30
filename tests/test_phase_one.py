@@ -1,3 +1,4 @@
+import uuid
 from datetime import timedelta
 import pytest
 from django.utils import timezone
@@ -181,7 +182,7 @@ def test_full_patient_journey_across_staff_roles(suite):
     api=APIClient();api.force_authenticate(staff['cashier'])
     for invoice in Invoice.objects.filter(patient=patient):
         if invoice.total_amount>0:
-            response=api.post('/api/payments/',{'invoice':invoice.pk,'amount':str(invoice.total_amount),'method':'cash'})
+            response=api.post('/api/payments/',{'idempotency_key':str(uuid.uuid4()),'invoice':invoice.pk,'amount':str(invoice.total_amount),'method':'cash'})
             assert response.status_code==201,response.data
             invoice.refresh_from_db();assert invoice.paid_amount==invoice.total_amount
     assert Payment.objects.filter(invoice__patient=patient).exists()

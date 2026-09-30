@@ -1,4 +1,5 @@
 from common.facility_scope import filter_by_facility, user_staff_facility_id
+from django.db import transaction
 from django.db.models import Q
 from django.views.decorators.http import require_POST
 from django.contrib import messages
@@ -238,20 +239,24 @@ def po_create_view(request):
     if request.method == 'POST':
         sid = int(request.POST.get('supplier') or '0')
         supplier = get_object_or_404(Supplier, pk=sid)
-        po = PurchaseOrder.objects.create(facility_id=user_staff_facility_id(user), supplier=supplier, remarks=(request.POST.get('remarks') or '').strip())
+        po = PurchaseOrder.objects.create(created_by=user,facility_id=user_staff_facility_id(user), supplier=supplier, remarks=(request.POST.get('remarks') or '').strip())
         return redirect('inventory-po-edit', po_id=po.id)
     suppliers = Supplier.objects.all().order_by('name')
     return render(request, 'inventory/po_form.html', {'po': None, 'suppliers': suppliers, 'items': [], 'mode': 'create'})
 
 
 @login_required
+@transaction.atomic
 def po_edit_view(request, po_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
-    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user).select_related('supplier'), pk=po_id)
+    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.select_for_update(of=('self',)), user).select_related('supplier'), pk=po_id)
     items = InventoryItem.objects.all().order_by('code')[:500]
     if request.method == 'POST' and po.status == PurchaseOrder.DRAFT:
+        if not po.created_by_id:
+            po.created_by=user;po._history_user=user;po.save(update_fields=['created_by'])
+        if request.POST.get('action')=='claim':return redirect('inventory-po-edit',po_id=po.pk)
         try:
             item_id = int(request.POST.get('item') or '0')
             if item_id <= 0:
@@ -345,13 +350,14 @@ def po_edit_view(request, po_id: int):
 
 
 @login_required
+@transaction.atomic
 def po_line_update_view(request, po_id: int, line_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
     if request.method != 'POST':
         return HttpResponseForbidden('Invalid method')
-    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user), pk=po_id)
+    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.select_for_update(), user), pk=po_id)
     if po.status != PurchaseOrder.DRAFT:
         return HttpResponseForbidden('Cannot edit a non-draft PO')
     ln = get_object_or_404(PurchaseOrderLine, pk=line_id, po=po)
@@ -385,13 +391,14 @@ def po_line_update_view(request, po_id: int, line_id: int):
 
 
 @login_required
+@transaction.atomic
 def po_line_delete_view(request, po_id: int, line_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
     if request.method != 'POST':
         return HttpResponseForbidden('Invalid method')
-    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user), pk=po_id)
+    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.select_for_update(), user), pk=po_id)
     if po.status != PurchaseOrder.DRAFT:
         return HttpResponseForbidden('Cannot delete from a non-draft PO')
     ln = get_object_or_404(PurchaseOrderLine, pk=line_id, po=po)
@@ -406,14 +413,18 @@ def po_line_delete_view(request, po_id: int, line_id: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def po_approve_view(request, po_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
-    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user), pk=po_id)
-    if po.status == PurchaseOrder.DRAFT:
-        po.status = PurchaseOrder.APPROVED
-        po.save(update_fields=['status'])
+    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.select_for_update(), user), pk=po_id)
+    from .services import approve_purchase_order
+    from django.core.exceptions import ValidationError
+    try:approve_purchase_order(po.pk,user)
+    except ValidationError as exc:
+        messages.error(request,'; '.join(exc.messages))
+        return redirect('inventory-po-edit',po_id=po.pk)
     if request.headers.get('HX-Request'):
         return HttpResponse(status=204)
     return redirect('inventory-po-list')
@@ -421,11 +432,12 @@ def po_approve_view(request, po_id: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def po_close_view(request, po_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
-    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user), pk=po_id)
+    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.select_for_update(), user), pk=po_id)
     if po.status != PurchaseOrder.APPROVED:
         return HttpResponseForbidden('Only approved POs can be closed')
     # Fully received check: all lines received >= ordered
@@ -434,7 +446,7 @@ def po_close_view(request, po_id: int):
         return HttpResponseForbidden('No lines to close')
     rec_by_line = {
         row['po_line_id']: (row['s'] or Decimal('0'))
-        for row in GoodsReceiptLine.objects.filter(grn__po=po, po_line__isnull=False).values('po_line_id').annotate(s=Sum('quantity_received'))
+        for row in GoodsReceiptLine.objects.filter(grn__po=po, grn__posted=True, po_line__isnull=False).values('po_line_id').annotate(s=Sum('quantity_received'))
     }
     for ln in lines:
         recd = rec_by_line.get(ln.id, Decimal('0'))
@@ -449,11 +461,14 @@ def po_close_view(request, po_id: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def po_cancel_view(request, po_id: int):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
         return HttpResponseForbidden('Not allowed')
-    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user), pk=po_id)
+    po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.select_for_update(), user), pk=po_id)
+    if po.receipts.filter(posted=True).exists():
+        return HttpResponseForbidden('Cannot cancel an order with posted receipts.')
     if po.status in (PurchaseOrder.DRAFT, PurchaseOrder.APPROVED):
         po.status = PurchaseOrder.CANCELLED
         po.save(update_fields=['status'])
@@ -473,6 +488,7 @@ def grn_list_view(request):
 
 
 @login_required
+@transaction.atomic
 def grn_create_view(request):
     user = request.user
     if not (user.is_superuser or user.role in ('admin','store','manager')):
@@ -480,7 +496,7 @@ def grn_create_view(request):
     # Pick an approved PO to receive
     if request.method == 'POST':
         po_id = int(request.POST.get('po') or '0')
-        po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.all(), user), pk=po_id)
+        po = get_object_or_404(filter_by_facility(PurchaseOrder.objects.select_for_update(), user), pk=po_id)
         grn = GoodsReceipt.objects.create(po=po, reference=(request.POST.get('reference') or '').strip())
         # capture lines arrays
         item_ids = request.POST.getlist('item')
@@ -521,7 +537,7 @@ def grn_create_view(request):
                         continue
                 if not po_line and po_lines_for_item:
                     po_line = po_lines_for_item[0]
-                # Over-receipt guard with optional override
+                # Approved purchase quantity is a hard limit
                 if po_line and qty is not None:
                     try:
                         outstanding_line = (po_line.quantity_ordered or _D('0')) - _D(rec_by_line.get(po_line.id, 0) or 0)
@@ -530,16 +546,7 @@ def grn_create_view(request):
                     if outstanding_line < 0:
                         outstanding_line = _D('0')
                     if qty > outstanding_line:
-                        allow = (request.POST.get('allow_overreceipt') == '1') and (request.user.is_superuser or request.user.role in ('admin','manager'))
-                        reason = (request.POST.get('override_reason') or '').strip()
-                        if not allow or not reason:
-                            return HttpResponseForbidden(f'Over-receipt detected. Outstanding: {outstanding_line}, received: {qty}. Manager override with reason is required.')
-                        # Persist reason by appending to GRN reference for audit trail
-                        if grn.reference:
-                            grn.reference = f"{grn.reference} | OVERRIDE: {reason}"
-                        else:
-                            grn.reference = f"OVERRIDE: {reason}"
-                        grn.save(update_fields=['reference'])
+                        return HttpResponseForbidden(f'Over-receipt detected. Outstanding: {outstanding_line}, received: {qty}. Extra stock requires another approved purchase order.')
                 exp_date = None
                 if expiry:
                     try:

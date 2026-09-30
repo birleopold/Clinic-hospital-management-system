@@ -1,6 +1,6 @@
-# Phase 2 — first delivery: catalog and dispensing baskets
+# Phase 2 — pharmacy, purchasing and financial operations
 
-Phase 2 is **in progress**, not complete. This delivery starts PHARM-01–04 and FIN-01. The [implementation tracker](IMPLEMENTATION_TRACKER.md) retains purchasing, replenishment, reporting, combined payment retry protection and linked returns/reconciliation as unfinished work. Workforce and management requirements requested on 30 September are also recorded there for the next management workstream.
+Phase 2 software implementation is complete. Facility acceptance remains open. The [implementation tracker](IMPLEMENTATION_TRACKER.md) preserves R3–R5, workforce/attendance and provider commissioning dependencies.
 
 ## Delivered
 
@@ -32,6 +32,26 @@ Use PostgreSQL for concurrent dispensing. SQLite regression tests do not prove r
 
 New tests cover FEFO splits, stock-shortage rollback, failure after a first allocation, retry-safe completion, held/cancelled/stale baskets, package conversions, price/Rx changes, barcode ambiguity, retail policy, cross-facility/role access and patient-merge guards. PostgreSQL tests contend two different patients for the final unit and replay the same basket concurrently. Browser checks cover 390/768/1440 widths and the add/hold/resume/dispense/print-label journey.
 
-Facility staff still need to validate actual catalog classifications, package factors, hardware scanners and label printers. A pharmacy basket is a dispensing/invoice workflow in this release; it is not yet the complete R2 linked payment/return/reconciliation suite. Existing cashier collection and reviewed refunds remain separate.
+Facility staff still need to validate actual catalog classifications, package factors, hardware scanners and label printers. Dispensing and cashier collection are separate authorized transactions, each protected against retries. Original-provider noncash refund execution remains PAY-02; this release does not substitute cash for unsupported provider refunds.
 
 Technical references reviewed: [Django 5.2 transaction management](https://docs.djangoproject.com/en/5.2/topics/db/transactions/) and [QuerySet row-lock behavior](https://docs.djangoproject.com/en/5.2/ref/models/querysets/#select-for-update). Contention tests use real transactions on PostgreSQL, rather than interpreting SQLite test success as concurrency evidence.
+
+
+## Completion delivery
+
+- `/suite/finance/`: receivables buckets (0–30, 31–60, 61–90 and over 90 days since invoice creation), invoice source-line/net-payment comparisons and cash-session reconciliation. Invoice details retain source references, receipts and linked refunds. Cashier collection uses UUID request keys; same-key retries return the original payment and changed payloads fail.
+- `/suite/returns/`: pharmacist return requests and separate manager review. Quarantine is the default; restocking requires inspection and rejects expired/quarantined source stock. Posted returns retain the original dispense and prescription entitlement, create traceable stock movements and proportional credits, and request refunds only for excess net payment. Reviewer approval authorizes eligible cash refunds; the cashier must separately record actual handout. Original payment limits prevent duplicate refunds.
+- `/suite/price-reviews/`: requested price exceptions block checkout until another supervisor reviews them. Approval snapshots the baseline catalog price, and subsequent catalog changes require renewed review.
+- Purchasing: drafts record their creator; another manager/admin approves valid lines. Legacy drafts must first be claimed. Previously approved historical orders remain usable. Posted receipts cannot exceed approved order quantities or include unrelated items; extra stock requires another approved order.
+- `/suite/replenishment/`: 30-day dispensing/vaccination consumption, usable stock, configurable lead/review/safety days and approved unreceived orders determine suggested purchases. Transfers/disposals are excluded from consumption. Transfers are suggestions to an explicitly configured destination, never automatic stock movements. Expiry/current stockout rows link to source batches and movement records.
+- Invoice credits and refunds require another supervisor. Facility and role restrictions apply within services as well as views; audit history and canonical-patient guards include the new records.
+
+## Upgrade compatibility and operating controls
+
+Apply inventory migration 0007 and operations migrations 0017–0018 in addition to the catalog migrations above. Migration 0018 refreshes PostgreSQL canonical-patient guards for new financial records. Back up before deployment and test the upgrade on a restored database.
+
+**Payment API clients must now send `idempotency_key`, a UUID, with each cash payment.** Reuse that UUID and identical invoice/amount/notes only when retrying the same collection. Generate a new UUID for a genuinely new payment. The first successful request returns HTTP 201; a matching replay returns HTTP 200. Never collect physical cash twice because a response was lost.
+
+Use separate requester and supervisor accounts even during setup. Review pharmacy classifications, receipt quantities, price exceptions, return inspection and refund handout procedures with staff. No financial record should be deleted to undo a posting. Check source-ledger differences before closing a cash session; investigate legacy opening stock that predates movement records. Reports measure invoice age, not contractual overdue dates, and collections are not profit.
+
+Completion regressions cover payment replay/conflict, partially paid and unpaid returns, expired restock rejection, separate refund authorization, unsupported noncash refund rejection, price approval, receipt quantity limits, replenishment arithmetic and scoped financial views. PostgreSQL contention tests exercise duplicate payment requests, competing final-balance collections, competing returns and purchase receipts. Responsive/accessibility smoke checks include finance, returns, price review and replenishment screens at 390/768/1440 pixels.

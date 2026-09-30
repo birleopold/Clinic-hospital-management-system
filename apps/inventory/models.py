@@ -64,6 +64,10 @@ class Supplier(models.Model):
 
 
 class PurchaseOrder(models.Model):
+    created_by = models.ForeignKey('accounts.User', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    approved_by = models.ForeignKey('accounts.User', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    approved_at = models.DateTimeField(null=True, blank=True)
+
     facility = models.ForeignKey("accounts.Facility", null=True, blank=True, on_delete=models.PROTECT)
 
     DRAFT = 'draft'

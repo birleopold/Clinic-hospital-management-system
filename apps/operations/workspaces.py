@@ -13,12 +13,12 @@ ROLE_ACTIONS = {
  'reception': [('Find or register patient','/patients'),('Appointments','/appointments/schedule'),('Patient queues','/queues')],
  'clinician': [('My consultations','/ehr'),('Review results','/suite/results/'),('Referrals','/suite/referrals/'),('Offline drafts','/offline/')],
  'nurse': [('Triage and visits','/ehr'),('Medication round','/suite/medication-round/'),('Ward observations','/suite/observations/'),('Offline drafts','/offline/')],
- 'pharmacy': [('Dispense prescriptions','/pharmacy'),('Backorders','/pharmacy/backorders'),('Stock control','/suite/stock/'),('Reorder suggestions','/suite/reorder-report/')],
+ 'pharmacy': [('Medicine returns','/suite/returns/'),('Dispensing baskets','/pharmacy/baskets/'),('Dispense prescriptions','/pharmacy'),('Backorders','/pharmacy/backorders'),('Stock control','/suite/stock/'),('Reorder suggestions','/suite/replenishment/')],
  'lab': [('Laboratory worklist','/labs'),('Specimen reception','/suite/specimens/'),('Review results','/suite/results/')],
- 'cashier': [('Open cashier','/cashier'),('Collections','/suite/collections/'),('Cashbook','/cashier/cashbook')],
- 'manager': [('Reports','/reports'),('Stock control','/suite/stock/'),('Reorder suggestions','/suite/reorder-report/'),('Settings','/billing/settings')],
- 'store': [('Stock control','/suite/stock/'),('Purchase orders','/inventory/po'),('Goods receipts','/inventory/grn'),('Reorder suggestions','/suite/reorder-report/')],
- 'admin': [('Patients','/patients'),('Clinical visits','/ehr'),('Reports','/reports'),('Stock control','/suite/stock/')],
+ 'cashier': [('Finance reconciliation','/suite/finance/'),('Open cashier','/cashier'),('Collections','/suite/collections/'),('Cashbook','/cashier/cashbook')],
+ 'manager': [('Finance reconciliation','/suite/finance/'),('Price approvals','/suite/price-reviews/'),('Medicine returns','/suite/returns/'),('Reports','/reports'),('Stock control','/suite/stock/'),('Reorder suggestions','/suite/replenishment/'),('Settings','/billing/settings')],
+ 'store': [('Stock control','/suite/stock/'),('Purchase orders','/inventory/po'),('Goods receipts','/inventory/grn'),('Reorder suggestions','/suite/replenishment/')],
+ 'admin': [('Finance reconciliation','/suite/finance/'),('Price approvals','/suite/price-reviews/'),('Medicine returns','/suite/returns/'),('Patients','/patients'),('Clinical visits','/ehr'),('Reports','/reports'),('Stock control','/suite/stock/')],
 }
 
 def workspace_context(user):

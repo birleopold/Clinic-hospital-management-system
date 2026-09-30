@@ -304,7 +304,9 @@ def action(request,slug,pk,operation):
     model,title,fields,scope,roles=config(request,slug)
     try:
         with transaction.atomic():
-            obj=get_object_or_404(scoped(model,request.user,scope).select_for_update(),pk=pk)
+            queryset=scoped(model,request.user,scope)
+            if slug not in ('refunds','credits'):queryset=queryset.select_for_update()
+            obj=get_object_or_404(queryset,pk=pk)
             if model in CARE_RECORDS:
                 review_care_record(model,obj.pk,operation,request.POST,request.user)
             elif model in SPECIALTIES:
@@ -451,7 +453,12 @@ def stock_workspace(request):
         batch_number=forms.CharField(max_length=64,required=False)
         expiry=forms.DateField(required=False,widget=forms.DateInput(attrs={'type':'date'}))
         reason=forms.CharField(max_length=250)
-    form=StockForm(request.POST or None)
+    initial={}
+    for field in ('batch','location'):
+        value=request.GET.get(field,'')
+        if value.isdigit() and StockForm.base_fields[field].queryset.filter(pk=value).exists():initial[field]=value
+    if initial and request.GET.get('operation')=='transfer':initial['operation']='transfer'
+    form=StockForm(request.POST or None,initial=initial)
     if request.method=='POST' and form.is_valid():
         data=form.cleaned_data
         try:

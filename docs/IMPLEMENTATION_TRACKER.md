@@ -35,18 +35,18 @@ The Phase 1 software scope is implemented. See [release evidence and deployment 
 
 ## R2 — pharmacy and financial efficiency
 
-In progress. The [first Phase 2 delivery](PHASE_TWO_RELEASE.md) implements the catalog/basket foundation and invoice handoff. R2 is not complete: integrated payment retry protection, returns/reconciliation, procurement and advanced reports remain below.
+The Phase 2 software scope is implemented; [release evidence and deployment notes](PHASE_TWO_RELEASE.md) describe the completed workflows. Facility acceptance and hardware validation remain open release gates. Original-provider refunds remain an explicit PAY-02 dependency; unsupported refunds are not paid out as cash.
 
 | ID | Requirement | Status / next evidence |
 | --- | --- | --- |
 | PHARM-01 | Structured ingredient/strength/form/route/generic/brand catalog and barcode aliases | Implemented: catalog profile linked to unchanged stock codes, ingredient/strength/form/route/generic/brand fields, reviewed status, unique barcode aliases and package mapping. Facility catalog review remains required. |
-| PHARM-02 | Multi-item scanner basket and atomic/idempotent checkout | Partial: scanner/code basket, atomic multi-batch dispensing, dedicated invoice and retry-safe basket completion implemented using existing dispense service. PostgreSQL replay/final-unit tests added. Payment remains the separate existing cashier workflow; combined payment idempotency remains pending. |
+| PHARM-02 | Multi-item scanner basket and atomic/idempotent checkout | Implemented: scanner basket, atomic dispensing/invoice posting and retry-safe completion; cashier handoff uses a required payment idempotency key and rejects conflicting replays. Separate authorized dispensing and collection steps have independent transaction boundaries. |
 | PHARM-03 | Held baskets, package conversions and medicine instruction labels | Implemented: hold/resume/cancel, audited removal and stale-revision checks; existing package units converted to base quantities; labels preserve medicine/prescription snapshots. Physical scanner and label-printer review pending. |
-| PHARM-04 | Prescription versus permitted retail-sale rules | Partial: reviewed Rx-required classification and default-disabled facility retail switch implemented; no-Rx supply requires reviewed catalog and enabled policy across existing/new dispensing. Facility approval of actual classifications remains required; additional controlled-medicine rules not inferred. |
-| STOCK-01 | Consumption/lead-time/open-PO replenishment and transfer suggestions | Pending; current minimum-stock suggestions retained. |
-| STOCK-02 | Approval-based purchasing and price/credit overrides | Pending additional workflow; preserve existing audit/control services. |
-| REPORT-01 | Receivables aging, expiry/stockout drill-down and ledger reconciliation | Pending; current reports remain available. |
-| FIN-01 | Checkout and return/refund outcomes reconcile stock, cash and ledger | Partial: basket stock/Rx/invoice posting and rollback/replay tested. Linked returns, restock eligibility, credit/refund/payment and ledger reconciliation remain pending; existing tested refund/credit flows retained. |
+| PHARM-04 | Prescription versus permitted retail-sale rules | Implemented software; facility acceptance pending: reviewed Rx-required classification and default-disabled facility retail switch implemented; no-Rx supply requires reviewed catalog and enabled policy across existing/new dispensing. Facility approval of actual classifications remains required; additional controlled-medicine rules not inferred. |
+| STOCK-01 | Consumption/lead-time/open-PO replenishment and transfer suggestions | Implemented: 30-day dispensing consumption, configurable lead/review/safety days, usable stock and approved outstanding purchase quantities; explicit destination-based transfer suggestions and expiry drill-downs. |
+| STOCK-02 | Approval-based purchasing and price/credit overrides | Implemented: attributed purchase drafts and separate supervisor approval, approved quantity receipt limits, reviewed basket price exceptions and invoice credits. Requesters cannot approve their own changes. |
+| REPORT-01 | Receivables aging, expiry/stockout drill-down and ledger reconciliation | Implemented: invoice-age receivables buckets, current stockouts/expiry and stock movement drill-downs, invoice/payment/refund and cash-session reconciliation. Aging is since invoice creation; historical stockout duration and profit are not inferred. |
+| FIN-01 | Checkout and return/refund outcomes reconcile stock, cash and ledger | Implemented: reviewed returns link immutable dispense records, inspected/quarantined stock, invoice credits and bounded original-payment refund requests. Cash authorization and actual disbursement are separate; repeated actions are safe. Noncash provider execution remains PAY-02. |
 
 ## Workforce and management extension — added 30 September 2026
 

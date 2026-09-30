@@ -50,20 +50,7 @@
       </div>
       <div class="muted" style="margin:8px 0;">Submit to save this single line. You can add multiple lines by re-opening the GRN and appending additional lines in the future iteration.</div>
     </div>
-    {% if user.is_superuser or user.role == 'admin' or user.role == 'manager' %}
-    <div class="full" style="grid-column: 1 / -1; display:flex; gap:12px; align-items:end; flex-wrap:wrap; border-top:1px dashed #e5e7eb; padding-top:8px;">
-      <div>
-        <label>Over-receipt override</label><br/>
-        <label class="muted" style="display:flex; align-items:center; gap:6px;">
-          <input type="checkbox" name="allow_overreceipt" value="1" /> Allow receiving more than ordered
-        </label>
-      </div>
-      <div style="min-width: 260px;">
-        <label>Override reason</label><br/>
-        <input type="text" name="override_reason" placeholder="Required when allowing over-receipt" />
-      </div>
-    </div>
-    {% endif %}
+    <p class="muted">Extra stock requires another approved purchase order.</p>
     <div style="grid-column: 1 / -1; display:flex; gap:8px;">
       <button class="btn" type="submit">Create</button>
       <a class="btn btn-secondary" href="{% url 'inventory-grn-list' %}">Cancel</a>

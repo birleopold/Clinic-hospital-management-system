@@ -216,10 +216,12 @@ def test_core_screens_render_after_framework_upgrade(clinic, client, name):
 
 def test_procurement_requires_csrf_and_valid_post_succeeds(clinic):
     from django.test import Client
-    from apps.inventory.models import PurchaseOrder, Supplier
+    from apps.inventory.models import PurchaseOrder, Supplier, PurchaseOrderLine, InventoryItem
 
     supplier = Supplier.objects.create(name='Supplier')
-    po = PurchaseOrder.objects.create(supplier=supplier, facility=clinic.a)
+    requester=User.objects.create_user(username='procurement-requester',role='store')
+    po = PurchaseOrder.objects.create(supplier=supplier, facility=clinic.a,created_by=requester)
+    PurchaseOrderLine.objects.create(po=po,item=InventoryItem.objects.create(code='CSRF-PO',name='Synthetic item'),quantity_ordered=1,unit_cost=10)
     client = Client(enforce_csrf_checks=True)
     client.force_login(clinic.user)
     url = reverse('inventory-po-approve', args=[po.pk])
