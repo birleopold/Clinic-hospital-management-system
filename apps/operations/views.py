@@ -305,7 +305,7 @@ def action(request,slug,pk,operation):
     try:
         with transaction.atomic():
             queryset=scoped(model,request.user,scope)
-            if slug not in ('refunds','credits'):queryset=queryset.select_for_update()
+            if slug not in ('refunds','credits','reminders'):queryset=queryset.select_for_update()
             obj=get_object_or_404(queryset,pk=pk)
             if model in CARE_RECORDS:
                 review_care_record(model,obj.pk,operation,request.POST,request.user)
@@ -333,11 +333,15 @@ def action(request,slug,pk,operation):
             elif slug == 'bookings' and operation in ('confirmed','cancelled','no_show'):
                 obj.status=operation;obj.save()
             elif slug == 'reminders' and operation == 'cancel':
+                from apps.demographics.models import Patient
+                patient=Patient.objects.select_for_update().get(pk=obj.patient_id)
+                obj=Reminder.objects.select_for_update().get(pk=obj.pk)
+                if obj.patient_id!=patient.pk:raise ValidationError('Patient identity changed; reload.')
                 if obj.status not in ('pending','failed'): raise ValidationError('Only pending or failed reminders can be cancelled.')
                 obj.status='cancelled';obj.save()
             elif slug == 'reminders' and operation == 'retry':
-                if obj.status != 'failed': raise ValidationError('Only failed reminders can be retried.')
-                obj.status='pending';obj.save()
+                from .outreach_services import retry
+                retry(obj.pk,request.user)
             elif slug == 'duplicates' and operation in ('confirmed','distinct'):
                 if not allowed(request.user,['manager']): raise PermissionDenied
                 if obj.status != 'pending': raise ValidationError('This review is already complete.')

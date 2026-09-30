@@ -100,5 +100,15 @@ def recall_action(request,pk):
                     staff_at(obj.owner,patient.facility_id)
                     obj.next_recall=PatientRecall.objects.create(patient=patient,owner=obj.owner,purpose=obj.purpose,due_on=timezone.localdate()+timedelta(days=obj.repeat_days),repeat_days=obj.repeat_days,created_by=request.user)
                 obj.status=decision;obj.outcome=reason;obj.completed_at=timezone.now();obj._history_user=request.user;obj.save()
+                from .models import RecallOutreach, Reminder, WorkTask
+                link=RecallOutreach.objects.filter(recall=obj).first()
+                if link and link.reminder_id:
+                    reminder=Reminder.objects.select_for_update().get(pk=link.reminder_id)
+                    if reminder.status in ('pending','failed'):
+                        reminder.status='cancelled';reminder.last_error='Recall closed';reminder._history_user=request.user;reminder.save()
+                if link and link.escalation_id:
+                    task=WorkTask.objects.select_for_update().get(pk=link.escalation_id)
+                    if task.status in ('open','in_progress'):
+                        task.status='completed' if decision=='completed' else 'cancelled';task.resolution='Recall closed: '+reason;task.resolved_at=timezone.now();task.revision+=1;task._history_user=request.user;task.save()
     except ValidationError as exc:messages.error(request,'; '.join(exc.messages))
     return redirect('suite-recalls')

@@ -294,3 +294,4 @@ from .workforce_models import StaffCredential, DutyShift, Attendance, Attendance
 from .management_models import ManagementCase, CorrectiveAction, FacilityAsset, AssetEvent, StaffChecklist, OperatingBudget, OperatingExpense
 from .diagnostic_models import VisitingSpecialist, VisitingEngagement, VisitingCaseNote, DiagnosticTemplate, DiagnosticWorkItem, DiagnosticWorksheet
 from .engagement_models import PortalRecipient, AppointmentRequest, PatientRecall
+from .extension_models import ContactPreference, ReminderAttempt, RecallOutreach, SpecimenCustody, SpecimenAliquot, ReagentLot, LaboratoryQC, LabRunEvidence, ProgrammeDefinition, ProgrammeEnrollment, ProgrammeReview, ImagingStudy

@@ -103,6 +103,7 @@ def submit(pk,actor,template,answers,key,supersedes=None,specimen=None,critical=
     if order.status=='cancelled':raise ValidationError('Cannot report a cancelled order.')
     if order.order_type=='lab' and not specimen:raise ValidationError('Select the received specimen for this laboratory worksheet.')
     if specimen and (specimen.order_id!=order.pk or specimen.status!='received'):raise ValidationError('Choose a received specimen belonging to this order.')
+    if specimen and specimen.custody_events.filter(event='disposed').exists():raise ValidationError('A disposed specimen cannot be used for a new worksheet.')
     if template.facility_id!=order.patient.facility_id or template.order_type!=order.order_type or template.status!='published':raise ValidationError('Choose a published matching template in this facility.')
     if supersedes and (supersedes.order_id!=order.pk or not supersedes.approved_at):raise ValidationError('Amend a released result from this order.')
     if supersedes and OrderResult.objects.filter(supersedes=supersedes,approved_at__isnull=False).exists():raise ValidationError('This result was already amended. Select the current amendment.')
@@ -133,6 +134,11 @@ def review(pk,actor,decision,reason):
     if sheet.withdrawn_at or order.status=='cancelled':raise ValidationError('Withdrawn/cancelled reports cannot be released.')
     if result.supersedes_id and OrderResult.objects.filter(supersedes_id=result.supersedes_id,approved_at__isnull=False).exclude(pk=result.pk).exists():raise ValidationError('Another amendment was already released.')
     if not result.approved_at:
+        from .models import LabRunEvidence
+        evidence=LabRunEvidence.objects.filter(worksheet=sheet).first()
+        if evidence:
+            from .extension_services import validate_run
+            validate_run(evidence)
         result.approved_at=timezone.now();result.approved_by=actor;result._history_user=actor;result.save()
         sheet.review_reason=reason;sheet._history_user=actor;sheet.save()
         order.status='completed';order._history_user=actor;order.save(update_fields=['status'])

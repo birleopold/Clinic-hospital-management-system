@@ -177,4 +177,8 @@ Track delivery against the full plan in [IMPLEMENTATION_TRACKER.md](docs/IMPLEME
 
 The [Phase 1 workflow release](docs/PHASE_ONE_RELEASE.md) completes the daily-workflow software scope: connected department worklists, expanded patient chart, owned tasks, versioned notes, private documents and scoped selectors. Manual staff acceptance and production performance gates remain explicit in the tracker.
 
-[Phase 2's first delivery](docs/PHASE_TWO_RELEASE.md) adds the reviewed medicine catalog, barcode/package aliases, held dispensing baskets, atomic stock/invoice posting and medicine labels. Review imported catalog profiles before dispensing after upgrade. The tracker now also includes doctor duty rosters, staff roll call/attendance and related management requirements; those are planned, not yet implemented.
+[Phase 2's first delivery](docs/PHASE_TWO_RELEASE.md) adds the reviewed medicine catalog, barcode/package aliases, held dispensing baskets, atomic stock/invoice posting and medicine labels. Review imported catalog profiles before dispensing after upgrade. The tracker now also includes doctor duty rosters, staff roll call/attendance and related management requirements; core roster, roll-call, reviewed attendance, handover and management registers are implemented; see the tracker for their remaining acceptance criteria.
+
+### Engagement, laboratory traceability and governed clinical programmes
+
+The [Phases 3–5 incremental delivery](docs/PHASE_THREE_FIVE_DELIVERY.md) adds verified contact preferences, recall queueing, delivery attempts, operational metrics, specimen custody/aliquots, reagent/QC evidence, versioned programme cohorts and imaging study references. Apply the new migrations and review the upgrade notes before enabling reminder dispatch. Phases 3–5 remain partial; the [tracker](docs/IMPLEMENTATION_TRACKER.md) separates unfinished engineering from provider/clinical commissioning.

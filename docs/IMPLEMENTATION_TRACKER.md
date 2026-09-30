@@ -77,11 +77,13 @@ Started: [diagnostics, visiting access and Phase 3 first delivery](DIAGNOSTICS_A
 | ID | Requirement | Status / next evidence |
 | --- | --- | --- |
 | PORTAL-01 | Appointment requests, verified patient access and guardian delegation | Partial: existing links remain read-only by default; staff-verified recipient/guardian authority can enable retry-safe patient appointment requests, reception review and conflict-checked booking. Self-service identity verification and finer delegated scopes remain. |
-| ENGAGE-01 | Recall workflow and automated follow-up scheduling | Partial: owned recall worklist, due/overdue tracking, outcomes and idempotent next-recall scheduling implemented. Automated consented outreach/escalation remains. |
-| ENGAGE-02 | Consent/preferences, delivery inbox, opt-out and controlled retry | Pending extensions; existing consented SMS/reminder controls retained. |
+| ENGAGE-01 | Recall workflow and automated follow-up scheduling | Partial: owned recall worklist, due/overdue tracking, outcomes and idempotent next-recall scheduling implemented. Consented recall queueing and overdue owner-task escalation now implemented; scheduling/provider commissioning remains. |
+| ENGAGE-02 | Consent/preferences, delivery inbox, opt-out and controlled retry | Implemented core: verified current-phone preferences, evidence, opt-out cancellation, attempt inbox, provider-acceptance distinction, bounded retries and uncertainty blocking. Live delivery receipts and reconciliation tooling remain partial. |
 | ENGAGE-03 | WhatsApp channel | Needs provider onboarding, approved templates and consent model. |
-| REPORT-02 | Queue waits, lab turnaround, payer rejection, operational exception dashboards | Pending event/KPI definitions and reconciled drill-downs. |
+| REPORT-02 | Queue waits, lab turnaround, payer rejection, operational exception dashboards | Implemented scoped queue-entry-to-start, order-to-first-release and adjudicated-claim rejection metrics with denominators, exclusions and paginated source records. Facility KPI acceptance and richer end-to-end service-quality indicators remain. |
 | FIN-02 | Expense tracking and meaningful profitability | Partial: approved budgeted expense obligations implemented in manager registers. Settlement, reconciled costs and meaningful profitability remain; collections are not profit. |
+
+See [Phases 3–5 delivery and exact remaining gates](PHASE_THREE_FIVE_DELIVERY.md). These phases remain partial; outstanding engineering is distinct from external commissioning.
 
 ## R4 — integrations and enterprise readiness
 
@@ -92,8 +94,8 @@ Started: [diagnostics, visiting access and Phase 3 first delivery](DIAGNOSTICS_A
 | PAYER-01 | One actual pilot insurer integration then further transports | Needs selected payer, contracts, sandbox and accepted forms/codes. |
 | GOV-01 | EFRIS adapter where applicable | Needs facility tax/invoicing scope and URA integration specifications/access. |
 | GOV-02 | Approved HMIS/DHIS2 mapping and submission | Needs current indicators/identifiers, approval and authorized endpoint. |
-| LIS-01 | Specimen chain of custody/aliquots/referrals and reagent lots | Pending extension of existing specimens/results. |
-| LIS-02 | Laboratory QC and equipment service/calibration | Needs lab-owner requirements and approved quality processes. |
+| LIS-01 | Specimen chain of custody/aliquots/referrals and reagent lots | Implemented core custody sequence, aliquot accessions, referral/return evidence and independently released reagent lots. Volume balances, reagent consumption and external referral commissioning remain partial. |
+| LIS-02 | Laboratory QC and equipment service/calibration | Partial: manual SOP-referenced QC, independent review, failed-lot quarantine and attached worksheet run/release checks implemented. Mandatory QC policy, remediation, device-specific limits and lab-owner validation remain. |
 | LIS-03 | One analyzer/LIS integration | Needs actual device/protocol, approved mappings and test messages. |
 | SEC-01 | Admin MFA, granular permissions and sensitive-view/export audit review | Pending; existing role/audit/throttle controls retained. |
 | BRANCH-01 | Authorized facility switching and consolidated reports | Pending; preserve explicit facility scope and distinguish single organization from SaaS tenancy. |
@@ -106,10 +108,10 @@ Started: [diagnostics, visiting access and Phase 3 first delivery](DIAGNOSTICS_A
 
 | ID | Requirement | Status / dependency |
 | --- | --- | --- |
-| CLIN-01 | HIV/TB/NCD/ANC programs and cohort workflows | Needs approved current program definitions and clinical owners. |
+| CLIN-01 | HIV/TB/NCD/ANC programs and cohort workflows | Partial: versioned independently published definitions, snapshot enrollments, cohort status, append-only reviews/amendments and closure implemented. Approved disease-specific content, eligibility and cohort indicators still require clinical owners and validation. |
 | CLIN-02 | Drug-interaction/dose and vaccination eligibility rules | Needs approved/licensed knowledge, terminology, source/version provenance and clinical validation. |
 | SPECIALTY-01 | Validated graphical labour chart, specialty scales and multi-team theatre resources | Pending reviewed specification; existing documentation/count controls retained. |
-| IMAGE-01 | Imaging worklists, study IDs, PACS viewer and report review | Partial: imaging operator role/worklist, scheduling, versioned worksheets, independent review and released patient reports implemented. Study IDs, image storage/PACS and actual device integration remain. |
+| IMAGE-01 | Imaging worklists, study IDs, PACS viewer and report review | Partial: imaging operator role/worklist, scheduling, versioned worksheets, independent review and released patient reports implemented. Study UIDs and allowlisted external viewer references now implemented; image storage/PACS authorization and actual device integration remain. |
 | TELE-01 | Teleconsultation when pilot demand justifies it | Pending requirements and selected provider. |
 
 ## Additional patient/staff/operator/owner requirements

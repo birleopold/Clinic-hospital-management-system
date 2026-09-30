@@ -140,3 +140,6 @@ INTEGRATIONS_MOMO_BACKEND = os.getenv(
     'INTEGRATIONS_MOMO_BACKEND',
     'apps.integrations.backends.NoOpMoMoBackend',
 )
+
+# Approved external imaging viewers only; no wildcard hosts or embedded access tokens.
+PACS_VIEWER_ALLOWED_HOSTS = [host.strip().lower() for host in os.getenv("PACS_VIEWER_ALLOWED_HOSTS", "").split(",") if host.strip()]

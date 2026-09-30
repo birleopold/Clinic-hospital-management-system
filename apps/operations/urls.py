@@ -1,6 +1,12 @@
 from django.urls import path
-from . import views, advanced_views, offline_views, chart_views, workflow_views, finance_views, workforce_views, management_views, diagnostic_views, visiting_views, engagement_views
+from . import views, advanced_views, offline_views, chart_views, workflow_views, finance_views, workforce_views, management_views, diagnostic_views, visiting_views, engagement_views, extension_views, insight_views
 urlpatterns = [
+    path('suite/insights/',insight_views.insights,name='suite-insights'),
+    path('suite/outreach/',extension_views.outreach,name='suite-outreach'),
+    path('suite/outreach/<int:pk>/retry/',extension_views.outreach_retry,name='suite-outreach-retry'),
+    path('suite/clinical-operations/<slug:kind>/',extension_views.register,name='suite-extension'),
+    path('suite/clinical-operations/<slug:kind>/new/',extension_views.create,name='suite-extension-create'),
+    path('suite/clinical-operations/<slug:kind>/<int:pk>/action/',extension_views.action,name='suite-extension-action'),
     path('suite/appointment-requests/',engagement_views.requests,name='suite-appointment-requests'),
     path('suite/appointment-requests/<int:pk>/',engagement_views.request_review,name='suite-appointment-request-review'),
     path('suite/recalls/',engagement_views.recalls,name='suite-recalls'),
