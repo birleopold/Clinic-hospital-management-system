@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import PermissionDenied,ValidationError
@@ -148,7 +149,7 @@ def staff_access(request,pk):
 def control(request):
     if not request.user.is_superuser:raise PermissionDenied
     sites=Facility.objects.select_related('configuration').order_by('name')
-    return render(request,'accounts/owner_control.html',{'sites':Paginator(sites,25).get_page(request.GET.get('page'))})
+    return render(request,'accounts/owner_control.html',{'sites':Paginator(sites,25).get_page(request.GET.get('page')), 'owner_plane':settings.OWNER_CONTROL_PLANE and not settings.TENANT_KEY})
 
 
 @login_required

@@ -1,0 +1,10 @@
+.git
+.env
+*.sqlite3
+media
+staticfiles
+__pycache__
+.pytest_cache
+venv
+.venv
+upload

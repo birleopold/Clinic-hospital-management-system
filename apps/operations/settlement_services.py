@@ -1,4 +1,5 @@
 """Reviewed, retry-safe expense disbursement evidence. No gateway is called."""
+from apps.accounts.approval_services import require as require_approval
 from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -57,6 +58,7 @@ def reconcile(actor, pk, decision, reason):
         if obj.status != decision:
             raise ValidationError('A reconciled decision is immutable. Preserve this evidence and arrange an accounting correction with your supervisor.')
         return obj
+    if decision=='confirmed':require_approval(actor,candidate.expense.budget.facility_id,'settlement',obj.amount)
     obj.status = decision; obj.reconciled_by = actor; obj.reconciled_at = timezone.now(); obj.review_reason = reason
     obj._history_user = actor; obj.save()
     return obj

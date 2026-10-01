@@ -1,3 +1,4 @@
+from apps.accounts.approval_services import require as require_approval
 from decimal import Decimal
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
@@ -103,6 +104,7 @@ def decide(model,pk,actor,decision,reason,revision=None):
         if decision not in ('approved','rejected'):raise ValidationError('Choose approve or reject.')
         if obj.status not in ('draft','requested'):return obj
         if decision=='approved':
+            require_approval(actor,fid,'budget' if model==OperatingBudget else 'expense',obj.amount)
             if model==OperatingBudget:
                 if OperatingBudget.objects.filter(facility_id=fid,cost_centre=obj.cost_centre,status='approved',starts_on__lte=obj.ends_on,ends_on__gte=obj.starts_on).exclude(pk=obj.pk).exists():raise ValidationError('This cost centre already has an overlapping approved budget.')
             else:

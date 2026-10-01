@@ -1,3 +1,4 @@
+from apps.accounts.approval_services import require as require_approval
 from django.db import transaction
 from django.db.models import Sum
 from django.core.exceptions import ValidationError
@@ -62,5 +63,6 @@ def approve_purchase_order(pk,actor):
     if po.created_by_id==actor.pk:raise ValidationError('A different supervisor must approve this purchase order.')
     lines=list(po.lines.all())
     if not lines or any(l.quantity_ordered<=0 or l.unit_cost<0 for l in lines):raise ValidationError('Add valid order lines before approval.')
+    require_approval(actor,po.facility_id,'purchase',sum((l.quantity_ordered*l.unit_cost for l in lines),start=0))
     po.status=PurchaseOrder.APPROVED;po.approved_by=actor;po.approved_at=timezone.now();po._history_user=actor;po.save()
     return po
