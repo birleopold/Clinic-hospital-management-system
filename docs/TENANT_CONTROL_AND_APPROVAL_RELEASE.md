@@ -48,16 +48,14 @@ and recruits staff through the existing screens.
 
 A signed, audience-bound policy heartbeat activates a deployed tenant. The owner
 can suspend/resume with a reason and optimistic revision checks. Unavailable,
-invalid or suspended policy blocks ordinary browser/API traffic after at most the
-five-second policy cache. Queued Celery tasks retry rather than disappear. Work
+invalid or suspended policy blocks ordinary browser/API traffic with a five-second policy cache and a three-second socket timeout for retrieval. Queued Celery tasks retry rather than disappear. Work
 already executing is not forcibly interrupted; suspension is an entry-point gate.
 Owner policy availability is therefore a dependency for tenant operation. Do not
 promise offline clinical/financial operation or any uptime target from this gate.
 
 **Open audited owner support** records a reason and issues a 30-second single-use
 POST ticket signed with that tenant's separate trust key. The tenant creates a
-30-minute browser support session with an unusable password. This ticket does not
-issue JWT credentials or grant access to the owner registry. Support remains
+30-minute browser support session with an unusable password. Support accounts cannot obtain or use JWT credentials, change permanent credentials, enroll authenticators or open system administration. A valid receipt and its original session marker are required even if a support account password is later changed. This ticket does not grant access to the owner registry. Support remains
 available during suspension. Under **Choose services and branding**, tenant
 administrators can review and revoke support sessions. Expired or revoked support
 sessions are logged out on their next request. The cross-origin support form sends

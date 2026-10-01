@@ -66,4 +66,4 @@ def require(actor,facility_id,operation,amount):
     amount=Decimal(amount)
     if not amount.is_finite() or amount<0:raise ValidationError('Cannot approve an invalid financial amount.')
     now=timezone.now()
-    if not ApprovalGrant.objects.filter(facility_id=facility_id,operation=operation,approver=actor,revoked_at__isnull=True,starts_at__lte=now,ends_at__gt=now,maximum__gte=amount).exists():raise ValidationError('Your current approval authority does not cover this UGX amount. Ask the facility administrator to review the approval matrix.')
+    if not ApprovalGrant.objects.filter(facility_id=facility_id,operation=operation,approver=actor,approver__staff_profile__facility_id=facility_id,revoked_at__isnull=True,starts_at__lte=now,ends_at__gt=now,maximum__gte=amount).exists():raise ValidationError('Your current approval authority does not cover this UGX amount. Ask the facility administrator to review the approval matrix.')

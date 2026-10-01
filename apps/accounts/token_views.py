@@ -8,6 +8,10 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from common.mfa import required, verify, device_valid, record
 from common.visiting_access import restricted
 
+def support_account(user):
+    from .models import OwnerSupportReceipt
+    return bool(user and OwnerSupportReceipt.objects.filter(user=user).exists())
+
 
 class StaffTokenSerializer(TokenObtainPairSerializer):
     otp_token=serializers.CharField(required=False,write_only=True,max_length=6)
@@ -16,6 +20,7 @@ class StaffTokenSerializer(TokenObtainPairSerializer):
     def validate(self,attrs):
         token=attrs.pop('otp_token','')
         data=super().validate(attrs)
+        if support_account(self.user):raise AuthenticationFailed('Owner support uses its expiring browser session only.')
         if restricted(self.user):raise AuthenticationFailed('Use the assigned-case portal.')
         if required(self.user):
             device=verify(self.user,token)
@@ -34,7 +39,7 @@ class StaffRefreshSerializer(TokenRefreshSerializer):
     def validate(self,attrs):
         refresh=self.token_class(attrs['refresh'])
         user=get_user_model().objects.filter(pk=refresh.get('user_id'),is_active=True).first()
-        if not user or restricted(user) or ((required(user) or refresh.get('mfa_device_id')) and not device_valid(user,refresh.get('mfa_device_id'))):
+        if not user or support_account(user) or restricted(user) or ((required(user) or refresh.get('mfa_device_id')) and not device_valid(user,refresh.get('mfa_device_id'))):
             raise AuthenticationFailed('Sign in again with your authenticator.')
         return super().validate(attrs)
 

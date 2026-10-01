@@ -43,10 +43,14 @@ class TenantRuntimeMiddleware:
     def __call__(self,request):
         from apps.accounts.models import OwnerSupportReceipt
         receipt=None
-        if request.user.is_authenticated and request.session.get('owner_support_receipt'):
-            receipt=OwnerSupportReceipt.objects.filter(pk=request.session['owner_support_receipt'],user=request.user,revoked_at__isnull=True,expires_at__gt=timezone.now()).first()
-            if not receipt:logout(request)
-            else:request.user._trusted_owner_support=True
+        if request.user.is_authenticated:
+            support=OwnerSupportReceipt.objects.filter(user=request.user).first()
+            if support:
+                if request.session.get('owner_support_receipt')!=support.pk or support.revoked_at or support.expires_at<=timezone.now():logout(request)
+                else:receipt=support;request.user._trusted_owner_support=True
+            elif request.session.get('owner_support_receipt'):logout(request)
+        if receipt and request.path.startswith(('/admin/','/accounts/password','/accounts/mfa/')):
+            return HttpResponse('Owner support uses the audited tenant workspace. Permanent credentials and system administration require the tenant administrator.',status=403)
         exempt=request.path in ('/accounts/support/accept/','/accounts/logout/') or request.path.startswith('/static/')
         if not receipt and not exempt and not policy_active():
             return HttpResponse('This tenant is suspended or its owner policy is unavailable. Contact the system owner.',status=503)

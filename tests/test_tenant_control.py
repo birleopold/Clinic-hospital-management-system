@@ -159,7 +159,9 @@ def test_compose_preserves_literal_bootstrap_and_isolated_network(tmp_path,owner
     assert result.returncode==0,'Compose must accept the generated bundle.'
     config=json.loads(result.stdout)
     application=config['services']['application']
-    assert json.loads(application['environment']['TENANT_BOOTSTRAP'])['name']==data['name']
+    # Compose config escapes dollars for a reloadable serialization of its model.
+    bootstrap=application['environment']['TENANT_BOOTSTRAP'].replace('$$','$')
+    assert json.loads(bootstrap)['name']==data['name']
     assert application['environment']['TENANT_KEY']==str(obj.key)
     assert application['ports'][0]['host_ip']=='127.0.0.1'
     assert not config['services']['database'].get('ports') and not config['services']['redis'].get('ports')
@@ -170,3 +172,32 @@ def test_worker_registered_task_uses_tenant_policy():
     from config.celery import app
     app.autodiscover_tasks(force=True)
     assert isinstance(app.tasks['integrations.health_ping'],tenant_runtime.TenantTask)
+
+
+def test_support_account_cannot_escape_browser_expiry_or_obtain_jwt(client,owner_settings):
+    from rest_framework_simplejwt.tokens import RefreshToken
+    from rest_framework.test import APIClient
+    obj=service.create(owner_settings,**registration());obj.last_seen_at=timezone.now();obj.save()
+    ticket=service.support_ticket(owner_settings,obj,'Synthetic boundary check')
+    secret=service.secrets_for(obj)['support']
+    with override_settings(TENANT_KEY=str(obj.key),TENANT_SUPPORT_SECRET=secret,OWNER_CONTROL_PLANE=False),patch.object(tenant_runtime,'policy_active',return_value=True):
+        assert client.post('/accounts/support/accept/',{'ticket':ticket}).status_code==302
+        receipt=OwnerSupportReceipt.objects.get()
+        for path in ('/admin/','/accounts/password_change/','/accounts/mfa/enroll/'):
+            assert client.get(path).status_code==403
+        # A changed password does not turn temporary support into a permanent user.
+        receipt.user.set_password('Synthetic-Changed-Password-123');receipt.user.save()
+        api=APIClient()
+        assert api.post('/api/auth/token/',{'username':receipt.user.username,'password':'Synthetic-Changed-Password-123'}).status_code==401
+        refresh=RefreshToken.for_user(receipt.user)
+        assert api.post('/api/auth/token/refresh/',{'refresh':str(refresh)}).status_code==401
+        api.credentials(HTTP_AUTHORIZATION='Bearer '+str(refresh.access_token))
+        assert api.get('/api/inventory/items/').status_code==401
+        client.force_login(receipt.user)
+        assert client.get('/accounts/control/').status_code==302
+        assert '_auth_user_id' not in client.session
+        # Re-enter a valid marked support session, then let its receipt expire.
+        client.force_login(receipt.user);session=client.session;session['owner_support_receipt']=receipt.pk;session.save()
+        receipt.expires_at=timezone.now()-timedelta(seconds=1);receipt.save()
+        assert client.get('/accounts/control/').status_code==302
+        assert '_auth_user_id' not in client.session
