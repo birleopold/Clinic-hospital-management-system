@@ -58,3 +58,9 @@ STORAGES = {
         'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
     },
 }
+
+if OWNER_CONTROL_PLANE:
+    from urllib.parse import urlsplit
+    _owner_origin=urlsplit(TENANT_PUBLIC_ORIGIN)
+    if not REQUIRE_ADMIN_MFA or TENANT_KEY or _owner_origin.scheme != 'https' or not _owner_origin.hostname or _owner_origin.username or _owner_origin.password or _owner_origin.path not in ('', '/') or _owner_origin.query or _owner_origin.fragment:
+        raise ImproperlyConfigured('Owner control requires administrator MFA, a dedicated HTTPS origin, and its own deployment.')

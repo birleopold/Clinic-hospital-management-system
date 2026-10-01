@@ -8,6 +8,8 @@ from django_otp.plugins.otp_totp.models import TOTPDevice
 
 
 def required(user):
+    if getattr(user, "_trusted_owner_support", False):
+        return False
     return bool(user.is_authenticated and (user.mfa_required or (settings.REQUIRE_ADMIN_MFA and (user.is_superuser or user.role == 'admin')) or TOTPDevice.objects.filter(user=user,confirmed=True).exists()))
 
 

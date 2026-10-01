@@ -1,0 +1,46 @@
+services:
+  database:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: hms
+      POSTGRES_DB: hms
+      POSTGRES_PASSWORD: ${TENANT_DB_PASSWORD}
+    volumes: [database:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U hms -d hms"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, 'yes']
+    volumes: [redis:/data]
+    restart: unless-stopped
+  application:
+    image: clinic-hms:tenant-v1
+    env_file: .env
+    command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py bootstrap_tenant && exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 60"]
+    ports: ["127.0.0.1:${TENANT_BIND_PORT}:8000"]
+    healthcheck:
+      test: [CMD, python, -c, "import socket; socket.create_connection(('127.0.0.1',8000),2).close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes: [media:/app/media]
+    depends_on:
+      database: {condition: service_healthy}
+      redis: {condition: service_started}
+    restart: unless-stopped
+  worker:
+    image: clinic-hms:tenant-v1
+    env_file: .env
+    command: [celery, -A, config, worker, --loglevel=INFO]
+    volumes: [media:/app/media]
+    depends_on:
+      application: {condition: service_healthy}
+    restart: unless-stopped
+volumes:
+  database:
+  media:
+  redis:

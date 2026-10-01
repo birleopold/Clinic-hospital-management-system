@@ -42,6 +42,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'common.tenant_runtime.TenantRuntimeMiddleware',
     'common.access_middleware.AccessSafeguardsMiddleware',
     'django_otp.middleware.OTPMiddleware',
     'common.mfa.MFAGateMiddleware',
@@ -155,3 +156,10 @@ OTP_TOTP_ISSUER = "Clinic Staff"
 OTP_TOTP_THROTTLE_FACTOR = 2
 
 REQUIRE_SERVICE_SETUP = os.getenv("REQUIRE_SERVICE_SETUP", "1") == "1"
+
+# Independent businesses use separate tenant deployments, never a shared database.
+OWNER_CONTROL_PLANE = os.getenv("OWNER_CONTROL_PLANE", "0") == "1"
+TENANT_PUBLIC_ORIGIN = os.getenv("TENANT_PUBLIC_ORIGIN", "")
+TENANT_KEY = os.getenv("TENANT_KEY", "")
+TENANT_SUPPORT_SECRET = os.getenv("TENANT_SUPPORT_SECRET", "")
+TENANT_CONTROL_ORIGIN = os.getenv("TENANT_CONTROL_ORIGIN", "")

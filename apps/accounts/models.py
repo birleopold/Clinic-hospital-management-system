@@ -96,3 +96,6 @@ class FacilityConfiguration(models.Model):
     configured_by=models.ForeignKey(User,on_delete=models.PROTECT,related_name='+')
     updated_at=models.DateTimeField(auto_now=True)
     revision=models.PositiveIntegerField(default=1)
+
+from .tenant_models import TenantDeployment, OwnerSupportReceipt
+from .approval_models import ApprovalPolicy, ApprovalGrant

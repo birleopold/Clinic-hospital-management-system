@@ -14,6 +14,8 @@ class PaymentRequest(Record):
 
 
 class RefundAuthorization(Record):
+    authorized_amount=models.DecimalField(max_digits=12,decimal_places=2,null=True,editable=False)
+    payment_reference=models.PositiveBigIntegerField(null=True,editable=False)
     refund = models.OneToOneField('operations.Refund', on_delete=models.PROTECT, related_name='authorization')
     reason = models.CharField(max_length=250)
 

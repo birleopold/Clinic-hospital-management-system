@@ -23,6 +23,9 @@ class VisitingAccessMiddleware:
 class StaffJWTAuthentication(JWTAuthentication):
     def authenticate(self,request):
         result=super().authenticate(request)
+        if result:
+            from apps.accounts.token_views import support_account
+            if support_account(result[0]):raise AuthenticationFailed('Owner support uses its expiring browser session only.')
         if result and restricted(result[0]):raise AuthenticationFailed('Visiting specialist accounts cannot use the general staff API.')
         if result:
             from .mfa import required, device_valid

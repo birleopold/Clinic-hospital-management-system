@@ -152,6 +152,12 @@ class ServiceGateMiddleware:
 
 
 def can_open(user,url):
+    from django.conf import settings
+    account_path=urlsplit(url).path
+    if account_path.startswith('/accounts/tenants'):
+        return bool(user.is_superuser and settings.OWNER_CONTROL_PLANE and not settings.TENANT_KEY)
+    if account_path.startswith(('/accounts/support','/accounts/approvals')):
+        return bool(user.is_superuser or user.role=='admin')
     if not enabled(user,service_for_url(url)):return False
     if user.is_superuser or user.role=='admin':return True
     path=urlsplit(url).path.rstrip('/')

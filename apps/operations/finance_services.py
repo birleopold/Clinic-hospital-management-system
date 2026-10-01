@@ -1,3 +1,4 @@
+from apps.accounts.approval_services import require as require_approval
 from decimal import Decimal, ROUND_HALF_UP
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
@@ -47,7 +48,19 @@ def authorize_refund(pk,actor,reason):
     if not reason.strip():raise ValidationError('Enter an approval reason.')
     if refund.status=='approved':return refund
     if refund.payment.method!='cash':raise ValidationError('Reconcile this refund through the original non-cash provider. No cash substitution is permitted.')
-    RefundAuthorization.objects.get_or_create(refund=refund,defaults={'created_by':actor,'reason':reason})
+    authorization=RefundAuthorization.objects.filter(refund=refund).first()
+    if not authorization or authorization.authorized_amount is None:
+        require_approval(actor,refund.payment.invoice.patient.facility_id,'refund',refund.amount)
+        if authorization:
+            # Retain the original approval; history attributes the revalidation.
+            authorization.authorized_amount=refund.amount;authorization.payment_reference=refund.payment_id
+            authorization.reason=('Revalidated: '+reason)[:250];authorization._history_user=actor
+            authorization.save(update_fields=['authorized_amount','payment_reference','reason'])
+        else:
+            authorization=RefundAuthorization(refund=refund,created_by=actor,reason=reason,authorized_amount=refund.amount,payment_reference=refund.payment_id)
+            authorization._history_user=actor;authorization.save()
+    elif authorization.authorized_amount!=refund.amount or authorization.payment_reference!=refund.payment_id:
+        raise ValidationError('Refund changed after authorization. Reconcile the original approval before paying.')
     return refund
 
 
@@ -67,6 +80,8 @@ def disburse_refund(pk,actor,authorize_if_allowed=False):
     if not RefundAuthorization.objects.filter(refund=refund).exists():
         if not authorize_if_allowed:raise ValidationError('Supervisor authorization is required before paying the refund.')
         authorize_refund(pk,actor,refund.reason)
+    authorization=RefundAuthorization.objects.get(refund=refund)
+    if authorization.authorized_amount!=refund.amount or authorization.payment_reference!=refund.payment_id:raise ValidationError('Refund changed after authorization. Reconcile the original approval before paying.')
     payment=Payment.objects.select_for_update().get(pk=refund.payment_id)
     if payment.method!='cash':raise ValidationError('Use the original provider for non-cash refunds.')
     previous=payment.refunds.filter(status='approved').aggregate(s=Sum('amount'))['s'] or Decimal('0')
@@ -93,6 +108,7 @@ def approve_invoice_credit(pk,actor):
     if credit.status=='approved':return credit
     amount=money(credit.amount)
     if invoice.status==Invoice.CANCELLED or amount>invoice.total_amount:raise ValidationError('Credit exceeds the uncancelled invoice total.')
+    require_approval(actor,invoice.patient.facility_id,'credit',amount)
     InvoiceLine.objects.create(invoice=invoice,code='CREDIT',description=credit.reason,quantity=-1,unit_price=amount,source_ref=f'credit:{credit.pk}')
     recalc_invoice(invoice)
     invoice.status=Invoice.PAID if invoice.paid_amount>=invoice.total_amount else Invoice.READY
@@ -139,6 +155,7 @@ def review_return(pk,actor,decision,reason):
         if obj.quantity+previous_qty==dispense.quantity:amount=original.line_total-previous_amount
         amount=min(amount,original.line_total-previous_amount)
         if amount<0 or amount>invoice.total_amount:raise ValidationError('Prior credits require manual reconciliation before this return.')
+        require_approval(actor,invoice.patient.facility_id,'return',amount)
         batch=Batch.objects.select_for_update().filter(pk=dispense.batch_id).first()
         if not batch or not batch.location_id or batch.location.facility_id!=dispense.patient.facility_id:raise ValidationError('Original batch and facility location must be reconciled first.')
         if obj.disposition=='restock' and (batch.quarantined or (batch.expiry and batch.expiry<timezone.localdate())):
@@ -162,7 +179,9 @@ def review_return(pk,actor,decision,reason):
                 refund=Refund.objects.create(payment=payment,amount=value,reason=f'Medicine return #{obj.pk}',created_by=obj.created_by)
                 ReturnRefundLink.objects.create(medicine_return=obj,refund=refund)
                 # Return review authorizes cash refund, but never records handout.
-                if payment.method=='cash':RefundAuthorization.objects.create(refund=refund,created_by=actor,reason=reason)
+                if payment.method=='cash':
+                    require_approval(actor,invoice.patient.facility_id,'refund',value)
+                    RefundAuthorization.objects.create(refund=refund,created_by=actor,reason=reason,authorized_amount=refund.amount,payment_reference=refund.payment_id)
                 owed-=value
             if not owed:break
         obj.status='posted'
@@ -200,6 +219,7 @@ def review_price(pk,actor,decision,reason):
     line=BasketLine.objects.select_for_update().get(pk=obj.line_id)
     if basket.status!='open' or line.removed:raise ValidationError('Basket changed. Reopen and review its current lines.')
     if decision=='approve':
+        require_approval(actor,basket.patient.facility_id,'price',(abs(obj.requested_price-obj.catalog_price)*line.quantity).quantize(Decimal('.01'),rounding=ROUND_HALF_UP))
         if price_for(line.item.code)!=obj.catalog_price or line.unit_price!=obj.catalog_price:raise ValidationError('Catalog price changed; reject and replace this line.')
         line.unit_price=obj.requested_price;line._history_user=actor;line.save(update_fields=['unit_price'])
         obj.status='approved'
