@@ -151,7 +151,7 @@ def test_return_refund_limit_rolls_back_stock_and_credit(catalog):
     review_return(obj.pk,manager,'post','Reviewed')
     assert RefundAuthorization.objects.get().authorized_amount==100
 
-def test_refund_snapshot_rejects_changed_amount_and_revalidates_legacy(catalog):
+def test_refund_snapshot_rejects_changed_amount_and_revalidates_legacy(catalog,client):
     from apps.billing.payment_services import collect_cash
     from apps.operations.models import Refund,RefundAuthorization
     from apps.operations.finance_services import authorize_refund,disburse_refund
@@ -160,7 +160,13 @@ def test_refund_snapshot_rejects_changed_amount_and_revalidates_legacy(catalog):
     refund=Refund.objects.create(payment=payment,amount=100,reason='Synthetic correction',created_by=cashier)
     legacy=RefundAuthorization.objects.create(refund=refund,created_by=manager,reason='Legacy evidence')
     with pytest.raises(ValidationError,match='changed'):disburse_refund(refund.pk,cashier)
-    authorize_refund(refund.pk,manager,'Rechecked source payment')
+    reviewer=User.objects.create_user('current-refund-reviewer',role='manager')
+    StaffProfile.objects.create(user=reviewer,facility=c.f)
+    s.grant(admin,facility=c.f,operation='refund',approver=reviewer,maximum=Decimal(100),starts_at=timezone.now()-timedelta(minutes=1),ends_at=timezone.now()+timedelta(days=1),reason='Independent legacy review',request_key=uuid.uuid4())
+    authorize_refund(refund.pk,reviewer,'Rechecked source payment')
+    client.force_login(reviewer)
+    response=client.get(f'/suite/finance/refunds/{refund.pk}/')
+    assert response.status_code==200 and b'current-refund-reviewer' in response.content
     legacy.refresh_from_db();assert legacy.authorized_amount==100 and legacy.payment_reference==payment.pk
     Refund.objects.filter(pk=refund.pk).update(amount=101)
     with pytest.raises(ValidationError,match='changed'):disburse_refund(refund.pk,cashier)
