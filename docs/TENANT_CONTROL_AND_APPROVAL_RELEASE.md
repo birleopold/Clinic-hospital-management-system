@@ -139,3 +139,5 @@ whole-line price changes, credit/return atomic rollback and legacy refund
 revalidation. The standard CI matrix checks Python 3.11/3.12 with both SQLite and
 PostgreSQL and the PostgreSQL restore drill. Exact results are recorded in the
 associated pull request after validation.
+
+Release verification on 1 October 2026: local full SQLite suite **298 passed, 17 skipped** before the final Compose/worker checks; financial transaction suite **28 passed**; final targeted tenant suite **8 passed, 1 skipped** (Compose unavailable locally). The three-instance HTTPS/browser review above passed, including all three viewport widths and automated WCAG checks. The pull request records the final four-job CI matrix results.
