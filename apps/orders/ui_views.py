@@ -17,7 +17,7 @@ def lab_worklist_view(request):
         return HttpResponseForbidden('Not allowed')
     pending = (
         filter_by_patient_facility(Order.objects.all(), request.user)
-        .filter(status=Order.ORDERED)
+        .filter(status=Order.ORDERED,order_type=Order.LAB)
         .select_related('patient', 'encounter')
         .order_by('created_at', 'id')[:200]
     )
@@ -36,7 +36,7 @@ def lab_submit_result_view(request):
         oid = 0
     order = get_object_or_404(
         filter_by_patient_facility(Order.objects.all(), request.user).select_related('encounter', 'patient'),
-        pk=oid,
+        pk=oid,order_type=Order.LAB,
     )
     if order.status != Order.ORDERED:
         return redirect('labs-worklist')
@@ -60,8 +60,9 @@ def cancel_order_ui_view(request, order_id: int):
         return HttpResponseForbidden('Not allowed')
     if request.method != 'POST':
         return HttpResponseForbidden('Invalid method')
+    from apps.operations.diagnostic_services import order_scope
     order = get_object_or_404(
-        filter_by_patient_facility(Order.objects.all(), request.user).select_related('encounter'),
+        order_scope(request.user).select_related('encounter'),
         pk=order_id,
     )
     if order.status != Order.ORDERED:

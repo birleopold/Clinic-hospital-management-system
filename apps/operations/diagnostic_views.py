@@ -64,7 +64,10 @@ def template_create(request):
     Formset=forms.formset_factory(FieldForm,extra=3,max_num=60,validate_max=True,can_delete=True)
     form=TemplateForm(request.POST or None);fields=Formset(request.POST or None,prefix='fields')
     form.fields['facility'].queryset=filter_by_facility(Facility.objects.filter(is_active=True),request.user,field='pk')
-    if request.user.role=='radiology' and not request.user.is_superuser:form.fields['order_type'].choices=[('imaging','Imaging')]
+    from common.service_policy import enabled
+    choices=[(key,label) for key,label in form.fields['order_type'].choices if enabled(request.user,'clinical' if key=='procedure' else key)]
+    if request.user.role=='radiology' and not request.user.is_superuser:choices=[choice for choice in choices if choice[0]=='imaging']
+    form.fields['order_type'].choices=choices
     if request.method=='POST' and form.is_valid() and fields.is_valid():
         try:
             data=[]

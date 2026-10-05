@@ -68,6 +68,10 @@ def decide(model,pk,actor,decision,reason,revision=None):
             if actor.pk==obj.staff_id:raise ValidationError('Staff cannot review their own checklist.')
             if not obj.completed_at or (obj.kind in ('policy','training') and not obj.acknowledged_at):raise ValidationError('Complete the item and obtain the staff acknowledgment first.')
             if obj.kind=='offboarding':
+                from apps.accounts.access_services import require_work_reassignment
+                require_work_reassignment(obj.staff)
+                from common.tenant_runtime import require_permanent_administrator
+                require_permanent_administrator(actor)
                 from apps.encounters.models import Encounter
                 from apps.billing.models import CashSession
                 from .models import DutyShift, Attendance, WorkTask
@@ -76,6 +80,10 @@ def decide(model,pk,actor,decision,reason,revision=None):
                 if obj.staff.is_superuser:raise ValidationError('System superuser offboarding requires another system administrator through account administration.')
                 # Only admins can deactivate access; managers can track the checklist.
                 if not (actor.is_superuser or actor.role=='admin'):raise PermissionDenied
+                if obj.staff.role=='admin':
+                    from apps.accounts.models import User
+                    if not User.objects.filter(role='admin',is_active=True,staff_profile__facility_id=fid).exclude(pk=obj.staff_id).exists():
+                        raise ValidationError('Keep at least one active facility administrator.')
                 obj.staff.is_active=False;obj.staff.save(update_fields=['is_active'])
             obj.reviewed_by=actor;obj.reviewed_at=timezone.now();obj.review_reason=reason
         else:raise ValidationError('Unknown checklist action.')

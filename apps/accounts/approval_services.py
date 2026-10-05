@@ -8,7 +8,8 @@ from .models import Facility,User,StaffProfile,ApprovalPolicy,ApprovalGrant
 from .approval_models import OPERATIONS
 
 def administrator(actor):
-    if not actor.is_active or not (actor.is_superuser or actor.role=='admin'):raise PermissionDenied
+    from common.tenant_runtime import require_permanent_administrator
+    require_permanent_administrator(actor)
 
 def lock(actor,facility_id):
     facility=filter_by_facility(Facility.objects.select_for_update(),actor,field='pk').filter(pk=facility_id,is_active=True).first()

@@ -16,14 +16,14 @@ Open `/suite/` for the staff workspace, patient history, laboratory review, stoc
 | Registration | Patient demographics, contact/insurance fields, consent records, phone-based duplicate warnings in the UI |
 | Appointments | Clinician availability, time off, scheduling and service queues |
 | Encounters | Visit notes, vitals, diagnoses, visit-linked prescriptions and orders |
-| Laboratory | Orders, free-text results and attachments; structured samples and result approval are not implemented |
-| Pharmacy | Prescriptions, dispensing and backorders; stock safety/concurrency work remains |
+| Laboratory | Orders, specimens, structured worksheets, independent result release, critical-result acknowledgment and private attachments |
+| Pharmacy | Prescriptions, reviewed catalogues, held dispensing baskets, atomic stock/invoice posting, backorders and reviewed returns |
 | Inventory | Items, batches, movements, suppliers, purchase orders, goods receipts, CSV/XLSX imports |
 | Billing | Price lists, automatic order/dispense invoice lines, cancellation credits, cash payments and cash sessions |
 | Reports | Revenue, patient counts, service mix, CSV/XLSX exports and optional PDF printing |
 | Audit | Request metadata and model histories; request audit records are read-only in Django admin |
 | Integrations | Celery setup and placeholder SMS/MoMo backends; no live payment/SMS provider is connected |
-| Patient portal | Expiring signed links; individual link revocation and result-release approval still need implementation |
+| Patient portal | Scoped, expiring and revocable verified-recipient links, released results, appointment requests and feedback; self-service identity/recovery remains pending |
 
 ## Requirements
 
@@ -70,7 +70,7 @@ For PDF generation, use `python -m pip install -r requirements.txt`. Without the
 ## First-time configuration
 
 1. Sign in to `/admin/` as the superuser. Create a **Facility** and any departments.
-2. Create each user's account and choose the appropriate role. Roles include `admin`, `reception`, `nurse`, `clinician`, `lab`, `pharmacy`, `cashier`, `manager` and `store`.
+2. Create each user's account and choose the appropriate role. Roles include `admin`, `reception`, `nurse`, `clinician`, `lab`, `radiology`, `pharmacy`, `cashier`, `manager` and `store`.
 3. Create a **StaffProfile** for each non-superuser and assign a facility. Unassigned staff cannot access patient-scoped records. The `admin` role alone does not bypass facility scoping; only a superuser does.
 4. Configure the clinic name, receipt paper, active price list and service/item prices in admin. Configure clinician availability before booking appointments.
 5. Register patients using an assigned staff account so facility assignment is automatic. If importing existing patients/encounters, assign their facilities explicitly before ordinary staff use them.
@@ -189,6 +189,8 @@ The [Phases 3–5 incremental delivery](docs/PHASE_THREE_FIVE_DELIVERY.md) adds 
 
 ### Select only the services your site offers
 
-Use [service setup](docs/SERVICE_SETUP_AND_ROLE_WORKSPACES.md) for pharmacy/clinic/hospital presets, configurable modules, business naming, staff recruitment and role-specific workspaces. First-run service setup is required by default. Independent SaaS tenant onboarding is not yet enabled: shared catalogue/pricing ownership still requires isolation work.
+Use [service setup](docs/SERVICE_SETUP_AND_ROLE_WORKSPACES.md) for pharmacy/clinic/hospital presets, configurable modules, business naming, staff recruitment and role-specific workspaces. First-run service setup is required by default. [Independent tenant control](docs/TENANT_CONTROL_AND_APPROVAL_RELEASE.md) provisions isolated deployment bundles: each unrelated business must use its own application, database, private media, signing keys and Redis. Registration does not deploy a host, and facilities sharing one database are branches of the same business.
 
 The [UI-connected workflow release](docs/END_TO_END_WORKFLOW_RELEASE.md) adds reviewed expense settlement/cash-flow sources, scoped patient booking changes and feedback, reciprocal duty swaps, missing-clock-out review, diagnostic resource reservations and approved preparation, printable patient directions/discharge copies, logos and room/department setup. Every delivered workflow has an application entry point; the tracker retains the remaining whole-stage requirements.
+
+The [completion-boundary and workforce delivery](docs/COMPLETION_BOUNDARIES_AND_WORKFORCE.md) adds direct-action/API permission fixes, temporary-support containment, role-change work reassignment guards, employment and credential renewals, grouped roster coverage and attendance policy snapshots. Read its migration and verification notes before upgrading.

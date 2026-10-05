@@ -440,7 +440,8 @@ def patient_summary(request,pk):
 @login_required
 def result_download(request,pk):
     if not allowed(request.user,['clinician','nurse','lab']): raise PermissionDenied
-    result=get_object_or_404(scoped(OrderResult,request.user,'order__patient__facility_id'),pk=pk)
+    from apps.orders.permissions import filter_visible_results
+    result=get_object_or_404(filter_visible_results(scoped(OrderResult,request.user,'order__patient__facility_id'),request.user),pk=pk)
     if not result.attachment: raise Http404
     response=FileResponse(result.attachment.open('rb'),as_attachment=True,filename=result.attachment.name.rsplit('/',1)[-1])
     response['Cache-Control']='private, no-store'

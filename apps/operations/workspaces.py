@@ -33,7 +33,8 @@ def workspace_context(user):
         card('My open visits' if role=='clinician' else 'Open visits',visits,'/ehr')
         card('Overdue referrals',filter_by_patient_facility(Referral.objects.filter(status__in=['open','accepted'],due_date__lt=timezone.localdate()),user),'/suite/referrals/?status=open')
     if role in ('admin','clinician','nurse','lab'):
-        results=filter_by_patient_facility(OrderResult.objects.all(),user,prefix='order__patient__')
+        from apps.orders.permissions import filter_visible_results
+        results=filter_visible_results(OrderResult.objects.all(),user)
         card('Critical results awaiting acknowledgment',results.filter(approved_at__isnull=False,critical=True,acknowledged_at__isnull=True),'/suite/results/')
         if role in ('admin','lab'):card('Results awaiting release',results.filter(approved_at__isnull=True),'/suite/results/')
     if role in ('admin','reception'):

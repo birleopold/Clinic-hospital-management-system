@@ -13,6 +13,12 @@ class StaffCredential(Record):
     expires_on = models.DateField()
     verified_on = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True)
+    supersedes = models.OneToOneField(
+        'self', null=True, blank=True, on_delete=models.PROTECT, related_name='renewal'
+    )
+
+    def __str__(self):
+        return f'#{self.pk} · {self.staff} · {self.credential} · {self.reference} · {self.expires_on}'
 
 
 class DutyShift(Record):
@@ -44,6 +50,7 @@ class Attendance(Record):
     reviewed_by = models.ForeignKey('accounts.User', null=True, on_delete=models.PROTECT, related_name='+')
     reviewed_at = models.DateTimeField(null=True)
     review_reason = models.CharField(max_length=250, blank=True)
+    policy_snapshot = models.JSONField(default=dict, blank=True)
     class Meta:
         constraints = [models.UniqueConstraint(fields=['staff'],condition=Q(clock_out__isnull=True),name='one_open_staff_attendance'),models.CheckConstraint(condition=Q(clock_out__isnull=True)|Q(clock_out__gte=F('clock_in')),name='attendance_positive_interval')]
 
@@ -113,3 +120,59 @@ class DutyAssignment(Record):
     shift = models.ForeignKey(DutyShift,on_delete=models.PROTECT)
     previous_clinician = models.ForeignKey('accounts.User',null=True,on_delete=models.PROTECT,related_name='+')
     reason = models.CharField(max_length=250)
+
+
+class StaffEmployment(Record):
+    """Facility employment eligibility, separate from login access and role grants."""
+    TYPES = [('permanent', 'Permanent'), ('fixed_term', 'Fixed term'), ('locum', 'Locum'), ('volunteer', 'Volunteer')]
+    STATUSES = [('onboarding', 'Onboarding'), ('active', 'Active'), ('suspended', 'Suspended'), ('ended', 'Ended')]
+    facility = models.ForeignKey('accounts.Facility', on_delete=models.PROTECT)
+    staff = models.ForeignKey('accounts.User', on_delete=models.PROTECT, related_name='employment_records')
+    employment_type = models.CharField(max_length=16, choices=TYPES)
+    status = models.CharField(max_length=16, choices=STATUSES, default='onboarding')
+    starts_on = models.DateField()
+    ends_on = models.DateField(null=True, blank=True, help_text='Last eligible employment date, inclusive.')
+    reason = models.CharField(max_length=250)
+    revision = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['facility', 'staff'], name='unique_facility_employment'),
+            models.CheckConstraint(condition=Q(ends_on__isnull=True) | Q(ends_on__gte=F('starts_on')), name='employment_date_order'),
+            models.CheckConstraint(condition=~Q(status='ended') | Q(ends_on__isnull=False), name='ended_employment_has_date'),
+        ]
+
+
+class DutyCoverageRule(Record):
+    """Minimum simultaneously rostered people for a department and duty role."""
+    department = models.ForeignKey('accounts.Department', on_delete=models.PROTECT, related_name='duty_coverage_rules')
+    role = models.CharField(max_length=32)
+    minimum_staff = models.PositiveSmallIntegerField(default=1)
+    include_on_call = models.BooleanField(default=False)
+    enabled = models.BooleanField(default=True)
+    reason = models.CharField(max_length=250)
+    revision = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['department', 'role'], name='unique_department_duty_role'),
+            models.CheckConstraint(condition=Q(minimum_staff__gte=1, minimum_staff__lte=200), name='duty_coverage_valid_minimum'),
+        ]
+
+
+class AttendancePolicy(Record):
+    """Append-only configured policy; each clock-in keeps its own immutable snapshot."""
+    ROUNDING = [('nearest', 'Nearest increment (half up)'), ('down', 'Round down'), ('up', 'Round up')]
+    facility = models.ForeignKey('accounts.Facility', on_delete=models.PROTECT, related_name='attendance_policies')
+    effective_from = models.DateField()
+    grace_minutes = models.PositiveSmallIntegerField(default=0)
+    rounding_minutes = models.PositiveSmallIntegerField(default=0, help_text='0 preserves exact worked minutes.')
+    rounding_mode = models.CharField(max_length=12, choices=ROUNDING, default='nearest')
+    reason = models.CharField(max_length=250)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['facility', 'effective_from'], name='unique_attendance_policy_date'),
+            models.CheckConstraint(condition=Q(grace_minutes__lte=120), name='attendance_grace_limit'),
+            models.CheckConstraint(condition=Q(rounding_minutes__in=[0, 1, 5, 10, 15, 30]), name='attendance_rounding_increment'),
+        ]

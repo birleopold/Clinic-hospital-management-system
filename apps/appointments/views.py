@@ -5,7 +5,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from common.permissions import RolePermission
-from common.facility_scope import filter_by_patient_facility
+from common.service_policy import enabled_queue_services
+from common.facility_scope import filter_by_facility, filter_by_patient_facility
 from .models import Appointment, QueueTicket, DoctorWeeklyAvailability, DoctorTimeOff
 from .serializers import (
     AppointmentSerializer,
@@ -22,6 +23,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     search_fields = ['reason_for_visit','notes','patient__first_name','patient__last_name']
     permission_classes = [RolePermission]
     role_map = {
+        'GET': ['admin', 'reception', 'clinician'],
         'POST': ['admin','reception','clinician'],
         'PUT': ['admin','reception'],
         'PATCH': ['admin','reception','clinician'],
@@ -54,6 +56,14 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 raise ValueError
         except (TypeError, ValueError):
             return Response({'detail': 'duration and slot must be integers from 1 to 1440 minutes'}, status=400)
+
+        from django.contrib.auth import get_user_model
+        clinicians = filter_by_facility(
+            get_user_model().objects.filter(is_active=True, role='clinician'),
+            request.user, field='staff_profile__facility_id',
+        )
+        if not clinicians.filter(pk=clinician_id).exists():
+            return Response({'detail': 'Clinician not available in this facility.'}, status=404)
 
         dow = qdate.weekday()  # Monday=0
         avails = DoctorWeeklyAvailability.objects.filter(
@@ -164,6 +174,13 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         except (TypeError, ValueError):
             return Response({'detail': 'Invalid clinician or duration_minutes (1 to 1440)'}, status=400)
 
+        from django.contrib.auth import get_user_model
+        if not filter_by_facility(
+            get_user_model().objects.filter(is_active=True, role='clinician'),
+            request.user, field='staff_profile__facility_id',
+        ).filter(pk=clinician_id).exists():
+            return Response({'detail': 'Clinician not available in this facility.'}, status=400)
+
         # Basic conflict check using available_slots logic for that exact start
         req_date = new_dt.astimezone(timezone.get_current_timezone()).date()
         request._request.GET = request._request.GET.copy()
@@ -216,7 +233,9 @@ class QueueTicketViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = filter_by_patient_facility(super().get_queryset(), self.request.user)
+        qs = filter_by_patient_facility(super().get_queryset(), self.request.user).filter(
+            service__in=enabled_queue_services(self.request.user),
+        )
         service = self.request.query_params.get('service')
         status_p = self.request.query_params.get('status')
         if service:
@@ -293,6 +312,12 @@ class QueueTicketViewSet(viewsets.ModelViewSet):
 
 
 class DoctorWeeklyAvailabilityViewSet(viewsets.ModelViewSet):
+    def get_queryset(self):
+        return filter_by_facility(
+            super().get_queryset(), self.request.user,
+            field='clinician__staff_profile__facility_id',
+        )
+
     queryset = DoctorWeeklyAvailability.objects.all()
     serializer_class = DoctorWeeklyAvailabilitySerializer
     permission_classes = [RolePermission]
@@ -306,6 +331,12 @@ class DoctorWeeklyAvailabilityViewSet(viewsets.ModelViewSet):
 
 
 class DoctorTimeOffViewSet(viewsets.ModelViewSet):
+    def get_queryset(self):
+        return filter_by_facility(
+            super().get_queryset(), self.request.user,
+            field='clinician__staff_profile__facility_id',
+        )
+
     queryset = DoctorTimeOff.objects.all()
     serializer_class = DoctorTimeOffSerializer
     permission_classes = [RolePermission]

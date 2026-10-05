@@ -4,7 +4,7 @@ from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.db.models import Count
 from django.db.models.functions import TruncDate
-from django.http import HttpResponseForbidden, HttpResponseBadRequest
+from django.http import Http404, HttpResponseForbidden, HttpResponseBadRequest
 from django.utils import timezone
 from datetime import datetime, time as dtime, timedelta
 from django.contrib.auth import get_user_model
@@ -12,6 +12,7 @@ import calendar
 
 from .models import QueueTicket, Appointment, DoctorWeeklyAvailability, DoctorTimeOff
 from common.facility_scope import filter_by_facility, filter_by_patient_facility
+from common.service_policy import enabled_queue_services
 
 
 @login_required
@@ -22,19 +23,22 @@ def home_view(request):
 @login_required
 def queue_summary_view(request):
     user = request.user
-    # Aggregate counts by service and status
+    # Disabled services must not appear in counts, links or direct queue URLs.
+    allowed = enabled_queue_services(user)
+    choices = [choice for choice in QueueTicket.SERVICE_CHOICES if choice[0] in allowed]
     qs = (
         filter_by_patient_facility(QueueTicket.objects.all(), user)
+        .filter(service__in=[code for code, _ in choices])
         .values('service', 'status')
         .annotate(count=Count('id'))
     )
-    services = [s for s, _ in QueueTicket.SERVICE_CHOICES]
+    services = [s for s, _ in choices]
     statuses = [s for s, _ in QueueTicket.STATUS_CHOICES]
     data = {svc: {st: 0 for st in statuses} for svc in services}
     for row in qs:
         data[row['service']][row['status']] = row['count']
     context = {
-        'services': QueueTicket.SERVICE_CHOICES,
+        'services': choices,
         'statuses': QueueTicket.STATUS_CHOICES,
         'data': data,
     }
@@ -44,6 +48,8 @@ def queue_summary_view(request):
 @login_required
 def queue_service_view(request, service: str):
     user = request.user
+    if service not in enabled_queue_services(user):
+        raise Http404('This queue service is not available.')
     base = filter_by_patient_facility(QueueTicket.objects.all(), user)
     waiting = base.filter(service=service, status=QueueTicket.WAITING).order_by('created_at')
     in_service = base.filter(service=service, status=QueueTicket.IN_SERVICE).order_by('started_at')
@@ -63,7 +69,11 @@ def calendar_view(request):
         return HttpResponseForbidden('Not allowed')
     appt_qs = filter_by_patient_facility(Appointment.objects.all(), user)
     User = get_user_model()
-    clinicians = list(User.objects.filter(role='clinician').order_by('first_name','last_name','username'))
+    clinicians = list(filter_by_facility(
+        User.objects.filter(role='clinician', is_active=True), user,
+        field='staff_profile__facility_id',
+    ).order_by('first_name','last_name','username'))
+    clinician_ids = {clinician.pk for clinician in clinicians}
     selected_clinician = request.GET.get('clinician')
     if selected_clinician:
         try:
@@ -71,10 +81,12 @@ def calendar_view(request):
         except Exception:
             selected_clinician = None
     if not selected_clinician:
-        if user.role == 'clinician':
+        if user.role == 'clinician' and user.pk in clinician_ids:
             selected_clinician = user.id
         elif clinicians:
             selected_clinician = clinicians[0].id
+    if selected_clinician and selected_clinician not in clinician_ids:
+        raise Http404('Clinician not available in this facility.')
     qdate_str = request.GET.get('date')
     try:
         qdate = datetime.strptime(qdate_str, '%Y-%m-%d').date() if qdate_str else timezone.localdate()
@@ -214,9 +226,10 @@ def appointment_slots_fragment(request):
     except Exception:
         duration = None
     dow = qdate.weekday()
-    avails = DoctorWeeklyAvailability.objects.filter(
-        clinician_id=clinician_id, day_of_week=dow, is_active=True
-    ).order_by('start_time')
+    avails = filter_by_facility(
+        DoctorWeeklyAvailability.objects.all(), user,
+        field='clinician__staff_profile__facility_id',
+    ).filter(clinician_id=clinician_id, day_of_week=dow, is_active=True).order_by('start_time')
     default_av = avails.first()
     if duration is None:
         duration = default_av.default_duration_minutes if default_av else 30
@@ -227,6 +240,12 @@ def appointment_slots_fragment(request):
 
     if not 1 <= duration <= 1440 or not 1 <= slot_minutes <= 1440:
         return HttpResponseBadRequest('Duration and slot must be between 1 and 1440 minutes.')
+
+    if not filter_by_facility(
+        get_user_model().objects.filter(role='clinician', is_active=True), user,
+        field='staff_profile__facility_id',
+    ).filter(pk=clinician_id).exists():
+        raise Http404('Clinician not available in this facility.')
 
     # Buffer minutes from availability; use the first active as baseline
     buffer_minutes = default_av.buffer_minutes if default_av else 0

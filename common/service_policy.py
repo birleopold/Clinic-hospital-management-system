@@ -29,6 +29,7 @@ PRESETS={
  'custom':['patients'],
 }
 DEPENDENCIES={'pharmacy':['patients','inventory','billing'],'clinical':['patients'],'appointments':['patients'],'lab':['patients'],'imaging':['patients'],'inpatient':['patients','clinical'],'maternity':['patients','clinical'],'theatre':['patients','clinical'],'vaccination':['patients','inventory'],'rehabilitation':['patients','clinical'],'programmes':['patients','clinical'],'engagement':['patients'],'billing':['patients']}
+QUEUE_SERVICE_MODULES={'triage':'clinical','consult':'clinical','lab':'lab','pharmacy':'pharmacy','cashier':'billing'}
 
 SLUG_SERVICES={}
 for service,slugs in {
@@ -67,10 +68,18 @@ def enabled(user,service):
     return service in active
 
 
+def enabled_queue_services(user):
+    if not enabled(user,'appointments'):return []
+    return [key for key,service in QUEUE_SERVICE_MODULES.items() if enabled(user,service)]
+
+
 def service_for_url(url):
     path=urlsplit(url).path.rstrip('/')
-    if path in ('','/suite') or path.startswith(('/accounts/','/admin/','/static/','/api/auth','/api/schema','/api/docs','/suite/setup','/suite/imports')):return None
+    if path in ('','/suite') or path.startswith(('/accounts/','/admin/','/static/','/api/auth','/api/schema','/api/docs','/suite/setup')):return None
     if path.startswith('/pharmacy/rx/'):return 'prescribing'
+    if path.startswith('/suite/patient/') and path.endswith(('/document','/history')):return 'clinical'
+    if path.startswith(('/suite/cards/','/suite/barcodes/patient/','/suite/imports/')):return 'patients'
+    if path.startswith('/suite/barcodes/specimen/'):return 'lab'
     if path.endswith('/handoff/') or path.endswith('/handoff'):return 'appointments'
     if path.startswith('/suite/clinical-operations/'):
         kind=path.split('/')[3]
@@ -108,7 +117,7 @@ def enforce(user,url):
 # Menu roles match the destination's intended read access, independently of enabled services.
 NAVIGATION=[
  ('Workspace','/suite/',None,None),
- ('Tasks','/suite/tasks/',None,['reception','nurse','clinician','lab','pharmacy','cashier','store','manager']),
+ ('Tasks','/suite/tasks/',None,['reception','nurse','clinician','lab','radiology','pharmacy','cashier','store','manager']),
  ('Patients / customers','/patients','patients',['reception','clinician']),
  ('Appointments','/appointments/schedule','appointments',['reception','clinician']),
  ('Consultations','/ehr','clinical',['clinician','nurse']),
@@ -154,6 +163,10 @@ class ServiceGateMiddleware:
 def can_open(user,url):
     from django.conf import settings
     account_path=urlsplit(url).path
+    from common.tenant_runtime import is_owner_support, SUPPORT_RESTRICTED_PREFIXES
+    if account_path.startswith(SUPPORT_RESTRICTED_PREFIXES) and is_owner_support(user):return False
+    if account_path.startswith('/admin/'):return bool(user.is_superuser)
+    if account_path.startswith('/accounts/control/'):return bool(user.is_superuser)
     if account_path.startswith('/accounts/tenants'):
         return bool(user.is_superuser and settings.OWNER_CONTROL_PLANE and not settings.TENANT_KEY)
     if account_path.startswith(('/accounts/support','/accounts/approvals')):
@@ -164,6 +177,14 @@ def can_open(user,url):
     from django.urls import resolve,Resolver404
     try:match=resolve(urlsplit(url).path)
     except Resolver404:return False
+    if match.url_name in ('suite-document-create','suite-document-download','suite-patient-history','suite-consultation-note'):
+        return user.role in ('clinician','nurse')
+    if match.url_name=='suite-download':return user.role in ('clinician','nurse','lab')
+    if match.url_name in ('suite-patient','suite-patient-search'):
+        return user.role in ('clinician','nurse','pharmacy','lab','reception','cashier','manager')
+    if match.url_name in ('suite-task-new','suite-tasks','suite-task-detail','suite-task-create'):
+        from apps.operations.workflow_views import ROLES
+        return user.role in ROLES
     if match.url_name in ('suite-collection','suite-action','suite-specialty-detail','suite-lookup'):
         from apps.operations.views import MODULES
         entry=MODULES.get(match.kwargs.get('slug'))

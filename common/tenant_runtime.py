@@ -10,6 +10,25 @@ from urllib.parse import urlencode
 from urllib.request import Request,build_opener,HTTPRedirectHandler
 from celery import Task
 
+SUPPORT_RESTRICTED_PREFIXES=(
+    '/admin/', '/accounts/password', '/accounts/mfa/',
+    '/accounts/staff/', '/accounts/approvals/', '/accounts/tenants/',
+)
+
+def is_owner_support(user):
+    """A support identity remains temporary, even outside its marked session."""
+    if not getattr(user,'is_authenticated',False):return False
+    if hasattr(user,'_owner_support_account'):return user._owner_support_account
+    from apps.accounts.models import OwnerSupportReceipt
+    user._owner_support_account=OwnerSupportReceipt.objects.filter(user=user).exists()
+    return user._owner_support_account
+
+def require_permanent_administrator(user):
+    """Support tickets never delegate permanent identity/authority management."""
+    from django.core.exceptions import PermissionDenied
+    if is_owner_support(user) or not user.is_active or not (user.is_superuser or user.role=='admin'):
+        raise PermissionDenied('Permanent access changes require a tenant administrator.')
+
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):return None
 
@@ -45,11 +64,12 @@ class TenantRuntimeMiddleware:
         receipt=None
         if request.user.is_authenticated:
             support=OwnerSupportReceipt.objects.filter(user=request.user).first()
+            request.user._owner_support_account=bool(support)
             if support:
                 if request.session.get('owner_support_receipt')!=support.pk or support.revoked_at or support.expires_at<=timezone.now():logout(request)
                 else:receipt=support;request.user._trusted_owner_support=True
             elif request.session.get('owner_support_receipt'):logout(request)
-        if receipt and request.path.startswith(('/admin/','/accounts/password','/accounts/mfa/')):
+        if receipt and request.path.startswith(SUPPORT_RESTRICTED_PREFIXES):
             return HttpResponse('Owner support uses the audited tenant workspace. Permanent credentials and system administration require the tenant administrator.',status=403)
         exempt=request.path in ('/accounts/support/accept/','/accounts/logout/') or request.path.startswith('/static/')
         if not receipt and not exempt and not policy_active():

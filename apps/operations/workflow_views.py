@@ -21,7 +21,7 @@ from .models import WorkTask, NoteTemplate, ConsultationNote, PatientDocument, B
 from apps.orders.models import OrderResult
 from .views import allowed, config, collection_form
 
-ROLES=('reception','nurse','clinician','lab','pharmacy','cashier','store','manager')
+ROLES=('reception','nurse','clinician','lab','radiology','pharmacy','cashier','store','manager')
 
 def require(user, roles):
     if not allowed(user,roles):raise PermissionDenied

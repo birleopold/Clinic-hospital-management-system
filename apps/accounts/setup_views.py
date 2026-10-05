@@ -15,6 +15,7 @@ from django.views.decorators.debug import sensitive_post_parameters
 from common.facility_scope import filter_by_facility,user_staff_facility_id
 from common.service_policy import SERVICES,PRESETS,DEPENDENCIES
 from common.mfa import record
+from common.tenant_runtime import require_permanent_administrator
 from .models import Facility,FacilityConfiguration,User,StaffProfile,Department
 
 
@@ -92,7 +93,7 @@ def configure(request):
 @login_required
 @sensitive_post_parameters('password')
 def staff(request):
-    admin_role(request.user)
+    require_permanent_administrator(request.user)
     facilities=filter_by_facility(Facility.objects.filter(is_active=True),request.user,'pk')
     class Form(forms.Form):
         facility=forms.ModelChoiceField(queryset=facilities)
@@ -121,7 +122,7 @@ def staff(request):
 
 @login_required
 def staff_access(request,pk):
-    admin_role(request.user)
+    require_permanent_administrator(request.user)
     facilities=filter_by_facility(Facility.objects.filter(is_active=True),request.user,'pk')
     target=get_object_or_404(User.objects.filter(staff_profile__facility__in=facilities,is_superuser=False),pk=pk)
     class Form(forms.Form):
@@ -138,6 +139,9 @@ def staff_access(request,pk):
                 target=User.objects.select_for_update().get(pk=pk)
                 if target.pk==request.user.pk:raise ValidationError('Another facility administrator must change your own access.')
                 if target.role=='admin' and (data['role']!='admin' or not data['is_active']) and not User.objects.filter(staff_profile__facility=facility,role='admin',is_active=True).exclude(pk=pk).exists():raise ValidationError('Keep at least one active facility administrator.')
+                if data['role']!=target.role or (target.is_active and not data['is_active']):
+                    from .access_services import require_work_reassignment
+                    require_work_reassignment(target)
                 target.role=data['role'];target.is_active=data['is_active'];target.save(update_fields=['role','is_active'])
                 record(target,'staff_access_changed',data['reason'],request.user)
         except ValidationError as exc:form.add_error(None,'; '.join(exc.messages))

@@ -289,6 +289,9 @@ def specialty_follow_up(request):
         ("Rehabilitation reviews / sessions", "rehabilitation", rehab, "review_on"),
         ("Theatre: overdue and next seven days", "theatre", theatre, "starts_at"),
     ]:
+        from common.service_policy import enabled, SLUG_SERVICES
+        if not enabled(request.user, SLUG_SERVICES[slug]):
+            continue
         groups.append(
             {
                 "label": label,

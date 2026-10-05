@@ -51,3 +51,15 @@ class PatientSerializer(FacilityScopedSerializer):
             if fid:
                 validated_data['facility_id'] = fid
         return super().update(instance, validated_data)
+
+
+class PatientIdentitySerializer(serializers.ModelSerializer):
+    """The identity fields shown by the shared patient search and chart banner."""
+
+    class Meta:
+        model = Patient
+        fields = (
+            'id', 'medical_record_id', 'first_name', 'last_name', 'other_names',
+            'gender', 'date_of_birth', 'phone', 'facility',
+        )
+        read_only_fields = fields

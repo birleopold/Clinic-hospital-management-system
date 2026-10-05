@@ -5,6 +5,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core import signing
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Q
@@ -14,7 +15,7 @@ from django.utils import timezone
 from apps.accounts.models import User, Facility, Department, StaffProfile
 from apps.encounters.models import Encounter
 from common.facility_scope import filter_by_facility, user_staff_facility_id
-from .models import DutyShift, Attendance, AttendanceCorrection, StaffCredential, StaffLeave, ShiftCover, ShiftHandover
+from .models import DutyShift, Attendance, AttendanceCorrection, StaffCredential, StaffLeave, ShiftCover, ShiftHandover, StaffEmployment, DutyCoverageRule, AttendancePolicy
 from . import workforce_services as services
 
 
@@ -63,7 +64,13 @@ def board(request):
             current=DutyShift.objects.filter(department=dept,status='published',starts_at__lte=now,ends_at__gt=now)
             checked=current.filter(attendance__clock_out__isnull=True,attendance__clock_in__isnull=False)
             if not checked.exists():gaps.append(dept)
-    return render(request,'operations/workforce_board.html',context(request,page=page,day=day,now=now,gaps=gaps,handovers=handovers.select_related('shift__staff','incoming').order_by('due_at')[:20]))
+    coverage=[]
+    coverage_rules=[]
+    if is_manager(request.user):
+        coverage_rules=filter_by_facility(DutyCoverageRule.objects.select_related('department'),request.user,field='department__facility_id').order_by('department__name','role')
+        for department_id in {r.department_id for r in coverage_rules if r.enabled}:
+            coverage.extend(services.coverage_gaps(department_id,now,now+timedelta(seconds=1)))
+    return render(request,'operations/workforce_board.html',context(request,page=page,day=day,now=now,gaps=gaps,coverage=coverage,coverage_rules=coverage_rules,handovers=handovers.select_related('shift__staff','incoming').order_by('due_at')[:20]))
 
 
 @login_required
@@ -73,12 +80,17 @@ def directory(request):
     q=request.GET.get('q','').strip()[:100]
     if q:staff=staff.filter(Q(user__username__icontains=q)|Q(user__first_name__icontains=q)|Q(user__last_name__icontains=q)|Q(title__icontains=q))
     page=Paginator(staff.order_by('user__username'),30).get_page(request.GET.get('page'))
-    expiring=filter_by_facility(StaffCredential.objects.filter(expires_on__lte=timezone.localdate()+timedelta(days=60)),request.user).select_related('staff').order_by('expires_on')[:50]
-    return render(request,'operations/workforce_directory.html',context(request,page=page,q=q,expiring=expiring))
+    employment={(e.staff_id,e.facility_id):e for e in filter_by_facility(StaffEmployment.objects.filter(staff_id__in=[p.user_id for p in page]),request.user)}
+    for profile in page:profile.employment=employment.get((profile.user_id,profile.facility_id))
+    credentials=filter_by_facility(StaffCredential.objects.all(),request.user).select_related('staff','supersedes').order_by('-created_at')[:100]
+    expiring=filter_by_facility(StaffCredential.objects.filter(renewal__isnull=True,expires_on__lte=timezone.localdate()+timedelta(days=60)),request.user).select_related('staff').order_by('expires_on')[:50]
+    return render(request,'operations/workforce_directory.html',context(request,page=page,q=q,expiring=expiring,credentials=credentials))
 
 
 @login_required
 def create(request,kind,pk=None):
+    if kind in ('employment','coverage','publish','attendance-policy'):
+        return settings_form(request,kind,pk)
     choices=staff_choices(request.user)
     shift=None;attendance=None
     if pk is not None:
@@ -108,7 +120,7 @@ def create(request,kind,pk=None):
             ends_at=datetime_field()
             on_call=forms.BooleanField(required=False)
             capacity=forms.IntegerField(min_value=1,max_value=200,initial=10,help_text='Maximum open consultations; checked on duty-board assignments.')
-            repeat_weeks=forms.IntegerField(min_value=1,max_value=12,initial=1,help_text='Create weekly drafts. Review and publish each shift separately.')
+            repeat_weeks=forms.IntegerField(min_value=1,max_value=12,initial=1,help_text='Create weekly drafts, then publish a complete group or an individual shift.')
             reason=forms.CharField(max_length=250,required=False)
         title='Create duty roster'
     elif kind=='leave':
@@ -140,14 +152,16 @@ def create(request,kind,pk=None):
         class Form(forms.ModelForm):
             class Meta:
                 model=StaffCredential
-                fields=['facility','staff','specialty','credential','reference','expires_on','verified_on','notes']
+                fields=['facility','staff','specialty','credential','reference','expires_on','verified_on','notes','supersedes']
                 widgets={'expires_on':forms.DateInput(attrs={'type':'date'}),'verified_on':forms.DateInput(attrs={'type':'date'})}
         title='Record staff credential review'
     else:
         raise PermissionDenied
     form=Form(request.POST or None)
     if kind=='credential':
-        form.fields['staff'].queryset=choices
+        form.fields['supersedes'].queryset=filter_by_facility(StaffCredential.objects.filter(renewal__isnull=True),request.user).select_related('staff')
+        form.fields['supersedes'].label='Renewal of existing credential (optional)'
+        form.fields['staff'].queryset=filter_by_facility(User.objects.all(),request.user,field='staff_profile__facility_id').order_by('username')
         form.fields['facility'].queryset=filter_by_facility(Facility.objects.filter(is_active=True),request.user,field='pk')
     if request.method=='POST' and form.is_valid():
         try:
@@ -158,11 +172,7 @@ def create(request,kind,pk=None):
             elif kind=='cover':services.request_cover(pk,request.user,**data)
             elif kind=='handover':services.handover(pk,request.user,**data)
             elif kind=='correction':services.request_correction(pk,request.user,**data)
-            elif kind=='credential':
-                with transaction.atomic():
-                    services.facility_lock(request.user,data['facility'].pk);services.staff_at(data['staff'],data['facility'].pk)
-                    if data['verified_on'] and data['verified_on']>timezone.localdate():raise ValidationError('Verification cannot be dated in the future.')
-                    obj=form.save(commit=False);obj.created_by=request.user;obj.save()
+            elif kind=='credential':services.record_credential(request.user,**data)
         except (ValidationError,IntegrityError) as exc:form.add_error(None,'; '.join(exc.messages) if isinstance(exc,ValidationError) else 'A competing request changed this record; reload before retrying.')
         else:
             messages.success(request,'Recorded. Review any required approvals in the workforce inbox.')
@@ -222,14 +232,15 @@ def timesheets(request):
     if request.GET.get('export')=='csv':
         services.manager(request.user)
         response=HttpResponse(content_type='text/csv');response['Content-Disposition']='attachment; filename="approved-attendance.csv"'
-        writer=csv.writer(response);writer.writerow(['Attendance','Staff ID','Shift ID','Start ISO','End ISO','Break minutes','Worked minutes','Late minutes','Beyond scheduled end minutes','Reviewer ID'])
+        writer=csv.writer(response);writer.writerow(['Attendance','Staff ID','Shift ID','Start ISO','End ISO','Break minutes','Worked minutes','Late minutes','Beyond scheduled end minutes','Reviewer ID','Policy ID','Policy worked minutes','Policy late minutes','Grace minutes','Rounding minutes','Rounding mode'])
         for a in qs.filter(reviewed_at__isnull=False).exclude(corrections__status='requested').iterator():
             t=services.attendance_totals(a)
-            writer.writerow([a.pk,a.staff_id,a.shift_id,t['start'].isoformat(),t['end'].isoformat() if t['end'] else '',t['break_minutes'],t['worked_minutes'],t['late_minutes'],t['overtime_minutes'],a.reviewed_by_id])
+            writer.writerow([a.pk,a.staff_id,a.shift_id,t['start'].isoformat(),t['end'].isoformat() if t['end'] else '',t['break_minutes'],t['worked_minutes'],t['late_minutes'],t['overtime_minutes'],a.reviewed_by_id,t['policy'].get('id',''),t['policy_worked_minutes'],t['policy_late_minutes'],t['policy'].get('grace_minutes',0),t['policy'].get('rounding_minutes',0),t['policy'].get('rounding_mode','exact')])
         return response
     page=Paginator(qs,25).get_page(request.GET.get('page'))
     for a in page:a.totals=services.attendance_totals(a)
-    return render(request,'operations/workforce_timesheets.html',context(request,page=page,days=days))
+    policies=filter_by_facility(AttendancePolicy.objects.select_related('facility'),request.user).order_by('-effective_from')[:30] if is_manager(request.user) else []
+    return render(request,'operations/workforce_timesheets.html',context(request,page=page,days=days,policies=policies))
 
 
 @login_required
@@ -245,3 +256,83 @@ def assign(request):
         except ValidationError as exc:form.add_error(None,'; '.join(exc.messages))
         else:messages.success(request,'Doctor assigned; prior assignment retained in history.');return redirect('suite-workforce')
     return render(request,'operations/workflow_form.html',{'form':form,'title':'Assign an on-duty doctor','help':'Only a checked-in doctor currently accepting patients can receive work here. Changing assignment requires a recorded reason.'})
+
+
+def settings_form(request, kind, pk=None):
+    """Manager-only setup and publication routes reuse the workforce URL namespace."""
+    services.manager(request.user)
+    initial={};obj=None
+    facilities=filter_by_facility(Facility.objects.filter(is_active=True),request.user,field='pk')
+    departments=filter_by_facility(Department.objects.filter(is_active=True),request.user)
+    if kind=='employment':
+        profile=get_object_or_404(filter_by_facility(StaffProfile.objects.select_related('user'),request.user),pk=pk)
+        obj=StaffEmployment.objects.filter(staff=profile.user,facility_id=profile.facility_id).first()
+        class Form(forms.Form):
+            employment_type=forms.ChoiceField(choices=StaffEmployment.TYPES)
+            status=forms.ChoiceField(choices=StaffEmployment.STATUSES)
+            starts_on=forms.DateField(widget=forms.DateInput(attrs={'type':'date'}))
+            ends_on=forms.DateField(required=False,widget=forms.DateInput(attrs={'type':'date'}),help_text='Last eligible date, inclusive. Required for fixed-term or ended employment.')
+            reason=forms.CharField(max_length=250)
+            revision=forms.IntegerField(widget=forms.HiddenInput)
+        if obj:initial={name:getattr(obj,name) for name in ('employment_type','status','starts_on','ends_on','revision')}
+        else:initial={'revision':0,'status':'onboarding'}
+        title=f'Employment · {profile.user}'
+        help_text='Employment eligibility is separate from login access and role permissions. Unrecorded legacy staff remain eligible. Cancel or reassign published duties and close attendance before suspending or ending employment.'
+    elif kind=='coverage':
+        if pk:obj=get_object_or_404(filter_by_facility(DutyCoverageRule.objects.all(),request.user,field='department__facility_id'),pk=pk)
+        class Form(forms.Form):
+            department=forms.ModelChoiceField(queryset=departments)
+            role=forms.ChoiceField(choices=User.ROLE_CHOICES)
+            minimum_staff=forms.IntegerField(min_value=1,max_value=200,initial=1)
+            include_on_call=forms.BooleanField(required=False)
+            enabled=forms.BooleanField(required=False,initial=True)
+            reason=forms.CharField(max_length=250)
+            revision=forms.IntegerField(widget=forms.HiddenInput)
+        initial={'revision':0}
+        if obj:initial={name:getattr(obj,name) for name in ('department','role','minimum_staff','include_on_call','enabled','revision')}
+        title='Department minimum duty coverage'
+        help_text='Configured minima apply throughout each duty interval being published or cancelled. They count distinct rostered people, not checked-in attendance. New rules do not change existing duties. No staffing or legal standard is assumed.'
+    elif kind=='attendance-policy':
+        class Form(forms.Form):
+            facility=forms.ModelChoiceField(queryset=facilities)
+            effective_from=forms.DateField(widget=forms.DateInput(attrs={'type':'date'}),initial=timezone.localdate)
+            grace_minutes=forms.IntegerField(min_value=0,max_value=120,initial=0,help_text='Subtract this allowance from exact lateness, to a minimum of zero.')
+            rounding_minutes=forms.TypedChoiceField(choices=[(0,'Exact worked minutes')]+[(n,f'{n} minute(s)') for n in (1,5,10,15,30)],coerce=int,initial=0)
+            rounding_mode=forms.ChoiceField(choices=AttendancePolicy.ROUNDING)
+            reason=forms.CharField(max_length=250)
+        title='Add attendance policy'
+        help_text='Applies to new clock-ins for shifts starting on or after the effective date. Each attendance keeps its policy snapshot. Original events, exact totals and existing attendance remain unchanged. Rounding applies only to total net worked minutes and does not authorize overtime or payroll.'
+    elif kind=='publish':
+        drafts=filter_by_facility(DutyShift.objects.filter(status='draft',ends_at__gt=timezone.now()),request.user).select_related('staff','department').order_by('starts_at','pk')
+        class Form(forms.Form):
+            duties=forms.ModelMultipleChoiceField(queryset=drafts,widget=forms.CheckboxSelectMultiple)
+            snapshot=forms.CharField(widget=forms.HiddenInput)
+            reason=forms.CharField(max_length=250,required=False)
+        snapshot={str(s.pk):s.revision for s in drafts[:200]}
+        # Bound both the review list and its revision snapshot to the same set.
+        Form.base_fields['duties'].queryset=drafts.filter(pk__in=snapshot)
+        initial={'snapshot':signing.dumps({'actor':request.user.pk,'revisions':snapshot},salt='workforce-roster')}
+        title='Publish a roster group'
+        help_text='Select up to 200 duties from one facility. Every conflict, leave, employment and minimum-coverage check must pass before any selected duty is published. Refresh if the roster changed.'
+    else:raise PermissionDenied
+    form=Form(request.POST or None,initial=initial)
+    if kind=='coverage' and obj:
+        form.fields['department'].disabled=True;form.fields['role'].disabled=True
+    if request.method=='POST' and form.is_valid():
+        try:
+            data=form.cleaned_data
+            if kind=='employment':services.save_employment(request.user,profile.pk,**data)
+            elif kind=='coverage':services.save_coverage_rule(request.user,rule_id=obj.pk if obj else None,**data)
+            elif kind=='attendance-policy':services.create_attendance_policy(request.user,**data)
+            else:
+                try:
+                    signed=signing.loads(data['snapshot'],salt='workforce-roster',max_age=3600)
+                    if signed['actor']!=request.user.pk:raise signing.BadSignature
+                    revisions={d.pk:signed['revisions'][str(d.pk)] for d in data['duties']}
+                except (signing.BadSignature,KeyError,TypeError):raise ValidationError('Roster review expired or changed. Reload before publishing.')
+                services.publish_roster(request.user,revisions,data['reason'])
+        except (ValidationError,IntegrityError) as exc:form.add_error(None,'; '.join(exc.messages) if isinstance(exc,ValidationError) else 'A competing request changed this record. Reload before retrying.')
+        else:
+            messages.success(request,'Workforce changes recorded.')
+            return redirect('suite-workforce-directory' if kind=='employment' else 'suite-workforce-timesheets' if kind=='attendance-policy' else 'suite-workforce')
+    return render(request,'operations/workflow_form.html',{'form':form,'title':title,'help':help_text})

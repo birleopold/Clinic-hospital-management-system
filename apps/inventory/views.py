@@ -25,6 +25,7 @@ class BatchViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = BatchSerializer
     permission_classes = [RolePermission]
     role_map = {
+        'GET': ['admin', 'pharmacy', 'store', 'manager'],
         'POST': ['admin','pharmacy'],
         'PUT': ['admin','pharmacy'],
         'PATCH': ['admin','pharmacy'],
@@ -37,3 +38,5 @@ class StockMovementViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = StockMovement.objects.all().order_by('-created_at')
     serializer_class = StockMovementSerializer
+    permission_classes = [RolePermission]
+    role_map = {'GET': ['admin', 'pharmacy', 'store', 'manager']}

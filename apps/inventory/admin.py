@@ -1,14 +1,16 @@
 from django.contrib import admin
+from django.urls import reverse
+from django.utils.html import format_html
+from common.admin import WorkflowReadOnlyAdmin, WorkflowReadOnlyInline
+from common.facility_scope import filter_by_facility
 from .models import (
     InventoryItem, Batch, StockMovement,
     Supplier, PurchaseOrder, PurchaseOrderLine,
     GoodsReceipt, GoodsReceiptLine,
 )
 
-class LedgerReadOnlyAdmin(admin.ModelAdmin):
-    def has_add_permission(self, request): return False
-    def has_change_permission(self, request, obj=None): return False
-    def has_delete_permission(self, request, obj=None): return False
+class LedgerReadOnlyAdmin(WorkflowReadOnlyAdmin):
+    pass
 
 @admin.register(InventoryItem)
 class InventoryItemAdmin(admin.ModelAdmin):
@@ -32,19 +34,30 @@ class SupplierAdmin(admin.ModelAdmin):
     search_fields = ('name','phone','email')
 
 
-class PurchaseOrderLineInline(admin.TabularInline):
+class PurchaseOrderLineInline(WorkflowReadOnlyInline):
     model = PurchaseOrderLine
     extra = 0
 
 
 @admin.register(PurchaseOrder)
-class PurchaseOrderAdmin(admin.ModelAdmin):
+class PurchaseOrderAdmin(LedgerReadOnlyAdmin):
     list_display = ('id','supplier','ordered_date','status')
     list_filter = ('status',)
     inlines = [PurchaseOrderLineInline]
+    readonly_fields = ('workflow',)
+
+    def get_queryset(self, request):
+        return filter_by_facility(super().get_queryset(request), request.user)
+
+    @admin.display(description='Purchasing workflow')
+    def workflow(self, obj):
+        return format_html(
+            '<a href="{}">Open purchase order for controlled editing and approval</a>',
+            reverse('inventory-po-edit', args=[obj.pk]),
+        )
 
 
-class GoodsReceiptLineInline(admin.TabularInline):
+class GoodsReceiptLineInline(WorkflowReadOnlyInline):
     model = GoodsReceiptLine
     extra = 0
 
@@ -54,4 +67,15 @@ class GoodsReceiptAdmin(LedgerReadOnlyAdmin):
     list_display = ('id','po','received_at','posted','reference')
     list_filter = ('posted',)
     inlines = [GoodsReceiptLineInline]
+    readonly_fields = ('workflow',)
+
+    def get_queryset(self, request):
+        return filter_by_facility(super().get_queryset(request), request.user, field='po__facility_id')
+
+    @admin.display(description='Receiving workflow')
+    def workflow(self, obj):
+        return format_html(
+            '<a href="{}">Open goods receipt for controlled posting</a>',
+            reverse('inventory-grn-detail', args=[obj.pk]),
+        )
 

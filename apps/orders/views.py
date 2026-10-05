@@ -1,3 +1,4 @@
+from django.db.models import Prefetch
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -5,11 +6,12 @@ from rest_framework.response import Response
 from common.permissions import RolePermission
 from common.facility_scope import filter_by_patient_facility
 from .models import Order, OrderResult
+from .permissions import filter_visible_results
 from .serializers import OrderSerializer, OrderResultSerializer
 
 
 class OrderViewSet(viewsets.ModelViewSet):
-    queryset = Order.objects.all().prefetch_related('results').order_by('-created_at', '-id')
+    queryset = Order.objects.all().order_by('-created_at', '-id')
     serializer_class = OrderSerializer
     permission_classes = [RolePermission]
     role_map = {
@@ -27,7 +29,11 @@ class OrderViewSet(viewsets.ModelViewSet):
         if not enabled(self.request.user,'lab'):qs=qs.exclude(order_type='lab')
         if not enabled(self.request.user,'imaging'):qs=qs.exclude(order_type='imaging')
         if not enabled(self.request.user,'clinical'):qs=qs.exclude(order_type='procedure')
-        return qs
+        return qs.prefetch_related(Prefetch(
+            'results',
+            queryset=filter_visible_results(OrderResult.objects.all(), self.request.user),
+            to_attr='_visible_results',
+        ))
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
@@ -56,13 +62,4 @@ class OrderResultViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs=filter_by_patient_facility(
-            super().get_queryset(),
-            self.request.user,
-            prefix='order__patient__',
-        )
-        from common.service_policy import enabled
-        if not enabled(self.request.user,'lab'):qs=qs.exclude(order__order_type='lab')
-        if not enabled(self.request.user,'imaging'):qs=qs.exclude(order__order_type='imaging')
-        if not enabled(self.request.user,'clinical'):qs=qs.exclude(order__order_type='procedure')
-        return qs
+        return filter_visible_results(super().get_queryset(), self.request.user)

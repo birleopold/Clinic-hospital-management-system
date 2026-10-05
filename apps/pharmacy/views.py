@@ -70,7 +70,13 @@ class DispenseViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
             item = InventoryItem.objects.get(code=item_code)
         except InventoryItem.DoesNotExist:
             raise ValidationError({'item_code': 'Unknown inventory item code.'})
-        available = Batch.objects.filter(item=item).aggregate(total=Sum('quantity_on_hand'))['total'] or 0
+        from common.facility_scope import filter_by_facility
+        from .services import usable_batches
+        batches = filter_by_facility(usable_batches().filter(item=item), self.request.user, field='location__facility_id')
+        patient = serializer.validated_data['patient']
+        if patient.facility_id:
+            batches = batches.filter(location__facility_id=patient.facility_id)
+        available = batches.aggregate(total=Sum('quantity_on_hand'))['total'] or 0
         if qty > available:
             raise ValidationError({'quantity': f'Insufficient stock. Available: {available}.'})
         # Determine batch: prefer provided batch; else FEFO with enough quantity
@@ -78,14 +84,14 @@ class DispenseViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
         if sel_batch is not None:
             if sel_batch.item_id != item.id:
                 raise ValidationError({'batch': 'Selected batch does not match item.'})
+            if not batches.filter(pk=sel_batch.pk).exists():
+                raise ValidationError({'batch': 'Choose usable, unexpired stock in the patient facility.'})
             if (sel_batch.quantity_on_hand or 0) < qty:
                 raise ValidationError({'batch': f'Selected batch has only {sel_batch.quantity_on_hand} available.'})
             selected_batch = sel_batch
         else:
             selected_batch = (
-                Batch.objects
-                .filter(item=item, quantity_on_hand__gte=qty)
-                .order_by('expiry','id')
+                batches.filter(quantity_on_hand__gte=qty)
                 .first()
             )
             if not selected_batch:

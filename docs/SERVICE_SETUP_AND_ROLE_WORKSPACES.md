@@ -7,7 +7,7 @@
 - Administrator setup at `/accounts/setup/` with pharmacy, clinic, hospital and custom presets. Presets are editable starting points, not assumptions about which services a facility offers.
 - Explicit choices for registration, outpatient care, appointments, pharmacy, inventory, billing, laboratory, imaging, wards, maternity, theatre, vaccination, rehabilitation, clinical programmes, engagement, workforce and management.
 - Supporting-service validation: for example, on-site dispensing requires registration, stock and billing. A facility can run consultations and prescribe for outside supply without enabling its own dispensing service.
-- Business display name, tagline and contact phone. The workspace shows its configured business name. Invoice/receipt branding uses the actual invoice's facility, including when a system owner assists another site. Logo uploads and full print-theme controls remain future work.
+- Business display name, tagline, contact phone and validated PNG/JPEG logos. The workspace shows its configured business name. Invoice/receipt branding uses the actual invoice's facility, including when a system owner assists another site. A4/80mm defaults and print footers are implemented; extended print-theme controls remain future work.
 - Menus and home cards are generated from role and service availability. Shared server-rendered link guards also remove unavailable links from existing page templates; hiding does not replace authorization.
 - Disabled service routes are rejected on browser and JWT paths. Diagnostic order/result lists and writes enforce lab/imaging selection; disabling a service retains records rather than deleting history. Existing patient-chart tabs filter disabled services.
 - Administrator staff recruitment and role/access changes at `/accounts/staff/`. The form cannot grant platform superuser/staff privileges. Writable users remain facility scoped, passwords use configured validators, self-demotion is blocked, and at least one active site administrator must remain. Available roles follow selected services.
@@ -25,16 +25,12 @@
 
 A pharmacy-only workspace defaults to registration, dispensing, inventory and billing. It does not display maternity, ward, laboratory, imaging, theatre or clinical-programme workspaces. Management and workforce services can be added if needed. A clinic can add scans and maternity independently. Historical records remain stored when services are disabled; an authorized administrator can re-enable the service for appropriate work.
 
-## Independent tenant boundary — still unfinished
+## Independent tenant deployment boundary
 
-The current deployment has facility-scoped patients/transactions and explicit branch grants, but catalogues, supplier/master configuration and some pricing settings are still shared. Therefore independent tenant onboarding is **not enabled or claimed safe** in this release. The owner dashboard manages sites within the current deployment, not independently isolated SaaS customers.
+The initial service-setup release scoped patients/transactions by facility while sharing catalogues, suppliers and pricing within one business. That remains the branch model: never put unrelated businesses into a shared application database.
 
-Required next work before hosting unrelated tenants in one deployment:
+The subsequent [tenant control release](TENANT_CONTROL_AND_APPROVAL_RELEASE.md) adds independent tenant registration, isolated deployment bundles, signed activation/suspension and expiring, auditable owner support. Each independent tenant has its own application, database, private media, signing keys and Redis. Tenant administrators cannot access the owner registry. Temporary support cannot recruit or promote permanent users, change approval authority, enroll authenticators or administer the system.
 
-1. Introduce organization ownership for facilities, staff memberships and every shared catalogue/configuration record; migrate existing data with a reviewed ownership mapping.
-2. Enforce organization boundaries on reads, writes, relation selections, tasks, reports, exports, asynchronous jobs and owner support access. Branch grants must remain within an organization.
-3. Add owner-only organization provisioning/suspension, auditable support entry and scoped tenant administrator controls.
-4. Run two-organization attack/regression tests, including guessed IDs, conflicting product codes, exports, JWTs, background work and branding isolation.
-5. Only then enable independent tenant onboarding and claim multi-tenant isolation.
+Generated bundles require deployment by an authorized operator. Host isolation, TLS, backups, recovery rehearsal, load acceptance and provider/clinical commissioning remain release gates; registration does not start a live tenant. A shared-database multi-organization design has not been implemented or substituted for this deployment boundary.
 
 Fine-grained per-action delegation, atomic reassignment/offboarding and full tenant branding/print templates remain in the tracker. Automated checks follow each visible home link for every defined staff role in a fully enabled hospital workspace, alongside pharmacy-only regressions. Role-filtered navigation is not a claim that every existing action-specific approval control has completed a separate usability audit.

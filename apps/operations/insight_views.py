@@ -7,6 +7,7 @@ from django.utils import timezone
 from apps.appointments.models import QueueTicket
 from apps.orders.models import Order
 from common.facility_scope import filter_by_facility
+from common.service_policy import enabled, enabled_queue_services
 from .extension_services import role
 from .models import Claim, WorkTask
 
@@ -17,18 +18,22 @@ def insights(request):
     try: days=max(1,min(90,int(request.GET.get('days',30))))
     except (TypeError,ValueError): days=30
     now=timezone.now(); start=now-timedelta(days=days)
-    queue=filter_by_facility(QueueTicket.objects.filter(created_at__gte=start,created_at__lte=now),request.user,'patient__facility_id')
-    orders=filter_by_facility(Order.objects.filter(created_at__gte=start,created_at__lte=now,order_type__in=['lab','imaging']),request.user,'patient__facility_id').annotate(first_release=Min('results__approved_at'))
+    queue_services=enabled_queue_services(request.user)
+    diagnostic_services=[kind for kind in ('lab','imaging') if enabled(request.user,kind)]
+    queue=filter_by_facility(QueueTicket.objects.filter(created_at__gte=start,created_at__lte=now,service__in=queue_services),request.user,'patient__facility_id')
+    orders=filter_by_facility(Order.objects.filter(created_at__gte=start,created_at__lte=now,order_type__in=diagnostic_services),request.user,'patient__facility_id').annotate(first_release=Min('results__approved_at'))
     claims=filter_by_facility(Claim.objects.filter(created_at__gte=start,created_at__lte=now),request.user,'invoice__patient__facility_id')
+    if not enabled(request.user,'billing'):claims=claims.none()
     waits=[]
     for service,label in QueueTicket.SERVICE_CHOICES:
+        if service not in queue_services:continue
         subset=queue.filter(service=service)
         valid=subset.filter(started_at__gte=F('created_at')).exclude(status='cancelled')
         total=subset.count(); eligible=valid.count()
         duration=valid.aggregate(value=Avg(F('started_at')-F('created_at')))['value']
         waits.append((label,total,eligible,total-eligible,round(duration.total_seconds()/60,1) if duration is not None else None))
     turnaround=[]
-    for kind in ('lab','imaging'):
+    for kind in diagnostic_services:
         subset=orders.filter(order_type=kind)
         valid=subset.filter(first_release__gte=F('created_at')).exclude(status='cancelled')
         total=subset.count(); eligible=valid.count()

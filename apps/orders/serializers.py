@@ -1,7 +1,9 @@
 from decimal import Decimal
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from common.serializers import FacilityScopedSerializer
 from .models import Order, OrderResult
+from .permissions import filter_visible_results
 
 
 class OrderResultSerializer(FacilityScopedSerializer):
@@ -78,7 +80,17 @@ class OrderSerializer(FacilityScopedSerializer):
     quantity = serializers.DecimalField(
         max_digits=10, decimal_places=2, min_value=Decimal("0.01"), default=Decimal("1")
     )
-    results = OrderResultSerializer(many=True, read_only=True)
+    results = serializers.SerializerMethodField()
+
+    @extend_schema_field(OrderResultSerializer(many=True))
+    def get_results(self, instance):
+        # Viewsets prefetch the same request-scoped queryset. Keep standalone
+        # serialization (including create/update responses) fail-closed too.
+        results = getattr(instance, '_visible_results', None)
+        if results is None:
+            user = getattr(self.context.get('request'), 'user', None)
+            results = filter_visible_results(instance.results.all(), user)
+        return OrderResultSerializer(results, many=True, context=self.context).data
 
     class Meta:
         model = Order
