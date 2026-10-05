@@ -194,3 +194,5 @@ Use [service setup](docs/SERVICE_SETUP_AND_ROLE_WORKSPACES.md) for pharmacy/clin
 The [UI-connected workflow release](docs/END_TO_END_WORKFLOW_RELEASE.md) adds reviewed expense settlement/cash-flow sources, scoped patient booking changes and feedback, reciprocal duty swaps, missing-clock-out review, diagnostic resource reservations and approved preparation, printable patient directions/discharge copies, logos and room/department setup. Every delivered workflow has an application entry point; the tracker retains the remaining whole-stage requirements.
 
 The [completion-boundary and workforce delivery](docs/COMPLETION_BOUNDARIES_AND_WORKFORCE.md) adds direct-action/API permission fixes, temporary-support containment, role-change work reassignment guards, employment and credential renewals, grouped roster coverage and attendance policy snapshots. Read its migration and verification notes before upgrading.
+
+[Time-limited workforce delegation](docs/WORKFORCE_DELEGATION.md) lets permanent administrators grant specific attendance, leave, cover/swap review or roster-publication authority without changing staff roles or granting financial/clinical permissions.

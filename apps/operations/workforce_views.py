@@ -13,6 +13,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from apps.accounts.models import User, Facility, Department, StaffProfile
+from apps.accounts.approval_services import workforce_allowed
 from apps.encounters.models import Encounter
 from common.facility_scope import filter_by_facility, user_staff_facility_id
 from .models import DutyShift, Attendance, AttendanceCorrection, StaffCredential, StaffLeave, ShiftCover, ShiftHandover, StaffEmployment, DutyCoverageRule, AttendancePolicy
@@ -33,7 +34,24 @@ def datetime_field(**kwargs):
     return forms.DateTimeField(widget=forms.DateTimeInput(attrs={'type':'datetime-local'},format='%Y-%m-%dT%H:%M'),**kwargs)
 
 
-def context(request,**extra):return {'workforce_manager':is_manager(request.user),'workforce_timezone':settings.TIME_ZONE,**extra}
+def capability(user, operation):
+    # The grant helper checks the real staff assignment as well as selected scope.
+    # Do not make delegated reviewers managers of unrelated workforce records.
+    return is_manager(user) or workforce_allowed(user,user_staff_facility_id(user),operation)
+
+
+def review_allowed(request, facility_id, operation, excluded_ids):
+    """Memoize read-only authority for this request, never a later form POST."""
+    if request.user.pk in excluded_ids:return False
+    cache=request.__dict__.setdefault('_workforce_review_authority',{})
+    key=(facility_id,operation)
+    if key not in cache:
+        cache[key]=services.can_review(request.user,facility_id,operation,set())
+    return cache[key]
+
+
+def context(request,**extra):
+    return {'workforce_manager':is_manager(request.user),'workforce_can_publish':capability(request.user,'roster_publish'),'workforce_timezone':settings.TIME_ZONE,**extra}
 
 
 @login_required
@@ -44,7 +62,7 @@ def board(request):
     except ValueError:day=timezone.localdate()
     start=timezone.make_aware(datetime.combine(day,datetime.min.time()));end=start+timedelta(days=1)
     qs=filter_by_facility(DutyShift.objects.all(),request.user).filter(starts_at__lt=end,ends_at__gt=start).select_related('staff','department','facility','supervisor','attendance').order_by('starts_at','pk')
-    if not is_manager(request.user):qs=qs.exclude(status='draft')
+    if not capability(request.user,'roster_publish'):qs=qs.exclude(status='draft')
     page=Paginator(qs,30).get_page(request.GET.get('page'))
     for shift in page:
         att=getattr(shift,'attendance',None)
@@ -183,20 +201,32 @@ def create(request,kind,pk=None):
 @login_required
 def shift_detail(request,pk):
     shift=get_object_or_404(filter_by_facility(DutyShift.objects.select_related('staff','department','supervisor','backup'),request.user),pk=pk)
-    if shift.status=='draft' and not is_manager(request.user) and shift.staff_id!=request.user.pk:raise PermissionDenied
+    if shift.status=='draft' and not workforce_allowed(request.user,shift.facility_id,'roster_publish') and shift.staff_id!=request.user.pk:raise PermissionDenied
+    shift.can_publish=shift.status=='draft' and workforce_allowed(request.user,shift.facility_id,'roster_publish')
     return render(request,'operations/workforce_shift.html',context(request,shift=shift,attendance=getattr(shift,'attendance',None)))
 
 
 @login_required
 def inbox(request):
-    leave=protected(filter_by_facility(StaffLeave.objects.all(),request.user),request.user).select_related('staff').order_by('-created_at')[:50]
+    leave=filter_by_facility(StaffLeave.objects.all(),request.user)
+    if not capability(request.user,'leave_review'):leave=leave.filter(staff=request.user)
+    leave=list(leave.select_related('staff').order_by('-created_at')[:50])
+    for record in leave:
+        record.can_review=review_allowed(request,record.facility_id,'leave_review',{record.staff_id,record.created_by_id})
     covers=filter_by_facility(ShiftCover.objects.all(),request.user,field='shift__facility_id')
-    if not is_manager(request.user):covers=covers.filter(Q(created_by=request.user)|Q(original_staff=request.user)|Q(replacement=request.user))
+    if not capability(request.user,'cover_review'):
+        covers=covers.filter(Q(created_by=request.user)|Q(original_staff=request.user)|Q(replacement=request.user)|Q(swap_partner__created_by=request.user)|Q(swap_partner__original_staff=request.user)|Q(swap_partner__replacement=request.user))
+    covers=list(covers.select_related('shift','original_staff','replacement','swap_partner').order_by('-created_at')[:50])
+    for record in covers:
+        record.can_review=review_allowed(request,record.shift.facility_id,'cover_review',services.cover_review_excluded(record))
     corrections=filter_by_facility(AttendanceCorrection.objects.all(),request.user,field='attendance__shift__facility_id')
-    if not is_manager(request.user):corrections=corrections.filter(attendance__staff=request.user)
+    if not capability(request.user,'attendance_review'):corrections=corrections.filter(Q(attendance__staff=request.user)|Q(created_by=request.user))
+    corrections=list(corrections.select_related('attendance__staff','attendance__shift').order_by('-created_at')[:50])
+    for record in corrections:
+        record.can_review=review_allowed(request,record.attendance.shift.facility_id,'attendance_review',{record.attendance.staff_id,record.created_by_id})
     handovers=filter_by_facility(ShiftHandover.objects.all(),request.user,field='shift__facility_id')
     if not is_manager(request.user):handovers=handovers.filter(Q(incoming=request.user)|Q(created_by=request.user))
-    return render(request,'operations/workforce_inbox.html',context(request,leave=leave,covers=covers.select_related('shift','original_staff','replacement').order_by('-created_at')[:50],corrections=corrections.select_related('attendance__staff').order_by('-created_at')[:50],handovers=handovers.select_related('shift__staff','incoming').order_by('-created_at')[:50]))
+    return render(request,'operations/workforce_inbox.html',context(request,leave=leave,covers=covers,corrections=corrections,handovers=handovers.select_related('shift__staff','incoming').order_by('-created_at')[:50]))
 
 
 @login_required
@@ -225,7 +255,8 @@ def action(request,kind,pk):
 
 @login_required
 def timesheets(request):
-    qs=protected(filter_by_facility(Attendance.objects.select_related('shift__department','staff','reviewed_by'),request.user,field='shift__facility_id'),request.user).order_by('-clock_in')
+    qs=filter_by_facility(Attendance.objects.select_related('shift__department','staff','reviewed_by'),request.user,field='shift__facility_id').order_by('-clock_in')
+    if not capability(request.user,'attendance_review'):qs=qs.filter(staff=request.user)
     try:days=max(1,min(90,int(request.GET.get('days','30'))))
     except ValueError:days=30
     qs=qs.filter(clock_in__gte=timezone.now()-timedelta(days=days))
@@ -238,7 +269,10 @@ def timesheets(request):
             writer.writerow([a.pk,a.staff_id,a.shift_id,t['start'].isoformat(),t['end'].isoformat() if t['end'] else '',t['break_minutes'],t['worked_minutes'],t['late_minutes'],t['overtime_minutes'],a.reviewed_by_id,t['policy'].get('id',''),t['policy_worked_minutes'],t['policy_late_minutes'],t['policy'].get('grace_minutes',0),t['policy'].get('rounding_minutes',0),t['policy'].get('rounding_mode','exact')])
         return response
     page=Paginator(qs,25).get_page(request.GET.get('page'))
-    for a in page:a.totals=services.attendance_totals(a)
+    for a in page:
+        a.totals=services.attendance_totals(a)
+        a.can_review=review_allowed(request,a.shift.facility_id,'attendance_review',{a.staff_id,a.created_by_id}) and bool(a.clock_out) and not a.corrections.filter(status='requested').exists()
+        a.can_request_correction=is_manager(request.user) or a.staff_id==request.user.pk
     policies=filter_by_facility(AttendancePolicy.objects.select_related('facility'),request.user).order_by('-effective_from')[:30] if is_manager(request.user) else []
     return render(request,'operations/workforce_timesheets.html',context(request,page=page,days=days,policies=policies))
 
@@ -259,8 +293,10 @@ def assign(request):
 
 
 def settings_form(request, kind, pk=None):
-    """Manager-only setup and publication routes reuse the workforce URL namespace."""
-    services.manager(request.user)
+    """Publication may be delegated; workforce setup remains manager-only."""
+    if kind=='publish':
+        if not capability(request.user,'roster_publish'):raise PermissionDenied
+    else:services.manager(request.user)
     initial={};obj=None
     facilities=filter_by_facility(Facility.objects.filter(is_active=True),request.user,field='pk')
     departments=filter_by_facility(Department.objects.filter(is_active=True),request.user)

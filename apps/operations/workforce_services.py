@@ -6,10 +6,10 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from apps.accounts.models import User, Facility, StaffProfile
+from apps.accounts import approval_services as approvals
 from apps.encounters.models import Encounter
 from apps.demographics.models import Patient
 from common.facility_scope import filter_by_facility
-from .finance_services import supervisor
 from .models import (DutyShift, Attendance, AttendanceBreak, AttendanceCorrection,
                      StaffLeave, ShiftCover, ShiftHandover, DutyAssignment, StaffCredential,
                      StaffEmployment, DutyCoverageRule, AttendancePolicy)
@@ -25,6 +25,33 @@ def facility_lock(actor, facility_id):
     facility=filter_by_facility(Facility.objects.select_for_update(),actor,field='pk').filter(pk=facility_id,is_active=True).first()
     if not facility:raise PermissionDenied
     return facility
+
+
+def can_review(actor, facility_id, operation, excluded_ids):
+    """Read-only UI check; mutations repeat this check after locking the facility."""
+    return actor.pk not in excluded_ids and approvals.workforce_allowed(actor,facility_id,operation)
+
+
+def reviewer(actor, facility_id, operation, excluded_ids):
+    grant=approvals.require_workforce(actor,facility_id,operation)
+    if actor.pk in excluded_ids:
+        raise ValidationError('A different supervisor outside this request must review it.')
+    return grant
+
+
+def cover_review_excluded(obj):
+    """Both requesters and every participant are excluded, on either swap side."""
+    excluded={obj.created_by_id,obj.original_staff_id,obj.replacement_id}
+    if obj.swap_partner_id:
+        partner=ShiftCover.objects.filter(pk=obj.swap_partner_id).values_list('created_by_id','original_staff_id','replacement_id').first()
+        if partner:excluded.update(partner)
+    return excluded
+
+
+def delegated_use(grant, actor, action, obj):
+    if grant:
+        from common.mfa import record
+        record(actor,'workforce_delegation_used',f'grant={grant.pk}; operation={grant.operation}; action={action}; record={obj._meta.label_lower}:{obj.pk}; facility={grant.facility_id}')
 
 
 def employment_allows(employment,start,end):
@@ -84,10 +111,10 @@ def shift_action(pk,actor,action,revision,reason=''):
     shift=DutyShift.objects.select_for_update().get(pk=pk)
     if revision!=shift.revision:raise ValidationError('This shift changed. Reload before acting.')
     if action in ('publish','cancel'):
-        manager(actor)
         if action=='publish':
             return publish_roster(actor,{shift.pk:revision},reason)[0]
         else:
+            manager(actor)
             reason_required(reason)
             if Attendance.objects.filter(shift=shift).exists():raise ValidationError('A recorded attendance cannot be cancelled. Close and review attendance instead.')
             if shift.status=='cancelled':return shift
@@ -173,8 +200,7 @@ def request_correction(pk,actor,clock_in,clock_out,break_minutes,reason):
 def review_correction(pk,actor,decision,reason):
     candidate=AttendanceCorrection.objects.select_related('attendance__shift').get(pk=pk);facility_lock(actor,candidate.attendance.shift.facility_id)
     obj=AttendanceCorrection.objects.select_for_update().get(pk=pk)
-    supervisor(actor,obj.created_by_id)
-    if actor.pk==obj.attendance.staff_id:raise ValidationError('A different supervisor must review their staff attendance.')
+    grant=reviewer(actor,candidate.attendance.shift.facility_id,'attendance_review',{obj.created_by_id,obj.attendance.staff_id})
     reason_required(reason)
     if decision not in ('approved','rejected'):raise ValidationError('Choose approve or reject.')
     if obj.status!='requested':return obj
@@ -196,15 +222,20 @@ def review_correction(pk,actor,decision,reason):
             shift=DutyShift.objects.select_for_update().get(pk=att.shift_id)
             shift.availability='unavailable';shift.revision+=1;shift._history_user=actor;shift.save()
         att.reviewed_at=None;att.reviewed_by=None;att.review_reason='';att._history_user=actor;att.save()
-    obj.status=decision;obj.reviewed_by=actor;obj.reviewed_at=timezone.now();obj.review_reason=reason;obj._history_user=actor;obj.save();return obj
+    obj.status=decision;obj.reviewed_by=actor;obj.reviewed_at=timezone.now();obj.review_reason=reason;obj._history_user=actor;obj.save()
+    delegated_use(grant,actor,decision,obj)
+    return obj
 
 
 @transaction.atomic
 def approve_timesheet(pk,actor,reason):
     candidate=Attendance.objects.select_related('shift').get(pk=pk);facility_lock(actor,candidate.shift.facility_id)
-    obj=Attendance.objects.select_for_update().get(pk=pk);supervisor(actor,obj.staff_id);reason_required(reason)
+    obj=Attendance.objects.select_for_update().get(pk=pk)
+    grant=reviewer(actor,candidate.shift.facility_id,'attendance_review',{obj.staff_id,obj.created_by_id});reason_required(reason)
     if not obj.clock_out or obj.corrections.filter(status='requested').exists():raise ValidationError('Close attendance and resolve corrections first.')
-    obj.reviewed_by=actor;obj.reviewed_at=timezone.now();obj.review_reason=reason;obj._history_user=actor;obj.save();return obj
+    obj.reviewed_by=actor;obj.reviewed_at=timezone.now();obj.review_reason=reason;obj._history_user=actor;obj.save()
+    delegated_use(grant,actor,'approved',obj)
+    return obj
 
 
 @transaction.atomic
@@ -219,7 +250,7 @@ def request_leave(actor,starts_at,ends_at,reason):
 def review_leave(pk,actor,decision,reason):
     candidate=StaffLeave.objects.get(pk=pk);facility_lock(actor,candidate.facility_id)
     obj=StaffLeave.objects.select_for_update().get(pk=pk)
-    supervisor(actor,obj.staff_id);reason_required(reason)
+    grant=reviewer(actor,obj.facility_id,'leave_review',{obj.staff_id,obj.created_by_id});reason_required(reason)
     if decision=='cancelled':
         if obj.status!='approved':raise ValidationError('Only approved leave can be cancelled.')
     elif decision not in ('approved','rejected'):raise ValidationError('Unknown leave decision.')
@@ -232,7 +263,9 @@ def review_leave(pk,actor,decision,reason):
         appointments=Appointment.objects.filter(clinician=obj.staff,scheduled_for__lt=obj.ends_at,scheduled_for__gt=obj.starts_at-timedelta(days=1)).exclude(status__in=['cancelled','no_show','completed'])
         if any(a.scheduled_for+timedelta(minutes=a.duration_minutes)>obj.starts_at for a in appointments) or TheatreCase.objects.filter(surgeon=obj.staff,starts_at__lt=obj.ends_at,ends_at__gt=obj.starts_at).exclude(status__in=['cancelled','completed']).exists():raise ValidationError('Reassign existing appointments or theatre cases before approving leave.')
         if Attendance.objects.filter(staff=obj.staff,clock_out__isnull=True).exists():raise ValidationError('Close open attendance before approving leave.')
-    obj.status=decision;obj.reviewed_by=actor;obj.reviewed_at=timezone.now();obj.review_reason=reason;obj._history_user=actor;obj.save();return obj
+    obj.status=decision;obj.reviewed_by=actor;obj.reviewed_at=timezone.now();obj.review_reason=reason;obj._history_user=actor;obj.save()
+    delegated_use(grant,actor,decision,obj)
+    return obj
 
 
 @transaction.atomic
@@ -251,16 +284,17 @@ def request_cover(pk,actor,replacement,reason):
 def review_cover(pk,actor,decision,reason):
     candidate=ShiftCover.objects.select_related('shift').get(pk=pk);facility_lock(actor,candidate.shift.facility_id)
     obj=ShiftCover.objects.select_for_update().get(pk=pk)
-    if obj.swap_partner_id:return review_swap(obj,actor,decision,reason)
+    if obj.swap_partner_id:return _review_swap(obj,actor,decision,reason)
     shift=DutyShift.objects.select_for_update().get(pk=obj.shift_id)
-    if obj.status!='requested':return obj
+    grant=None
     if decision=='accept':
         if actor.pk!=obj.replacement_id:raise PermissionDenied
+        if obj.status!='requested':return obj
         obj.accepted_at=timezone.now()
     elif decision in ('approved','rejected'):
-        supervisor(actor,obj.created_by_id)
-        if actor.pk in (obj.original_staff_id,obj.replacement_id):raise ValidationError('A supervisor outside this cover arrangement must review it.')
+        grant=reviewer(actor,shift.facility_id,'cover_review',cover_review_excluded(obj))
         reason_required(reason)
+        if obj.status!='requested':return obj
         if decision=='approved':
             if not obj.accepted_at:raise ValidationError('The replacement must accept first.')
             if shift.status!='published' or shift.staff_id!=obj.original_staff_id or shift.starts_at<=timezone.now() or Attendance.objects.filter(shift=shift).exists():raise ValidationError('Shift changed or started; create a fresh arrangement.')
@@ -269,7 +303,9 @@ def review_cover(pk,actor,decision,reason):
             shift.staff=obj.replacement;shift.availability='unavailable';shift.revision+=1;shift._history_user=actor;shift.save()
         obj.status=decision;obj.reviewed_by=actor;obj.reviewed_at=timezone.now();obj.review_reason=reason
     else:raise ValidationError('Unknown cover action.')
-    obj._history_user=actor;obj.save();return obj
+    obj._history_user=actor;obj.save()
+    delegated_use(grant,actor,decision,obj)
+    return obj
 
 
 @transaction.atomic
@@ -332,17 +368,23 @@ def request_swap(actor, first_id, second_id, reason):
     return a
 
 
-def review_swap(obj, actor, decision, reason):
-    pair=list(ShiftCover.objects.select_for_update().filter(pk__in=[obj.pk,obj.swap_partner_id]).order_by('pk'))
+def _review_swap(obj, actor, decision, reason):
+    """Only called by review_cover inside its transaction and facility lock."""
+    pair=list(ShiftCover.objects.select_for_update(of=('self',)).filter(pk__in=[obj.pk,obj.swap_partner_id]).select_related('shift').order_by('pk'))
     if len(pair)!=2 or any(x.swap_partner_id not in [p.pk for p in pair] or x.swap_partner_id==x.pk for x in pair):raise ValidationError('Invalid swap pairing; contact an administrator.')
+    if any(x.shift.facility_id!=obj.shift.facility_id for x in pair):raise ValidationError('Both swap duties must belong to the same facility.')
+    grant=None
+    if decision=='accept':
+        if actor.pk!=obj.replacement_id:raise PermissionDenied
+    elif decision in ('approved','rejected'):
+        excluded={person_id for item in pair for person_id in (item.created_by_id,item.original_staff_id,item.replacement_id)}
+        grant=reviewer(actor,obj.shift.facility_id,'cover_review',excluded)
+        reason_required(reason)
+    else:raise ValidationError('Choose approve or reject.')
     if all(x.status!='requested' for x in pair):return obj
     if any(x.status!='requested' for x in pair):raise ValidationError('Swap state changed; review both requests.')
     if decision=='accept':
-        if actor.pk!=obj.replacement_id:raise PermissionDenied
         obj.accepted_at=timezone.now();obj._history_user=actor;obj.save();return obj
-    supervisor(actor,obj.created_by_id);reason_required(reason)
-    if actor.pk in {x.original_staff_id for x in pair}:raise ValidationError('A supervisor outside the swap must review both duties.')
-    if decision not in ('approved','rejected'):raise ValidationError('Choose approve or reject.')
     if decision=='approved':
         if any(not x.accepted_at for x in pair):raise ValidationError('Both replacement staff must accept before the atomic swap.')
         shifts={s.pk:s for s in DutyShift.objects.select_for_update().filter(pk__in=[x.shift_id for x in pair]).order_by('pk')}
@@ -357,6 +399,7 @@ def review_swap(obj, actor, decision, reason):
             shift=shifts[item.shift_id];shift.staff=item.replacement;shift.availability='unavailable';shift.revision+=1;shift._history_user=actor;shift.save()
     for item in pair:
         item.status=decision;item.reviewed_by=actor;item.reviewed_at=timezone.now();item.review_reason=reason;item._history_user=actor;item.save()
+        delegated_use(grant,actor,decision,item)
     return obj
 
 
@@ -456,13 +499,13 @@ def validate_coverage(department_id, start, end, proposed=(), exclude_ids=()):
 
 @transaction.atomic
 def publish_roster(actor, shift_revisions, reason=''):
-    manager(actor)
     if not shift_revisions or len(shift_revisions)>200:raise ValidationError('Select 1–200 draft duties for one facility.')
     candidates=list(DutyShift.objects.filter(pk__in=shift_revisions))
     if len(candidates)!=len(shift_revisions):raise ValidationError('A selected duty no longer exists. Reload the roster.')
     facilities={s.facility_id for s in candidates}
     if len(facilities)!=1:raise ValidationError('Publish one facility roster at a time.')
     facility_id=facilities.pop();facility_lock(actor,facility_id)
+    grant=approvals.require_workforce(actor,facility_id,'roster_publish')
     shifts=list(DutyShift.objects.select_for_update(of=('self',)).filter(pk__in=shift_revisions).select_related('staff','supervisor','backup','department').order_by('starts_at','pk'))
     for shift in shifts:
         if shift.revision!=shift_revisions[shift.pk]:raise ValidationError('A selected duty changed. Reload before publishing.')
@@ -483,6 +526,7 @@ def publish_roster(actor, shift_revisions, reason=''):
         shift.status='published';shift.revision+=1
         if reason:shift.reason=reason
         shift._history_user=actor;shift.save()
+        delegated_use(grant,actor,'published',shift)
     return shifts
 
 

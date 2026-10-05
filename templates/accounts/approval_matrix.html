@@ -1,1 +1,46 @@
-{% extends 'base.html' %}{% block title %}Approval limits and delegation{% endblock %}{% block content %}<section class="card"><h1>Approval limits and delegation</h1><p>Limits are in UGX. Existing roles, facility scope and independent review still apply. Enable a workflow to require an active grant for every approval, including superusers. Revoking the last grant keeps approvals blocked. Each workflow remains under its existing role rules until its matrix is enabled.</p><h2>Grant timed approval authority</h2><form method="post">{% csrf_token %}<input type="hidden" name="action" value="grant">{% include 'operations/form_fields.html' %}<button>Grant approval authority</button></form></section><section class="card"><h2>Workflow policies</h2>{% for row in rows %}<article class="card"><h3>{{ row.facility.name }} · {{ row.label }}</h3><p>{% if row.policy.enabled %}Active grants required{% else %}Existing supervisor rules{% endif %}</p><form method="post">{% csrf_token %}<input type="hidden" name="action" value="policy"><input type="hidden" name="facility" value="{{ row.facility.pk }}"><input type="hidden" name="operation" value="{{ row.operation }}"><input type="hidden" name="revision" value="{{ row.policy.revision|default:0 }}"><label for="policy-reason-{{ row.facility.pk }}-{{ row.operation }}">Reason for policy change</label><input id="policy-reason-{{ row.facility.pk }}-{{ row.operation }}" name="reason" maxlength="250" required><button name="enabled" value="{% if row.policy.enabled %}0{% else %}1{% endif %}" data-confirm="Change the approval policy for this workflow?">{% if row.policy.enabled %}Restore existing supervisor rules{% else %}Require active approval grants{% endif %}</button></form></article>{% empty %}<p>Select an authorized facility before configuring approval limits.</p>{% endfor %}</section><section class="card"><h2>Authority history</h2>{% for grant in page %}<article class="card"><h3>{{ grant.approver.username }} · {{ grant.get_operation_display }}</h3><p>{{ grant.facility.name }} · Up to {{ grant.maximum }} UGX · {{ grant.starts_at }} to {{ grant.ends_at }} · {{ grant.reason }}</p>{% if grant.revoked_at %}<p>Revoked {{ grant.revoked_at }} · {{ grant.revocation_reason }}</p>{% else %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke"><input type="hidden" name="grant" value="{{ grant.pk }}"><label for="revoke-{{ grant.pk }}">Revocation reason</label><input id="revoke-{{ grant.pk }}" name="reason" required maxlength="250"><button>Revoke authority</button></form>{% endif %}</article>{% empty %}<p>No approval authority granted.</p>{% endfor %}{% include 'operations/pagination.html' %}</section>{% endblock %}
+{% extends 'base.html' %}
+{% block title %}Approval limits and delegation{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Approval limits and delegation</h1>
+  <p>Only permanent administrators can grant or revoke authority. Delegations are specific to one person, facility, workflow and time interval. Independent review and existing workflow safety checks still apply.</p>
+  <form method="get">
+    <label for="grant-facility">Facility for new grants</label>
+    <select name="facility" id="grant-facility">{% for facility in facilities %}<option value="{{ facility.pk }}"{% if facility.pk == selected_facility.pk %} selected{% endif %}>{{ facility.name }}</option>{% endfor %}</select>
+    <button>Choose facility</button>
+  </form>
+</section>
+<section class="card">
+  <h2>Grant timed approval authority</h2>
+  <h3>Financial authority{% if selected_facility %} · {{ selected_facility.name }}{% endif %}</h3>
+  <p>Limits are in UGX. Financial grants are available only to active administrators and managers assigned to this facility. Existing financial roles remain mandatory.</p>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="grant">{% include 'operations/form_fields.html' %}<button>Grant financial authority</button></form>
+</section>
+<section class="card">
+  <h2>Workforce delegation{% if selected_facility %} · {{ selected_facility.name }}{% endif %}</h2>
+  <p>Delegate attendance review, leave review, cover and swap review, or roster publication to eligible assigned staff. Workforce authority has no monetary limit and does not change anyone’s role. It cannot be used for financial approvals or managing access. Employment, assignment, enabled services and authority are checked again on each use.</p>
+  {% if workforce_enabled %}
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="workforce_grant">{% include 'operations/form_fields.html' with form=workforce_form %}<button>Grant workforce authority</button></form>
+  {% else %}<p>Choose an active facility with Workforce enabled before granting workforce authority.</p>{% if workforce_form.is_bound %}{% include 'operations/form_fields.html' with form=workforce_form %}{% endif %}{% endif %}
+</section>
+<section class="card">
+  <h2>Financial workflow policies</h2>
+  <p>Enable a financial workflow to require an active monetary grant for every approval, including superusers. Revoking the last grant keeps approvals blocked. Until enabled, existing supervisor rules apply. Workforce delegations do not use these policies.</p>
+  {% for row in rows %}<article class="card">
+    <h3>{{ row.facility.name }} · {{ row.label }}</h3>
+    <p>{% if row.policy.enabled %}Active grants required{% else %}Existing supervisor rules{% endif %}</p>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="policy"><input type="hidden" name="facility" value="{{ row.facility.pk }}"><input type="hidden" name="operation" value="{{ row.operation }}"><input type="hidden" name="revision" value="{{ row.policy.revision|default:0 }}"><label for="policy-reason-{{ row.facility.pk }}-{{ row.operation }}">Reason for policy change</label><input id="policy-reason-{{ row.facility.pk }}-{{ row.operation }}" name="reason" maxlength="250" required><button name="enabled" value="{% if row.policy.enabled %}0{% else %}1{% endif %}" data-confirm="Change the approval policy for this workflow?">{% if row.policy.enabled %}Restore existing supervisor rules{% else %}Require active approval grants{% endif %}</button></form>
+  </article>{% empty %}<p>Select an authorized facility before configuring approval limits.</p>{% endfor %}
+</section>
+<section class="card">
+  <h2>Authority history</h2>
+  {% for grant in page %}<article class="card">
+    <h3>{{ grant.approver.username }} · {{ grant.get_operation_display }}</h3>
+    <p>{{ grant.facility.name }} · {% if grant.is_workforce %}Workforce delegation{% else %}Up to {{ grant.maximum }} UGX{% endif %} · {{ grant.authority_status|capfirst }}</p>
+    <p>{{ grant.starts_at }} to {{ grant.ends_at }} · Granted by {{ grant.created_by.username }} · {{ grant.reason }}</p>
+    {% if grant.revoked_at %}<p>Revoked {{ grant.revoked_at }} · {{ grant.revocation_reason }}</p>
+    {% else %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke"><input type="hidden" name="grant" value="{{ grant.pk }}"><label for="revoke-{{ grant.pk }}">Revocation reason</label><input id="revoke-{{ grant.pk }}" name="reason" required maxlength="250"><button>Revoke authority</button></form>{% endif %}
+  </article>{% empty %}<p>No approval authority granted.</p>{% endfor %}
+  {% include 'operations/pagination.html' %}
+</section>
+{% endblock %}

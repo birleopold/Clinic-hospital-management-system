@@ -27,6 +27,9 @@ gaps found while reviewing PR2. It does not mark every later roadmap phase compl
 - Financial workflow records and their line inlines are read-only in Django
   admin, including for superusers. Admin inspection links to guarded application
   workflows rather than bypassing independent review or financial approval limits.
+- Automatic API dispensing selects only usable, unexpired, non-quarantined stock
+  at the patient facility. Shortage totals do not include another facility's stock;
+  the transactional service still rechecks and locks the final allocation.
 
 ## Workforce screens and services
 
@@ -57,10 +60,13 @@ grouped coverage publication and attendance policy snapshots.
 
 Local Python compilation and whitespace checks pass. Local Django tests and
 migration/schema checks could not start because required dependencies were absent
-and the package download proxy denied the Django wheel request. Full verification
-must therefore use the associated commit's four-job SQLite/PostgreSQL,
-Python 3.11/3.12 CI matrix before considering the code validated. Exact CI results
-belong to the commit, not to earlier PR2 runs.
+and the package download proxy denied the Django wheel request. Executable
+verification was completed by [the four-job CI run for a68a2f7](https://github.com/birleopold/Clinic-hospital-management-system/actions/runs/37278603361)
+on 5 October 2026: both Python 3.11/3.12 PostgreSQL jobs passed **411 tests** and
+isolated restore/row-count drills; both SQLite jobs passed **394 tests**, with
+**17 PostgreSQL-specific tests skipped**. Dependency, Django, migration-drift,
+OpenAPI and clean-installation checks passed in all four jobs. These results apply
+to that exact commit, not automatically to subsequent changes or deployment.
 
 Remaining tracker work is preserved, including nonfinancial acting-supervisor
 delegation, broader granular permissions/audit review, automated escalation,
