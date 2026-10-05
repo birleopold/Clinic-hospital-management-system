@@ -1,0 +1,7 @@
+{
+  "name": "clinic-disposable-browser-ci",
+  "private": true,
+  "description": "Pinned browser tooling for synthetic loopback-only CI",
+  "engines": {"node": ">=22"},
+  "devDependencies": {"playwright": "1.63.0"}
+}
