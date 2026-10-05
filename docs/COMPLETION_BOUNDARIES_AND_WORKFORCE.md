@@ -22,6 +22,9 @@ gaps found while reviewing PR2. It does not mark every later roadmap phase compl
 - Disabled modules are filtered in queue summaries/actions, laboratory worklists,
   specialty follow-up, operational insight sources and mixed diagnostic templates.
   Direct clinical history/upload, barcode and import routes enforce their module.
+- Generic queue edits cannot override status, assignment, patient or service.
+  Receiving-department actions claim/start/finish tickets under a row lock, retain
+  original times on retry and return client errors for invalid transitions.
 - Radiology has the shared scoped task inbox and handoff ownership, without
   acquiring full-chart or unrelated clinical privileges.
 - Financial workflow records and their line inlines are read-only in Django

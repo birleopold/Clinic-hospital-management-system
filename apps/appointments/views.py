@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, time as dtime
 from django.utils import timezone
+from django.db import transaction
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -8,6 +9,7 @@ from common.permissions import RolePermission
 from common.service_policy import enabled_queue_services
 from common.facility_scope import filter_by_facility, filter_by_patient_facility
 from .models import Appointment, QueueTicket, DoctorWeeklyAvailability, DoctorTimeOff
+from .queue_policy import can_work_queue
 from .serializers import (
     AppointmentSerializer,
     QueueTicketSerializer,
@@ -242,7 +244,15 @@ class QueueTicketViewSet(viewsets.ModelViewSet):
             qs = qs.filter(service=service)
         if status_p:
             qs = qs.filter(status=status_p)
+        if getattr(self,'action',None) in ('start','finish','cancel','update','partial_update') and self.request.method in ('POST','PUT','PATCH'):
+            qs = qs.select_for_update()
         return qs.order_by('created_at')
+
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        # Partial updates also use this method. Serialize notes edits with
+        # workflow actions so a stale instance cannot overwrite a newer state.
+        return super().update(request, *args, **kwargs)
 
     @action(detail=False, methods=['post'])
     def enqueue(self, request):
@@ -255,19 +265,17 @@ class QueueTicketViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def start(self, request, pk=None):
         ticket = self.get_object()
-        # Enforce role matches service
-        svc_role_map = {
-            QueueTicket.TRIAGE: 'nurse',
-            QueueTicket.CONSULT: 'clinician',
-            QueueTicket.LAB: 'lab',
-            QueueTicket.PHARMACY: 'pharmacy',
-            QueueTicket.CASHIER: 'cashier',
-        }
-        expected_role = svc_role_map.get(ticket.service)
-        if request.user.role not in ['admin', expected_role]:
+        if not can_work_queue(request.user,ticket.service):
             return Response({'detail': 'Not allowed for your role'}, status=status.HTTP_403_FORBIDDEN)
+        if ticket.status==QueueTicket.IN_SERVICE:
+            if ticket.assigned_to_id!=request.user.pk and not (request.user.is_superuser or request.user.role=='admin'):
+                return Response({'detail':'This ticket is already assigned to another staff member.'},status=status.HTTP_409_CONFLICT)
+            return Response(self.get_serializer(ticket).data)
+        if ticket.status!=QueueTicket.WAITING:
+            return Response({'detail':'Only a waiting ticket can be started.'},status=status.HTTP_400_BAD_REQUEST)
         ticket.status = QueueTicket.IN_SERVICE
         ticket.started_at = timezone.now()
         ticket.assigned_to = request.user
@@ -275,29 +283,31 @@ class QueueTicketViewSet(viewsets.ModelViewSet):
         return Response(self.get_serializer(ticket).data)
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def finish(self, request, pk=None):
         ticket = self.get_object()
-        svc_role_map = {
-            QueueTicket.TRIAGE: 'nurse',
-            QueueTicket.CONSULT: 'clinician',
-            QueueTicket.LAB: 'lab',
-            QueueTicket.PHARMACY: 'pharmacy',
-            QueueTicket.CASHIER: 'cashier',
-        }
-        expected_role = svc_role_map.get(ticket.service)
-        if request.user.role not in ['admin', expected_role]:
+        if not can_work_queue(request.user,ticket.service):
             return Response({'detail': 'Not allowed for your role'}, status=status.HTTP_403_FORBIDDEN)
+        if ticket.status==QueueTicket.DONE:
+            return Response(self.get_serializer(ticket).data)
+        if ticket.status!=QueueTicket.IN_SERVICE:
+            return Response({'detail':'Start the ticket before finishing it.'},status=status.HTTP_400_BAD_REQUEST)
         ticket.status = QueueTicket.DONE
         ticket.finished_at = timezone.now()
         ticket.save(update_fields=['status','finished_at'])
         return Response(self.get_serializer(ticket).data)
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def cancel(self, request, pk=None):
         ticket = self.get_object()
         # Reception or admin can cancel
-        if request.user.role not in ['admin', 'reception']:
+        if not request.user.is_superuser and request.user.role not in ['admin', 'reception']:
             return Response({'detail': 'Not allowed for your role'}, status=status.HTTP_403_FORBIDDEN)
+        if ticket.status==QueueTicket.CANCELLED:
+            return Response(self.get_serializer(ticket).data)
+        if ticket.status not in (QueueTicket.WAITING,QueueTicket.IN_SERVICE):
+            return Response({'detail':'A completed ticket cannot be cancelled.'},status=status.HTTP_400_BAD_REQUEST)
         ticket.status = QueueTicket.CANCELLED
         ticket.finished_at = timezone.now()
         ticket.save(update_fields=['status','finished_at'])
