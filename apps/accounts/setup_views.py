@@ -152,6 +152,7 @@ def staff_access(request,pk):
 @login_required
 def control(request):
     if not request.user.is_superuser:raise PermissionDenied
+    if settings.OWNER_CONTROL_PLANE and not settings.TENANT_KEY:return redirect('tenant-console')
     sites=Facility.objects.select_related('configuration').order_by('name')
     return render(request,'accounts/owner_control.html',{'sites':Paginator(sites,25).get_page(request.GET.get('page')), 'owner_plane':settings.OWNER_CONTROL_PLANE and not settings.TENANT_KEY})
 

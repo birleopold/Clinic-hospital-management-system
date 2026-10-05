@@ -5,6 +5,12 @@ def workspace_context(request):
     if not user.is_authenticated:return {}
     from common.mfa import required
     if required(user) and not getattr(user,'otp_device',None):return {}
+    from django.conf import settings
+    if settings.OWNER_CONTROL_PLANE and not settings.TENANT_KEY and request.path.startswith('/accounts/tenants/'):
+        return {'owner_portal': True, 'show_global_search': False, 'workspace_navigation': [
+            {'label': 'Tenant admin portal', 'url': '/accounts/tenants/'},
+            {'label': 'Support queue', 'url': '/accounts/tenants/support/'},
+        ], 'page_breadcrumb': 'Tenant administration'}
     from apps.accounts.models import Facility
     result={'selected_facility':Facility.objects.filter(pk=getattr(user,'_active_facility_id',None)).first()}
     from common.service_policy import navigation, profile, enabled, SERVICES

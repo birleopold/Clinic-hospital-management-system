@@ -6,12 +6,15 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.integrations.webhooks import sms_delivery
-from apps.accounts import approval_views, tenant_views, mfa_views, branch_views, structure_views, setup_views as account_setup_views
+from apps.accounts import approval_views, tenant_views, tenant_portal_views, mfa_views, branch_views, structure_views, setup_views as account_setup_views
 from apps.accounts.token_views import StaffTokenView, StaffRefreshView
 
 urlpatterns = [
     path('accounts/approvals/',approval_views.matrix,name='approval-matrix'),
-    path('accounts/tenants/', tenant_views.console, name='tenant-console'),
+    path('accounts/tenants/', tenant_portal_views.console, name='tenant-console'),
+    path('accounts/tenants/support/', tenant_portal_views.support_queue, name='tenant-support-queue'),
+    path('accounts/tenants/<int:pk>/workspace/', tenant_portal_views.detail, name='tenant-detail'),
+    path('accounts/tenants/<int:tenant_pk>/cases/<int:pk>/', tenant_portal_views.support_case, name='tenant-support-case'),
     path('accounts/tenants/policy/', tenant_views.policy, name='tenant-policy'),
     path('accounts/tenants/<int:pk>/', tenant_views.action, name='tenant-action'),
     path('accounts/support/accept/', tenant_views.accept, name='owner-support-accept'),

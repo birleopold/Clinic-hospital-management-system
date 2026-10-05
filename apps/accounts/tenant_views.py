@@ -22,24 +22,6 @@ from common.service_policy import SERVICES,PRESETS
 
 @login_required
 @never_cache
-def console(request):
-    service.owner(request.user)
-    class Form(forms.Form):
-        name=forms.CharField(max_length=160)
-        origin=forms.URLField(label='Tenant HTTPS origin',assume_scheme='https')
-        bind_port=forms.IntegerField(min_value=1024,max_value=65535,label='Private application port')
-        admin_username=forms.CharField(max_length=150)
-        service_type=forms.ChoiceField(choices=[(k,k.title()) for k in PRESETS])
-        services=forms.MultipleChoiceField(choices=[(key,value[0]) for key,value in SERVICES.items()],widget=forms.CheckboxSelectMultiple)
-    form=Form(request.POST or None)
-    if request.method=='POST' and form.is_valid():
-        try:service.create(request.user,**form.cleaned_data)
-        except (ValidationError,IntegrityError) as exc:form.add_error(None,'; '.join(exc.messages) if isinstance(exc,ValidationError) else 'This tenant origin or private port is already registered.')
-        else:return redirect('tenant-console')
-    return render(request,'accounts/tenants.html',{'form':form,'tenants':Paginator(TenantDeployment.objects.defer('secret_envelope').order_by('name','pk'),25).get_page(request.GET.get('page'))})
-
-@login_required
-@never_cache
 @require_POST
 def action(request,pk):
     service.owner(request.user);obj=get_object_or_404(TenantDeployment,pk=pk)
@@ -51,7 +33,7 @@ def action(request,pk):
             token=service.support_ticket(request.user,obj,request.POST.get('reason',''))
             response=render(request,'accounts/support_launch.html',{'origin':obj.origin,'ticket':token,'tenant':obj})
             response['Referrer-Policy']='no-referrer';return response
-        service.state(request.user,pk,action,int(request.POST.get('revision','0')),request.POST.get('reason',''))
+        service.state(request.user,pk,action,int(request.POST.get('revision','0')),request.POST.get('reason',''),request.POST.get('request_id') or None)
     except (ValidationError,ValueError) as exc:
         from django.contrib import messages
         messages.error(request,'; '.join(exc.messages) if isinstance(exc,ValidationError) else 'Reload the current tenant revision.')
@@ -79,7 +61,10 @@ def policy(request):
     with transaction.atomic():
         obj=TenantDeployment.objects.select_for_update().get(pk=obj.pk)
         obj.last_seen_at=timezone.now()
-        if obj.state=='provisioning':obj.state='active';obj.revision+=1
+        if obj.state=='provisioning':
+            obj.state='active';obj.revision+=1
+            from .tenant_portal_services import activity
+            activity(None,obj,'tenant_first_contact','First authenticated policy contact received. This is not production readiness or an uptime check.')
         obj.save(update_fields=['last_seen_at','state','revision'])
     return HttpResponse(signing.dumps({'tenant':str(obj.key),'active':obj.state=='active'},key=secret,salt='tenant-policy-response'),content_type='text/plain')
 

@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Support queue · Tenant admin portal{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/tenant-portal.css' %}">{% endblock %}
+{% block content %}
+<div class="tenant-portal">
+  <a class="portal-back-link" href="{% url 'tenant-console' %}"><span aria-hidden="true">&larr;</span> Tenant admin portal</a>
+  <section class="portal-hero" aria-labelledby="support-queue-title"><div><p class="portal-eyebrow">Owner support workspace</p><h1 id="support-queue-title">Support queue</h1><p class="portal-lead">A clear next step for every business.</p><p class="portal-hero-description">Review support cases, track responsibility and follow progress across independent tenants.</p></div><span class="portal-owner-badge">Owner access only</span></section>
+  <div class="portal-section-heading"><div><p class="portal-eyebrow">Case registry</p><h2>Business support cases</h2></div><p class="portal-muted">{{ cases.paginator.count }} result{{ cases.paginator.count|pluralize }}</p></div>
+  {% if tenant_filter %}<p class="portal-note portal-queue-scope">Showing cases for the selected tenant. <a href="{% url 'tenant-support-queue' %}">View all tenants</a></p>{% endif %}
+  <form method="get" class="portal-filters portal-queue-filters" role="search" aria-label="Filter support cases">
+    {% if tenant_filter %}<input type="hidden" name="tenant" value="{{ tenant_filter }}">{% endif %}
+    <div class="portal-search-field"><label for="support-query">Search cases</label><input id="support-query" type="search" name="q" value="{{ q }}" maxlength="160" placeholder="Case title or business name"></div>
+    <div><label for="support-status">Status</label><select id="support-status" name="status"><option value="unresolved"{% if status == 'unresolved' %} selected{% endif %}>All unresolved</option><option value="all"{% if status == 'all' %} selected{% endif %}>All statuses</option>{% for value,label in status_options %}<option value="{{ value }}"{% if status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div><label for="support-priority">Priority</label><select id="support-priority" name="priority"><option value="">All priorities</option>{% for value,label in priority_options %}<option value="{{ value }}"{% if priority == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <label class="portal-checkbox" for="support-assigned"><input id="support-assigned" type="checkbox" name="assigned" value="me"{% if assigned == 'me' %} checked{% endif %}>Assigned to me</label>
+    <div class="portal-filter-actions"><button type="submit">Apply filters</button><a href="{% url 'tenant-support-queue' %}{% if tenant_filter %}?tenant={{ tenant_filter }}{% endif %}">Reset</a></div>
+  </form>
+  <p class="portal-fineprint">Open a tenant to create a support case. Keep patient information, passwords and other secrets out of support notes.</p>
+  <section class="portal-panel portal-queue-list" aria-label="Support case results">
+    {% for case in cases %}
+    <article class="portal-queue-case" aria-labelledby="support-case-{{ case.pk }}">
+      <div class="portal-queue-case-heading"><div><p class="portal-eyebrow"><a href="{% url 'tenant-detail' case.tenant_id %}">{{ case.tenant.name }}</a></p><h2 id="support-case-{{ case.pk }}"><a href="{% url 'tenant-support-case' case.tenant_id case.pk %}">{{ case.title }}</a></h2></div><div class="portal-badges"><span class="portal-badge portal-badge-neutral">{{ case.get_status_display }}</span><span class="portal-badge portal-priority-{{ case.priority }}">{{ case.get_priority_display }}</span></div></div>
+      <dl class="portal-queue-case-facts"><div><dt>Case</dt><dd>#{{ case.pk }} · {{ case.get_category_display }}</dd></div><div><dt>Assigned owner</dt><dd>{{ case.assignee|default:'Unassigned' }}</dd></div><div><dt>Last updated</dt><dd><time datetime="{{ case.updated_at|date:'c' }}">{{ case.updated_at|date:'j M Y, H:i T' }}</time></dd></div></dl>
+      <a class="portal-queue-case-link" href="{% url 'tenant-support-case' case.tenant_id case.pk %}">Review case <span aria-hidden="true">&rarr;</span></a>
+    </article>
+    {% empty %}<div class="portal-empty"><span class="portal-empty-symbol" aria-hidden="true">✓</span><h3>No cases in this view</h3><p>Try a different filter to review other cases, or open a tenant to create one.</p><a href="{% url 'tenant-console' %}">Browse businesses</a></div>{% endfor %}
+  </section>
+  {% if cases.paginator.num_pages > 1 %}<nav class="portal-pagination" aria-label="Support case pages"><span>Page {{ cases.number }} of {{ cases.paginator.num_pages }}</span><div>{% if cases.has_previous %}<a href="?page={{ cases.previous_page_number }}&amp;q={{ q|urlencode }}&amp;status={{ status|urlencode }}&amp;priority={{ priority|urlencode }}&amp;assigned={{ assigned|urlencode }}{% if tenant_filter %}&amp;tenant={{ tenant_filter }}{% endif %}">Previous</a>{% endif %}{% if cases.has_next %}<a href="?page={{ cases.next_page_number }}&amp;q={{ q|urlencode }}&amp;status={{ status|urlencode }}&amp;priority={{ priority|urlencode }}&amp;assigned={{ assigned|urlencode }}{% if tenant_filter %}&amp;tenant={{ tenant_filter }}{% endif %}">Next</a>{% endif %}</div></nav>{% endif %}
+</div>
+{% endblock %}

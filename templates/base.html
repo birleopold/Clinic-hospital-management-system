@@ -16,15 +16,15 @@
 </head>
 <body {% if user.is_authenticated %}class="workspace-shell"{% endif %}>
   {% accessible_link %}<a class="skip-link" href="#main-content">Skip to content</a>{% endaccessible_link %}
-  {% if user.is_authenticated %}<div class="workspace-topbar no-print"><button id="navigation-toggle" aria-controls="workspace-navigation" aria-expanded="true" type="button">Menu</button>{% accessible_link %}<a href="{% url 'facility-select' %}" class="facility-context">{% if selected_facility %}{{ selected_facility }}{% elif user.is_superuser %}All facilities{% else %}{{ user.staff_profile.facility|default:'Facility not assigned' }}{% endif %}</a>{% endaccessible_link %}
+  {% if user.is_authenticated %}<div class="workspace-topbar no-print"><button id="navigation-toggle" aria-controls="workspace-navigation" aria-expanded="true" type="button">Menu</button>{% if owner_portal %}<span class="facility-context">Platform owner · isolated tenant workspaces</span>{% else %}{% accessible_link %}<a href="{% url 'facility-select' %}" class="facility-context">{% if selected_facility %}{{ selected_facility }}{% elif user.is_superuser %}All facilities{% else %}{{ user.staff_profile.facility|default:'Facility not assigned' }}{% endif %}</a>{% endaccessible_link %}{% endif %}
   {% if show_global_search %}<form action="{% url 'suite-patient-search' %}" method="get" class="global-patient-search"><label class="visually-hidden" for="global-patient-query">Find patient by name, phone or MRN</label><input id="global-patient-query" name="q" type="search" placeholder="Find patient · name, phone, MRN" minlength="2" maxlength="120" required><button>Find patient</button></form>{% endif %}</div>{% endif %}
   <header id="workspace-navigation" {% if user.is_authenticated %}class="workspace-sidebar"{% endif %}>
     <nav aria-label="Main navigation">
-      {% accessible_link %}<a class="branding" href="/suite/">{% if facility_brand.logo %}<img src="{% url 'facility-logo' facility_brand.facility_id %}" alt="" width="32" height="32">{% endif %}{{ facility_brand.display_name|default:'Clinic Suite' }}</a>{% endaccessible_link %}
+      {% if owner_portal %}<a class="branding" href="{% url 'tenant-console' %}">Clinic Suite · owner</a>{% else %}{% accessible_link %}<a class="branding" href="/suite/">{% if facility_brand.logo %}<img src="{% url 'facility-logo' facility_brand.facility_id %}" alt="" width="32" height="32">{% endif %}{{ facility_brand.display_name|default:'Clinic Suite' }}</a>{% endaccessible_link %}{% endif %}
       {% if user.is_authenticated %}
         {% for entry in workspace_navigation %}{% accessible_link %}<a href="{{ entry.url }}">{{ entry.label }}</a>{% endaccessible_link %}{% endfor %}
-        {% if user.is_superuser %}{% accessible_link %}<a href="/accounts/control/">Owner control dashboard</a>{% endaccessible_link %} {% accessible_link %}<a href="/admin/">System administration</a>{% endaccessible_link %}{% endif %}
-        <span class="chip" style="background:#075985; color:#fff">{{ user.role|default:"user" }}</span>
+        {% if user.is_superuser %}{% if not owner_portal %}{% accessible_link %}<a href="/accounts/control/">Owner control dashboard</a>{% endaccessible_link %}{% endif %} {% accessible_link %}<a href="/admin/">System administration</a>{% endaccessible_link %}{% endif %}
+        <span class="chip" style="background:#075985; color:#fff">{% if owner_portal %}platform owner{% else %}{{ user.role|default:"user" }}{% endif %}</span>
         <form method="post" action="{% url 'logout' %}" style="display:inline">
           {% csrf_token %}<button type="submit">Logout</button>
         </form>
@@ -34,7 +34,7 @@
     </nav>
   </header>
   <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
-  <main id="main-content">{% if user.is_authenticated %}<nav class="breadcrumbs no-print" aria-label="Breadcrumb">{% accessible_link %}<a href="/suite/">Workspace</a>{% endaccessible_link %}<span aria-hidden="true"> / </span><span>{{ page_breadcrumb }}</span></nav>{% endif %}
+  <main id="main-content">{% if user.is_authenticated %}<nav class="breadcrumbs no-print" aria-label="Breadcrumb">{% if owner_portal %}<a href="{% url 'tenant-console' %}">Owner portal</a>{% else %}{% accessible_link %}<a href="/suite/">Workspace</a>{% endaccessible_link %}{% endif %}<span aria-hidden="true"> / </span><span>{{ page_breadcrumb }}</span></nav>{% endif %}
     {% if messages %}
     <div style="margin-bottom:12px;">
       {% for message in messages %}

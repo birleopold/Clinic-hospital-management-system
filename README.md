@@ -196,3 +196,7 @@ The [UI-connected workflow release](docs/END_TO_END_WORKFLOW_RELEASE.md) adds re
 The [completion-boundary and workforce delivery](docs/COMPLETION_BOUNDARIES_AND_WORKFORCE.md) adds direct-action/API permission fixes, temporary-support containment, role-change work reassignment guards, employment and credential renewals, grouped roster coverage and attendance policy snapshots. Read its migration and verification notes before upgrading.
 
 [Time-limited workforce delegation](docs/WORKFORCE_DELEGATION.md) lets permanent administrators grant specific attendance, leave, cover/swap review or roster-publication authority without changing staff roles or granting financial/clinical permissions.
+
+### Platform-owner administration
+
+The [tenant admin portal and operator runbook](docs/TENANT_ADMIN_PORTAL.md) extends `/accounts/tenants/` with a searchable customer register, isolated workspace setup checks, contact/deployment notes, support case ownership and history, and non-destructive retirement. Apply accounts migration 0013 before upgrading. Setup evidence and authenticated contact are shown separately; registration does not provision infrastructure or certify production readiness.

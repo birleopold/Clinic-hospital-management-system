@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ tenant.name }} · Tenant admin portal{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/tenant-portal.css' %}"><script src="{% static 'js/tenant-portal.js' %}" defer></script>{% endblock %}
+{% block content %}
+<div class="tenant-portal">
+  <a class="portal-back-link" href="{% url 'tenant-console' %}"><span aria-hidden="true">&larr;</span> Tenant admin portal</a>
+  <section class="portal-hero portal-detail-hero" aria-labelledby="tenant-title">
+    <div><p class="portal-eyebrow">Independent business</p><h1 id="tenant-title">{{ tenant.name }}</h1><p class="portal-lead portal-wrap">{{ tenant.origin }}</p><div class="portal-badges"><span class="portal-badge portal-state-{{ tenant.state }}">{{ tenant.get_state_display }}</span><span class="portal-badge portal-badge-light">{{ health_label }}</span></div></div>
+    <div class="portal-readiness-summary"><strong>{{ readiness_done }}<span> / {{ readiness_total }}</span></strong><span>Readiness checks recorded</span><a href="#readiness">Review onboarding <span aria-hidden="true">&darr;</span></a></div>
+  </section>
+  <nav class="portal-section-nav" aria-label="Tenant sections"><a href="#overview">Overview</a><a href="#readiness">Readiness</a><a href="#support">Support cases</a><a href="#settings">Configuration</a><a href="#activity">Activity</a></nav>
+
+  <div class="portal-detail-layout">
+    <div class="portal-main-column">
+      <section class="portal-panel" id="overview" aria-labelledby="overview-title">
+        <div class="portal-section-heading"><div><p class="portal-eyebrow">Deployment overview</p><h2 id="overview-title">Business environment</h2></div><span class="portal-badge portal-badge-neutral">{{ tenant.service_type|title }}</span></div>
+        <dl class="portal-key-values">
+          <div><dt>Public origin</dt><dd>{{ tenant.origin }}</dd></div>
+          <div><dt>Private application port</dt><dd>{{ tenant.bind_port }}</dd></div>
+          <div><dt>Bootstrap administrator</dt><dd>{{ tenant.admin_username }}</dd></div>
+          <div><dt>Registered</dt><dd><time datetime="{{ tenant.created_at|date:'c' }}">{{ tenant.created_at|date:'j M Y, H:i T' }}</time></dd></div>
+          <div><dt>Last authenticated contact</dt><dd>{% if tenant.last_seen_at %}<time datetime="{{ tenant.last_seen_at|date:'c' }}">{{ tenant.last_seen_at|date:'j M Y, H:i T' }}</time>{% else %}Not received yet{% endif %}</dd></div>
+        </dl>
+        <h3>Initial service selection</h3><div class="portal-badges">{% for label in service_labels %}<span class="portal-badge portal-badge-neutral">{{ label }}</span>{% empty %}<span class="portal-muted">No services recorded</span>{% endfor %}</div>
+        <p class="portal-fineprint">The tenant administrator may change live services independently. This portal does not retrieve the tenant’s live configuration.</p>
+        <p class="portal-note">This business requires its own application, database, private media, signing keys and Redis. Contact records show authenticated policy requests, not uptime or production certification.</p>
+      </section>
+
+      <section class="portal-panel" id="readiness" aria-labelledby="readiness-title">
+        <div class="portal-section-heading"><div><p class="portal-eyebrow">Onboarding checklist</p><h2 id="readiness-title">Deployment readiness</h2></div><span class="portal-badge portal-badge-neutral">{{ readiness_done }} of {{ readiness_total }} recorded</span></div>
+        <p class="portal-muted">Record what an operator has checked and the evidence supporting it. These are operator-recorded checks, not automated verification or production approval.</p>
+        <p class="portal-safety-note">Keep patient data, passwords, signing keys and other secrets out of all notes and evidence.</p>
+        <div class="portal-checkpoints">
+          {% for checkpoint in checkpoints %}
+          <details class="portal-checkpoint"{% if checkpoint.form.errors %} open{% endif %}>
+            <summary><span class="portal-step-number" aria-hidden="true">{{ forloop.counter }}</span><span class="portal-checkpoint-heading"><span class="portal-summary-title">{{ checkpoint.label }}</span><span class="portal-summary-description">{{ checkpoint.description }}</span></span><span class="portal-badge portal-check-{{ checkpoint.status }}">{% if checkpoint.status == 'verified' %}Operator verified{% else %}Needs review{% endif %}</span></summary>
+            <div class="portal-checkpoint-body">
+              {% if checkpoint.evidence %}<div class="portal-evidence"><h3>Recorded evidence</h3><p>{{ checkpoint.evidence|linebreaksbr }}</p></div>{% endif %}
+              {% if checkpoint.updated_at %}<p class="portal-fineprint">Updated <time datetime="{{ checkpoint.updated_at|date:'c' }}">{{ checkpoint.updated_at|date:'j M Y, H:i T' }}</time>{% if checkpoint.updated_by %} by {{ checkpoint.updated_by }}{% endif %}</p>{% endif %}
+              {% if tenant.state != 'retired' %}<form method="post" class="portal-form">{% csrf_token %}{% include 'operations/form_fields.html' with form=checkpoint.form %}<button type="submit">Save readiness check</button></form>{% elif checkpoint.form.errors %}<div class="form-errors" role="alert">{{ checkpoint.form.errors }}</div>{% endif %}
+            </div>
+          </details>
+          {% empty %}<p class="portal-muted">No readiness checks are available.</p>{% endfor %}
+        </div>
+      </section>
+
+      <section class="portal-panel" id="support" aria-labelledby="support-title">
+        <div class="portal-section-heading"><div><p class="portal-eyebrow">Support workspace</p><h2 id="support-title">Support cases</h2></div></div>
+        <p class="portal-muted">Track the issue, owner and next step without placing clinical information in this portal.</p><p class="portal-fineprint"><a href="{% url 'tenant-support-queue' %}?tenant={{ tenant.pk }}&amp;status=all">All support cases for this tenant</a></p>
+        <div class="portal-case-list">
+          {% for case in cases %}<article class="portal-case-row"><div><h3><a href="{% url 'tenant-support-case' tenant.pk case.pk %}">{{ case.title }}</a></h3><p class="portal-fineprint">Case #{{ case.pk }} · {{ case.get_category_display }} · Updated {{ case.updated_at|date:'j M Y' }}</p></div><div class="portal-badges"><span class="portal-badge portal-badge-neutral">{{ case.get_status_display }}</span><span class="portal-badge portal-priority-{{ case.priority }}">{{ case.get_priority_display }}</span></div></article>{% empty %}<div class="portal-inline-empty"><h3>No support cases yet</h3><p>Open a case when this business needs help and keep its progress in one place.</p></div>{% endfor %}
+        </div>
+        <details class="portal-inner-disclosure"{% if support_form.errors %} open{% endif %}><summary>Open a support case</summary><div class="portal-disclosure-body"><p class="portal-safety-note">Do not include patient data, passwords or other secrets.</p><form method="post" class="portal-form">{% csrf_token %}{% include 'operations/form_fields.html' with form=support_form %}<button type="submit">Create support case</button></form></div></details>
+      </section>
+
+      <section class="portal-panel" id="activity" aria-labelledby="activity-title">
+        <p class="portal-eyebrow">Accountability</p><h2 id="activity-title">Recent activity</h2>
+        <ol class="portal-timeline">{% for event in events %}<li><span class="portal-timeline-dot" aria-hidden="true"></span><div><h3>{{ event.get_event_display|default:event.event }}</h3><p>{{ event.summary }}</p><p class="portal-fineprint"><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:'j M Y, H:i T' }}</time> · {{ event.actor|default:'System' }}</p></div></li>{% empty %}<li class="portal-timeline-empty">No activity recorded yet.</li>{% endfor %}</ol>{% if events.paginator.num_pages > 1 %}<nav class="portal-pagination" aria-label="Activity history pages"><span>Page {{ events.number }} of {{ events.paginator.num_pages }}</span><div>{% if events.has_previous %}<a href="?activity_page={{ events.previous_page_number }}#activity">Newer</a>{% endif %}{% if events.has_next %}<a href="?activity_page={{ events.next_page_number }}#activity">Older</a>{% endif %}</div></nav>{% endif %}
+      </section>
+    </div>
+
+    <aside class="portal-side-column" aria-label="Tenant actions and settings">
+      <section class="portal-panel portal-action-panel" aria-labelledby="access-title">
+        <p class="portal-eyebrow">Tenant access</p><h2 id="access-title">Open the workspace</h2>
+        <a class="portal-button portal-button-full" href="{{ tenant.origin }}/accounts/login/" rel="noreferrer">Open tenant sign-in <span aria-hidden="true">&nearr;</span></a>
+        <p class="portal-fineprint">Ordinary sign-in uses an account in this business’s own application.</p>
+        <details class="portal-inner-disclosure"><summary>Tenant administrator setup links</summary><div class="portal-disclosure-body"><p class="portal-fineprint">Use these on the tenant application after signing in as its administrator.</p><ul class="portal-link-list"><li><a href="{{ tenant.origin }}/accounts/staff/" rel="noreferrer">Staff and access <span aria-hidden="true">&nearr;</span></a></li><li><a href="{{ tenant.origin }}/accounts/setup/" rel="noreferrer">Branding and services <span aria-hidden="true">&nearr;</span></a></li></ul></div></details>
+        <hr>
+        <h3>Temporary owner support</h3><p class="portal-fineprint">A reason is required. Access is audited, expires after 30 minutes and does not grant permanent staff authority.</p>
+        {% if tenant.last_seen_at and tenant.state != 'retired' %}<form method="post" class="portal-form">{% csrf_token %}{% include 'operations/form_fields.html' with form=support_launch_form %}<button class="portal-button-secondary portal-button-full" type="submit">Open audited owner support</button></form>{% else %}{% if support_launch_form.errors %}<div class="form-errors" role="alert">{{ support_launch_form.errors }}</div>{% endif %}<p class="portal-note">{% if tenant.state == 'retired' %}Support access is unavailable for retired tenants.{% else %}Available after the tenant makes its first authenticated contact.{% endif %}</p>{% endif %}
+      </section>
+
+      <section class="portal-panel" aria-labelledby="bundle-title"><p class="portal-eyebrow">Deployment handoff</p><h2 id="bundle-title">Protected bundle</h2><p class="portal-fineprint">Download the deployment configuration for this business. It includes credentials and must be stored and shared securely.</p>{% if tenant.state != 'retired' %}<form method="post" action="{% url 'tenant-action' tenant.pk %}">{% csrf_token %}<input type="hidden" name="revision" value="{{ tenant.revision }}"><button class="portal-button-secondary portal-button-full" type="submit" name="action" value="bundle">Download protected deployment bundle</button></form>{% else %}<p class="portal-note">Bundles are unavailable for retired tenants.</p>{% endif %}<p class="portal-fineprint">Downloading does not deploy a host. Re-downloading preserves existing keys.</p></section>
+
+      <section class="portal-panel" id="settings" aria-labelledby="settings-title"><p class="portal-eyebrow">Business details</p><h2 id="settings-title">Configuration</h2>
+        <details class="portal-inner-disclosure"{% if metadata_form.errors %} open{% endif %}><summary>Edit business metadata</summary><div class="portal-disclosure-body"><p class="portal-fineprint">Owner-side contact and operational notes. Do not include patient data or secrets.</p><form method="post" class="portal-form">{% csrf_token %}{% include 'operations/form_fields.html' with form=metadata_form %}<button type="submit">Save business details</button></form></div></details>
+        {% if configuration_form %}<details class="portal-inner-disclosure"{% if configuration_form.errors %} open{% endif %}><summary>Edit deployment configuration</summary><div class="portal-disclosure-body"><p class="portal-fineprint">Configuration can be edited until the first bundle download or authenticated tenant contact.</p><form method="post" class="portal-form">{% csrf_token %}{% include 'operations/form_fields.html' with form=configuration_form %}<button type="submit">Save deployment configuration</button></form></div></details>{% else %}<p class="portal-note">{% if tenant.legacy_configuration_locked %}This registration predates portal download tracking, so its initial configuration is conservatively locked.{% else %}Deployment configuration is locked after the first bundle download or authenticated contact.{% endif %} Coordinate infrastructure changes with the deployment operator.</p>{% endif %}
+      </section>
+
+      <section class="portal-panel portal-lifecycle-panel" aria-labelledby="lifecycle-title"><p class="portal-eyebrow">Application policy</p><h2 id="lifecycle-title">Lifecycle controls</h2><p class="portal-fineprint">Changes govern tenant application access. They do not stop its host or delete its database, files or backups.</p>
+        {% if tenant.state != 'retired' %}<form method="post" class="portal-form">{% csrf_token %}{% include 'operations/form_fields.html' with form=lifecycle_form %}<div class="portal-stacked-actions">{% if tenant.state == 'suspended' %}{% if tenant.last_seen_at %}<button name="action" value="active" type="submit">Resume tenant</button>{% endif %}<button class="portal-button-danger" name="action" value="retired" type="submit" data-confirm="Retire this tenant? Retirement is final in this portal. Tenant records and data are retained; its infrastructure is not stopped or deleted.">Retire tenant</button>{% else %}<button class="portal-button-warning" name="action" value="suspended" type="submit" data-confirm="Suspend normal tenant application access and background tasks? Audited owner support remains available, and infrastructure is not stopped.">Suspend tenant</button>{% endif %}</div></form><p class="portal-fineprint">Suspension restricts normal application access and background tasks; audited support remains available. Retire only after suspension. Retirement is terminal and retains this registry and its history.</p>{% else %}{% if lifecycle_form.errors %}<div class="form-errors" role="alert">{{ lifecycle_form.errors }}</div>{% endif %}<p class="portal-note">This tenant is retired. Its registry and history are retained; it cannot be resumed from this portal.</p>{% endif %}
+      </section>
+    </aside>
+  </div>
+</div>
+{% endblock %}

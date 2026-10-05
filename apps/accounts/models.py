@@ -99,3 +99,5 @@ class FacilityConfiguration(models.Model):
 
 from .tenant_models import TenantDeployment, OwnerSupportReceipt
 from .approval_models import ApprovalPolicy, ApprovalGrant
+
+from .tenant_portal_models import TenantReadinessCheck, TenantSupportCase, TenantActivity

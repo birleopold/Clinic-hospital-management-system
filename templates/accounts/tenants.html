@@ -1,1 +1,80 @@
-{% extends 'base.html' %}{% block title %}Independent tenant control{% endblock %}{% block content %}<section class="card"><h1>Independent tenant control</h1><p>Each business uses a separate application, database, private media, credentials and task broker. This console stores deployment metadata and audited support access.</p><form method="post">{% csrf_token %}{% include 'operations/form_fields.html' %}<button type="submit">Register tenant</button></form></section>{% for tenant in tenants %}<section class="card"><h2>{{ tenant.name }}</h2><p>{{ tenant.origin }} · {{ tenant.get_state_display }} · Last authenticated contact {{ tenant.last_seen_at|default:'Not deployed yet' }}</p><form method="post" action="{% url 'tenant-action' tenant.pk %}">{% csrf_token %}<input type="hidden" name="revision" value="{{ tenant.revision }}"><button name="action" value="bundle">Download protected deployment bundle</button><label for="reason-{{ tenant.pk }}">Policy / support reason</label><input id="reason-{{ tenant.pk }}" name="reason" maxlength="250">{% if tenant.last_seen_at %}<button name="action" value="support">Open audited owner support</button><button name="action" value="suspended" data-confirm="Suspend normal tenant access and background tasks? Owner support remains available.">Suspend tenant</button><button name="action" value="active">Resume tenant</button>{% endif %}</form></section>{% empty %}<p>No independent tenants registered.</p>{% endfor %}{% include 'operations/pagination.html' with page=tenants %}{% endblock %}
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Tenant admin portal{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/tenant-portal.css' %}">{% endblock %}
+{% block content %}
+<div class="tenant-portal">
+  <section class="portal-hero" aria-labelledby="portal-title">
+    <div>
+      <p class="portal-eyebrow">Owner workspace</p>
+      <h1 id="portal-title">Tenant admin portal</h1>
+      <p class="portal-lead">Every independent business. One clear overview.</p>
+      <p class="portal-hero-description">Track onboarding, review application contact and coordinate support. Each business has its own application, database, private media, signing keys and Redis.</p>
+    </div>
+    <span class="portal-owner-badge">Owner access only</span>
+  </section>
+
+  <section class="portal-stats" aria-label="Tenant overview">
+    <a class="portal-stat" href="{% url 'tenant-console' %}"><span>All businesses</span><strong>{{ stats.total|default:0 }}</strong><small>Registered tenants</small></a>
+    <a class="portal-stat" href="?state=active"><span>Active</span><strong>{{ stats.active|default:0 }}</strong><small>Application policy enabled</small></a>
+    <a class="portal-stat" href="?state=provisioning"><span>Awaiting deployment</span><strong>{{ stats.provisioning|default:0 }}</strong><small>First contact pending</small></a>
+    <a class="portal-stat" href="?state=suspended"><span>Suspended</span><strong>{{ stats.suspended|default:0 }}</strong><small>Application policy restricted</small></a>
+    <a class="portal-stat" href="?state=retired"><span>Retired</span><strong>{{ stats.retired|default:0 }}</strong><small>Records retained</small></a>
+    <a class="portal-stat portal-stat-highlight" href="{% url 'tenant-support-queue' %}"><span>Open support cases</span><strong>{{ stats.open_cases|default:0 }}</strong><small>Review support queue →</small></a>
+  </section>
+
+  <details class="portal-panel portal-registration" id="register-tenant"{% if form.errors or request.GET.preset %} open{% endif %}>
+    <summary><span><span class="portal-summary-title">Register a business</span><span class="portal-summary-description">Create an independent tenant and prepare its deployment configuration</span></span></summary>
+    <div class="portal-disclosure-body">
+      <p class="portal-note">Registration creates an owner-side record. An operator must deploy the protected bundle on a separate application stack, configure HTTPS and verify the setup.</p>
+      <div class="portal-preset-links" aria-label="Start with a service preset"><span>Start with a preset:</span>{% for key in presets %}<a href="?preset={{ key|urlencode }}#register-tenant">{{ key|title }}</a>{% endfor %}</div>
+      <form method="post" class="portal-form portal-form-grid">
+        {% csrf_token %}
+        {% include 'operations/form_fields.html' %}
+        <div class="portal-form-footer"><button type="submit">Register tenant</button><span class="portal-muted">Choose a business preset and the services it will offer</span></div>
+      </form>
+    </div>
+  </details>
+
+  <section aria-labelledby="registry-title">
+    <div class="portal-section-heading">
+      <div><p class="portal-eyebrow">Business registry</p><h2 id="registry-title">Your tenants</h2></div>
+      <p class="portal-muted">{{ tenants.paginator.count }} result{{ tenants.paginator.count|pluralize }}</p>
+    </div>
+    <form method="get" class="portal-filters" role="search" aria-label="Filter tenants">
+      <div class="portal-search-field"><label for="tenant-query">Search businesses</label><input id="tenant-query" type="search" name="q" value="{{ q }}" maxlength="160" placeholder="Business name, hostname or contact"></div>
+      <div><label for="tenant-state">Lifecycle</label><select id="tenant-state" name="state"><option value="">All states</option><option value="provisioning"{% if state == 'provisioning' %} selected{% endif %}>Awaiting deployment</option><option value="active"{% if state == 'active' %} selected{% endif %}>Active</option><option value="suspended"{% if state == 'suspended' %} selected{% endif %}>Suspended</option><option value="retired"{% if state == 'retired' %} selected{% endif %}>Retired</option></select></div>
+      <label class="portal-checkbox" for="tenant-attention"><input id="tenant-attention" type="checkbox" name="attention" value="1"{% if attention %} checked{% endif %}>Needs attention</label>
+      <div class="portal-filter-actions"><button type="submit">Apply filters</button>{% if q or state or attention %}<a href="{% url 'tenant-console' %}">Clear</a>{% endif %}</div>
+    </form>
+    <p class="portal-fineprint">Last contact is the latest authenticated policy request, not a continuous uptime check. Protected bundles contain credentials; keep downloads private.</p>
+
+    <div class="portal-registry">
+      {% for tenant in tenants %}
+      <article class="portal-panel portal-tenant-card" aria-labelledby="tenant-name-{{ tenant.pk }}">
+        <div class="portal-tenant-heading">
+          <div class="portal-business-heading"><span class="portal-monogram" aria-hidden="true">{{ tenant.name|first|upper }}</span><div><h2 id="tenant-name-{{ tenant.pk }}"><a href="{% url 'tenant-detail' tenant.pk %}">{{ tenant.name }}</a></h2><p class="portal-origin">{{ tenant.origin }}</p></div></div>
+          <div class="portal-badges"><span class="portal-badge portal-state-{{ tenant.state }}">{{ tenant.get_state_display }}</span><span class="portal-badge portal-badge-neutral">{{ tenant.health_label }}</span></div>
+        </div>
+        <dl class="portal-tenant-facts">
+          <div><dt>Business preset</dt><dd>{{ tenant.service_type|title }}</dd></div>
+          <div><dt>Readiness recorded</dt><dd>{{ tenant.ready_count|default:0 }}{% if readiness_total %} / {{ readiness_total }}{% endif %} checks</dd></div>
+          <div><dt>Open support cases</dt><dd>{{ tenant.open_cases|default:0 }}</dd></div>
+          <div><dt>Last authenticated contact</dt><dd>{% if tenant.last_seen_at %}<time datetime="{{ tenant.last_seen_at|date:'c' }}">{{ tenant.last_seen_at|date:'j M Y, H:i T' }}</time>{% else %}Not received yet{% endif %}</dd></div>
+        </dl>
+        <div class="portal-tenant-actions">
+          <a class="portal-button" href="{% url 'tenant-detail' tenant.pk %}">Manage tenant <span aria-hidden="true">&rarr;</span></a>
+          {% if tenant.state != 'retired' %}<form method="post" action="{% url 'tenant-action' tenant.pk %}">{% csrf_token %}<input type="hidden" name="revision" value="{{ tenant.revision }}"><button class="portal-button-secondary" name="action" value="bundle" type="submit">Download protected deployment bundle</button></form>{% endif %}
+        </div>
+      </article>
+      {% empty %}
+      <div class="portal-panel portal-empty"><span class="portal-empty-symbol" aria-hidden="true">+</span><h3>{% if q or state or attention %}No matching businesses{% else %}Your first business starts here{% endif %}</h3><p>{% if q or state or attention %}Try a different search or clear the filters to see all registered tenants.{% else %}Open “Register a business” above to create its independent tenant record.{% endif %}</p>{% if q or state or attention %}<a href="{% url 'tenant-console' %}">Clear filters</a>{% endif %}</div>
+      {% endfor %}
+    </div>
+    {% if tenants.paginator.num_pages > 1 %}
+    <nav class="portal-pagination" aria-label="Tenant registry pages"><span>Page {{ tenants.number }} of {{ tenants.paginator.num_pages }}</span><div>{% if tenants.has_previous %}<a href="?page={{ tenants.previous_page_number }}&amp;q={{ q|urlencode }}&amp;state={{ state|urlencode }}{% if attention %}&amp;attention=1{% endif %}">Previous</a>{% endif %}{% if tenants.has_next %}<a href="?page={{ tenants.next_page_number }}&amp;q={{ q|urlencode }}&amp;state={{ state|urlencode }}{% if attention %}&amp;attention=1{% endif %}">Next</a>{% endif %}</div></nav>
+    {% endif %}
+  </section>
+  <p class="portal-footer-note">Independent businesses use independent deployments. Facilities within one tenant are branches of that same business.</p>
+</div>
+{% endblock %}
