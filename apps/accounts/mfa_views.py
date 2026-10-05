@@ -80,5 +80,7 @@ def enroll(request):
         qr=base64.b64encode(buffer.getvalue()).decode()
         key=base64.b32encode(device.bin_key).decode()
     response=render(request,'accounts/mfa.html',{'form':form,'title':'Set up your authenticator','qr':qr,'key':key})
-    response['Referrer-Policy']='no-referrer'
+    # Native form POSTs under no-referrer can send Origin: null, which CSRF
+    # correctly rejects. Preserve same-origin checks without external referrers.
+    response['Referrer-Policy']='same-origin'
     return response

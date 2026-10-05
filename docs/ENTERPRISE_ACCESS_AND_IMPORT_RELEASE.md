@@ -13,6 +13,20 @@ Administrators and system superusers must enroll and verify a TOTP authenticator
 - Secrets, passwords and submitted codes are excluded from application security events and marked sensitive for Django error reporting. Enrollment responses are private/no-store. Protect the database and backups because the authenticator seed must be available to the verifier.
 - Device management is removed from the generic Django admin. Security events are read-only there.
 
+### MFA browser form correction (5 October 2026)
+
+Enrollment HTML uses `Referrer-Policy: same-origin`. The previous `no-referrer`
+header made native browser form submissions send `Origin: null`, causing Django's
+CSRF protection to reject password confirmation and authenticator enrollment even
+in a normal same-origin tab. The correction preserves referrer privacy for external
+destinations, private/no-store responses, and all CSRF token/origin checks. It does
+not trust null or foreign origins. See [MDN's form-origin behavior](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Referrer-Policy#effect_on_the_origin_header)
+and [Django's CSRF referrer guidance](https://docs.djangoproject.com/en/5.2/ref/csrf/#removing-the-referer-header).
+
+After updating the application and restarting a running server if needed, reload
+`/accounts/mfa/enroll/` before retrying so the browser receives the corrected header.
+This fix adds no migration. Do not add `null` to trusted origins or disable CSRF.
+
 Recovery is a privileged server action after the facility's independent identity-verification procedure. It is a preview unless `--commit` is supplied:
 
 ```bash
