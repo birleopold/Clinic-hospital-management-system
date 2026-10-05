@@ -1,5 +1,6 @@
 const fs=require('fs'),assert=require('node:assert/strict'),crypto=require('crypto');
 const {chromium}=require('playwright');
+const {assertShellLayout,verifyShellNavigation}=require('./shell_layout_browser.cjs');
 const fixture=JSON.parse(fs.readFileSync(process.env.CLINIC_TENANT_FIXTURE,'utf8'));
 function otp(key){const counter=Buffer.alloc(8);counter.writeBigUInt64BE(BigInt(Math.floor(Date.now()/30000)));const h=crypto.createHmac('sha1',Buffer.from(key,'hex')).update(counter).digest();return String((h.readUInt32BE(h[19]&15)&0x7fffffff)%1000000).padStart(6,'0');}
 (async()=>{
@@ -14,6 +15,7 @@ function otp(key){const counter=Buffer.alloc(8);counter.writeBigUInt64BE(BigInt(
    await p.locator('#id_token').fill(otp(key));await Promise.all([p.waitForURL(u=>!u.pathname.includes('/mfa')),p.getByRole('button',{name:'Verify and continue',exact:true}).click()]);
   }
   async function audit(p,label){
+   await assertShellLayout(p,label);
    assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,label+' overflow');
    await p.addScriptTag({path:process.env.CLINIC_AXE_PATH||require.resolve('axe-core/axe.min.js')});
    const result=await p.evaluate(()=>axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}}));
@@ -32,6 +34,7 @@ function otp(key){const counter=Buffer.alloc(8);counter.writeBigUInt64BE(BigInt(
   }
   assert.equal(fixture.tenants[0].patient,fixture.tenants[1].patient);
   await login(page,owner,'review-owner',fixture.owner_otp);
+  await verifyShellNavigation(browser,{baseURL:owner,storageState:await root.storageState(),firstPath:'/accounts/tenants/',nextPath:'/accounts/tenants/support/',contextOptions:{ignoreHTTPSErrors:true}});
   const alpha=fixture.tenants[0],alphaWorkspace='/accounts/tenants/'+alpha.pk+'/workspace/';
   for(const width of [1440,768,390]){
    await page.setViewportSize({width,height:900});

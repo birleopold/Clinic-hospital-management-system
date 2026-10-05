@@ -2,6 +2,7 @@
 // Run against a disposable seeded instance, with a staff test account.
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
+const {assertShellLayout, verifyShellNavigation} = require('./shell_layout_browser.cjs');
 (async () => {
   const base = process.env.CLINIC_TEST_URL || 'http://127.0.0.1:8000';
   assert(process.env.CLINIC_TEST_USERNAME && process.env.CLINIC_TEST_PASSWORD,
@@ -16,6 +17,7 @@ const assert = require('node:assert/strict');
     await page.locator('[name=password]').fill(process.env.CLINIC_TEST_PASSWORD);
     await Promise.all([page.waitForURL(url => !url.pathname.includes('/login')),
       page.locator('button[type=submit]').click()]);
+    await verifyShellNavigation(browser, {baseURL: base, storageState: await page.context().storageState(), firstPath: '/suite/tasks/', nextPath: '/suite/'});
     for (const width of [1440, 768, 390]) {
       await page.setViewportSize({ width, height: 900 });
       for (const path of ['/suite/', '/suite/workforce/', '/suite/workforce/directory/', '/suite/workforce/timesheets/', '/suite/workforce/inbox/', '/suite/workforce/new/shift/', '/suite/management/', '/suite/management/cases/', '/suite/management/assets/', '/suite/management/checklists/', '/suite/management/budgets/', '/suite/management/expenses/', '/suite/diagnostics/', '/suite/diagnostics/templates/', '/suite/diagnostics/templates/new/', '/suite/visiting-specialists/', '/suite/recalls/', '/suite/appointment-requests/', '/suite/outreach/', '/suite/insights/', '/suite/setup/', '/suite/imports/', '/accounts/facility/', '/accounts/mfa/enroll/', '/accounts/setup/', '/accounts/staff/', '/accounts/control/', ...['custody','aliquots','reagents','quality','runs','programmes','enrollments','reviews','studies'].flatMap(kind=>['/suite/clinical-operations/'+kind+'/', '/suite/clinical-operations/'+kind+'/new/']), '/suite/finance/', '/suite/returns/', '/suite/price-reviews/', '/suite/replenishment/', '/pharmacy/catalog/', '/pharmacy/baskets/', '/suite/results/', '/suite/insurance/prepare/',
@@ -28,6 +30,7 @@ const assert = require('node:assert/strict');
         '/suite/vaccine-adverse-events/', '/suite/tasks/', '/suite/tasks/new/', '/suite/department-board/', '/suite/department-board/?board=lab', '/suite/department-board/?board=ward', '/suite/department-board/?board=theatre', '/suite/note-templates/', '/suite/find-patient/', ...(process.env.CLINIC_TEST_PATIENT_ID ? ['/suite/patient/'+process.env.CLINIC_TEST_PATIENT_ID+'/', '/suite/patient/'+process.env.CLINIC_TEST_PATIENT_ID+'/task/', '/suite/patient/'+process.env.CLINIC_TEST_PATIENT_ID+'/document/'] : [])]) {
         const response = await page.goto(base + path);
         assert.equal(response.status(), 200, path);
+        await assertShellLayout(page, path + ' ' + width);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, path);
         await page.addScriptTag({ path: require.resolve('axe-core/axe.min.js') });
         const result = await page.evaluate(() => axe.run(document, {
